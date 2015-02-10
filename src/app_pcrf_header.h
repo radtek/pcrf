@@ -83,16 +83,70 @@ struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
 	struct SRequestInfo *m_psoReqInfo;
 };
+/* дескриптор правила */
+struct SRuleId {
+	/* контекстнозависимый идентификатор правила.
+	   если m_uiProtocol = 1, то m_uiRuleId содержит ps.rule.id 
+	   если m_uiProtocol = 2, то m_uiRuleId содержит ps.SCE_rule.id */
+	unsigned int m_uiRuleId;
+	unsigned int m_uiProtocol;
+	/* конструктор структуры */
+	SRuleId () { m_uiRuleId = 0; m_uiProtocol = 0; }
+};
+/* структура для получения информации о мониторинге */
+struct SDBMonitoringInfo {
+	otl_value<std::string> m_coKeyName;
+	otl_value<uint64_t> m_coDosageTotalOctets;
+	otl_value<uint64_t> m_coDosageOutputOctets;
+	otl_value<uint64_t> m_coDosageInputOctets;
+};
+/* структура для получения правил абонента из БД */
+struct SDBAbonRule {
+	bool m_bIsActivated;
+	SRuleId m_soRuleId;
+	otl_value<std::string> m_coRuleName;
+	otl_value<int32_t> m_coDynamicRuleFlag;
+	otl_value<int32_t> m_coRuleGroupFlag;
+	otl_value<int32_t> m_coPrecedenceLevel;
+	otl_value<uint32_t> m_coRatingGroupId;
+	otl_value<uint32_t> m_coServiceId;
+	otl_value<int32_t> m_coMeteringMethod;
+	otl_value<int32_t> m_coOnlineCharging;
+	otl_value<int32_t> m_coOfflineCharging;
+	otl_value<int32_t> m_coQoSClassIdentifier;
+	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
+	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
+	otl_value<uint32_t> m_coGuaranteedBitrateUl;
+	otl_value<uint32_t> m_coGuaranteedBitrateDl;
+	otl_value<int32_t> m_coRedirectAddressType;
+	otl_value<std::string> m_coRedirectServerAddress;
+	std::vector<std::string> m_vectFlowDescr;
+	otl_value<int32_t> m_coSCE_PackageId;
+	otl_value<int32_t> m_coSCE_RealTimeMonitor;
+	otl_value<int32_t> m_coSCE_UpVirtualLink;
+	otl_value<int32_t> m_coSCE_DownVirtualLink;
+	std::vector<SDBMonitoringInfo> m_vectMonitInfo;
+	/* конструктор структуры */
+	SDBAbonRule () { m_bIsActivated = false; }
+};
 /* сохранение запроса в БД */
 int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB);
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
 int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo);
-int pcrf_server_policy_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo, unsigned int p_uiRuleId, const char *p_pcszRuleName);
+int pcrf_server_policy_db_store (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB *p_psoMsgInfo);
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
 /* закрываем запись в таблице выданных политик */
-int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, std::string &p_strRuleName);
+int pcrf_db_close_session_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SRuleId &p_soRuleId);
 /* добавление записи в таблицу выданых политик */
-int pcrf_db_insert_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, unsigned int p_uiRuleId, const char *p_pcszRuleName);
+int pcrf_db_insert_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SDBAbonRule &p_soRule);
 
 /* очередь элементов обновления политик */
 struct SRefQueue {
@@ -106,7 +160,10 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 /* завершение зависшей сессии */
 int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId);
 /* формирование списка сессий абонента */
-int pcrf_client_db_load_session_list (otl_connect &p_coDBConn, const char *p_pcszSubscriberId, std::vector<std::string> &p_vectSessionList);
+int pcrf_client_db_load_session_list (
+	otl_connect &p_coDBConn,
+	const char *p_pcszSubscriberId,
+	std::vector<std::string> &p_vectSessionList);
 
 /* запрос свободного подключения к БД */
 int pcrf_db_pool_get (void **p_ppcoDBConn);
@@ -123,45 +180,30 @@ int pcrf_db_pool_restore (void *p_pcoDBConn);
 /* функция получения значения перечислимого типа */
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize);
 
-/* структура для получения правил абонента из БД */
-struct SDBAbonRule {
-	bool m_bIsActivated;
-	unsigned int m_uiRuleId;
-	otl_value<std::string> m_coRuleName;
-	otl_value<int32_t> m_coDynamicRuleFlag;
-	otl_value<int32_t> m_coRuleGroupFlag;
-	otl_value<int32_t> m_coPrecedenceLevel;
-	otl_value<uint32_t> m_coRatingGroupId;
-	otl_value<uint32_t> m_coServiceId;
-	otl_value<int32_t> m_coMeteringMethod;
-	otl_value<int32_t> m_coOnlineCharging;
-	otl_value<int32_t> m_coOfflineCharging;
-	otl_value<int32_t> m_coQoSClassIdentifier;
-	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
-	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
-	otl_value<uint32_t> m_coGuaranteedBitrateUl;
-	otl_value<uint32_t> m_coGuaranteedBitrateDl;
-	otl_value<std::string> m_coKeyName;
-	otl_value<uint64_t> m_coDosageTotalOctets;
-	otl_value<uint64_t> m_coDosageOutputOctets;
-	otl_value<uint64_t> m_coDosageInputOctets;
-	otl_value<int32_t> m_coRedirectAddressType;
-	otl_value<std::string> m_coRedirectServerAddress;
-	std::vector<std::string> m_vectFlowDescr;
-	/* конструктор структуры */
-	SDBAbonRule () { m_bIsActivated = false; }
-};
-
 /* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo);
+int pcrf_server_db_load_abon_id (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo);
 /* загрузка списка активных правил абонента */
-int pcrf_server_db_load_active_rules (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfoCache, std::vector<SDBAbonRule> &p_vectActive);
+int pcrf_server_db_load_active_rules (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfoCache,
+	std::vector<SDBAbonRule> &p_vectActive);
 /* загрузка описания правила */
-int load_rule_info (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsigned int p_uiRuleId, std::vector<SDBAbonRule> &p_vectAbonRules);
+int load_rule_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	SRuleId &p_soRuleId,
+	std::vector<SDBAbonRule> &p_vectAbonRules);
 /* загрузка идентификатора абонента по Session-Id */
-int pcrf_server_db_load_session_info (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo);
+int pcrf_server_db_load_session_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo);
 /* загрузка списка правил абонента из БД */
-int pcrf_server_db_abon_rule (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules);
+int pcrf_server_db_abon_rule (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<SDBAbonRule> &p_vectAbonRules);
 
 /* функция формирования списка неактуальных правил */
 int pcrf_server_select_notrelevant_active (
@@ -172,16 +214,36 @@ int pcrf_server_select_notrelevant_active (
 	std::vector<SDBAbonRule> &p_vectNotrelevant);
 
 /* функция заполнения avp Charging-Rule-Remove */
-struct avp * pcrf_make_CRR (otl_connect &p_coDBConn, SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectNotRelevantRules);
+struct avp * pcrf_make_CRR (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB *p_psoReqInfo,
+	std::vector<SDBAbonRule> &p_vectNotRelevantRules);
 /* функция заполнения avp Charging-Rule-Install */
-struct avp * pcrf_make_CRI (otl_connect &p_coDBConn, SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules);
+struct avp * pcrf_make_CRI (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB *p_psoReqInfo,
+	std::vector<SDBAbonRule> &p_vectAbonRules,
+	msg *p_soAns);
 /* функция заполнения avp Usage-Monitoring-Information */
-struct avp * pcrf_make_UMI (SDBAbonRule &p_soAbonRule, bool p_bFull = true);
+int pcrf_make_UMI (
+	msg_or_avp *p_psoMsgOrAVP,
+	SDBAbonRule &p_soAbonRule,
+	bool p_bFull = true);
+/* задает значение Event-Trigger */
+int set_event_trigger (
+	otl_connect *p_pcoDBConn,
+	SSessionInfo &p_soSessInfo,
+	msg_or_avp *p_psoMsgOrAVP);
 
 /* функция добавляет запись в очередь обновления политик */
-int pcrf_server_db_insert_refqueue (otl_connect &p_coDBConn, otl_datetime &p_coDateTime, std::string &p_strSubscriberId);
+int pcrf_server_db_insert_refqueue (
+	otl_connect &p_coDBConn,
+	otl_datetime &p_coDateTime,
+	std::string &p_strSubscriberId);
 /* функция удаляет запись из очереди обновления политик */
-int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQueue);
+int pcrf_client_db_delete_refqueue (
+	otl_connect &p_coDBConn,
+	SRefQueue &p_soRefQueue);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

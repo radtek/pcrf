@@ -10,7 +10,10 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 
 	try {
 		/* создаем объект класса потока ДБ */
-		otl_stream coStream (1000, "select subscriber_id, refresh_date from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate", p_coDBConn);
+		otl_stream coStream (
+			1000,
+			"select subscriber_id, refresh_date from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+			p_coDBConn);
 		/* делаем выборку из БД */
 		while (! coStream.eof ()) {
 			coStream
@@ -74,7 +77,10 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	return iRetVal;
 }
 
-int pcrf_client_db_load_session_list (otl_connect &p_coDBConn, const char *p_pcszSubscriberId, std::vector<std::string> &p_vectSessionList)
+int pcrf_client_db_load_session_list (
+	otl_connect &p_coDBConn,
+	const char *p_pcszSubscriberId,
+	std::vector<std::string> &p_vectSessionList)
 {
 	int iRetVal = 0;
 
@@ -88,9 +94,11 @@ int pcrf_client_db_load_session_list (otl_connect &p_coDBConn, const char *p_pcs
 			10,
 			"select session_id from ps.sessionList where subscriber_id = :subscriber_id<char[64]> and time_end is null",
 			p_coDBConn);
-		coStream << p_pcszSubscriberId;
+		coStream
+			<< p_pcszSubscriberId;
 		while (! coStream.eof ()) {
-			coStream >> strSessionId;
+			coStream
+				>> strSessionId;
 			p_vectSessionList.push_back (strSessionId);
 		}
 	} catch (otl_exception &coExcept) {

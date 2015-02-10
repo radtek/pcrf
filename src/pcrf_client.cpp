@@ -96,7 +96,10 @@ static void pcrf_client_RAA (void * data, struct msg ** msg)
 }
 
 /* отправка Re-Auth сообщения */
-static int pcrf_client_RAR (SMsgDataForDB p_soReqInfo, std::vector<SDBAbonRule> &p_vectNotRelevant, std::vector<SDBAbonRule> &p_vectAbonRules)
+static int pcrf_client_RAR (
+	SMsgDataForDB p_soReqInfo,
+	std::vector<SDBAbonRule> &p_vectNotRelevant,
+	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
 	struct msg * psoReq = NULL;
@@ -153,8 +156,8 @@ static int pcrf_client_RAR (SMsgDataForDB p_soReqInfo, std::vector<SDBAbonRule> 
 	/* Set the Destination-Host AVP */
 	{
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (unsigned char *)("ugw");
-		soAVPValue.os.len  = strlen ("ugw");
+		soAVPValue.os.data = (uint8_t *) p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.c_str ();
+		soAVPValue.os.len  = p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -162,8 +165,8 @@ static int pcrf_client_RAR (SMsgDataForDB p_soReqInfo, std::vector<SDBAbonRule> 
 	/* Set the Destination-Realm AVP */
 	{
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (unsigned char *)("tattelecom.ru");
-		soAVPValue.os.len = strlen ("tattelecom.ru");
+		soAVPValue.os.data = (uint8_t *) p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.c_str ();
+		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -178,22 +181,12 @@ static int pcrf_client_RAR (SMsgDataForDB p_soReqInfo, std::vector<SDBAbonRule> 
 	}
 
 	/* Event-Trigger */
-	do {
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictEventTrigger, 0, &psoAVP), break);
-		soAVPValue.i32 = 33; /* USAGE_REPORT */
-		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), break);
-		/* put 'Event-Trigger' into request */
-		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), break);
-	} while (0);
+	CHECK_FCT_DO (set_event_trigger (pcoDBConn, *(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
 
 	/* Usage-Monitoring-Information */
 	for (std::vector<SDBAbonRule>::iterator iterUMI = p_vectAbonRules.begin (); iterUMI != p_vectAbonRules.end (); ++ iterUMI) {
 		psoAVP = NULL;
-		psoAVP = pcrf_make_UMI (*iterUMI, false);
-		if (psoAVP) {
-			/* put 'Usage-Monitoring-Information' into request */
-			CHECK_POSIX_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
-		}
+		CHECK_POSIX_DO (pcrf_make_UMI (psoReq, *iterUMI, false), /* continue */);
 	}
 
 	/* Charging-Rule-Remove */
@@ -204,7 +197,7 @@ static int pcrf_client_RAR (SMsgDataForDB p_soReqInfo, std::vector<SDBAbonRule> 
 	}
 
 	/* Charging-Rule-Install */
-	psoAVP = pcrf_make_CRI (*(pcoDBConn), &p_soReqInfo, p_vectAbonRules);
+	psoAVP = pcrf_make_CRI (*(pcoDBConn), &p_soReqInfo, p_vectAbonRules, psoReq);
 	if (psoAVP) {
 		/* put 'Charging-Rule-Install' into request */
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
@@ -328,7 +321,7 @@ static void pcrf_ASA (void * data, struct msg ** msg)
 }
 
 /* отправка Abort-Session сообщения */
-static int pcrf_ASR (const char *p_pcszSessionId)
+static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = 0;
 	struct msg * psoReq = NULL;
@@ -350,10 +343,10 @@ static int pcrf_ASR (const char *p_pcszSessionId)
 	/* задаем номер сессии */
 	{
 		int iIsNew;
-		CHECK_FCT_DO (fd_sess_fromsid ((uint8_t *) p_pcszSessionId, strlen (p_pcszSessionId), &psoSess, &iIsNew), goto out);
+		CHECK_FCT_DO (fd_sess_fromsid ((uint8_t *) p_soSessInfo.m_coSessionId.v.c_str (), p_soSessInfo.m_coSessionId.v.length (), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO (fd_msg_sess_set (psoReq, psoSess), goto out);
-		soAVPValue.os.data = (uint8_t *) p_pcszSessionId;
-		soAVPValue.os.len = strlen (p_pcszSessionId);
+		soAVPValue.os.data = (uint8_t *) p_soSessInfo.m_coSessionId.v.c_str ();
+		soAVPValue.os.len = p_soSessInfo.m_coSessionId.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictSessionID, 0, &psoAVP), goto out);
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_FIRST_CHILD, psoAVP), goto out); // */
@@ -382,8 +375,8 @@ static int pcrf_ASR (const char *p_pcszSessionId)
 	/* Set the Destination-Host AVP */
 	{
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (unsigned char *)("ugw");
-		soAVPValue.os.len  = strlen ("ugw");
+		soAVPValue.os.data = (uint8_t *) p_soSessInfo.m_coOriginHost.v.c_str ();
+		soAVPValue.os.len  = p_soSessInfo.m_coOriginHost.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -391,8 +384,8 @@ static int pcrf_ASR (const char *p_pcszSessionId)
 	/* Set the Destination-Realm AVP */
 	{
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (unsigned char *)("tattelecom.ru");
-		soAVPValue.os.len = strlen ("tattelecom.ru");
+		soAVPValue.os.data = (uint8_t *) p_soSessInfo.m_coOriginRealm.v.c_str ();
+		soAVPValue.os.len = p_soSessInfo.m_coOriginRealm.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -406,7 +399,7 @@ static int pcrf_ASR (const char *p_pcszSessionId)
 	}
 
 	CHECK_SYS_DO (clock_gettime (CLOCK_REALTIME, &psoMsgState->m_soTS), goto out);
-	psoMsgState->m_pszSessionId = strdup (p_pcszSessionId);
+	psoMsgState->m_pszSessionId = strdup (p_soSessInfo.m_coSessionId.v.c_str ());
 
 	/* Keep a pointer to the session data for debug purpose, in real life we would not need it */
 	svg = psoMsgState;
@@ -415,7 +408,7 @@ static int pcrf_ASR (const char *p_pcszSessionId)
 	CHECK_FCT_DO (fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
 
 	/* Log sending the message */
-	fprintf(stderr, "SEND ASR '%s' to '%s' (%s)\n", p_pcszSessionId, "ugw", "tattelecom.ru" );
+	fprintf(stderr, "SEND ASR '%s' to '%s' (%s)\n", p_soSessInfo.m_coSessionId.v.c_str (), "ugw", "tattelecom.ru" );
 	fflush(stderr);
 
 	/* Send the request */
@@ -455,7 +448,7 @@ int pcrf_client_operate_refqueue_record (otl_connect &p_coDBConn, const char *p_
 		CHECK_POSIX_DO (pcrf_server_db_abon_rule (p_coDBConn, soSessInfo, vectAbonRules), );
 		/* если у абонента нет активных политик завершаем его сессию */
 		if (0 == vectAbonRules.size ()) {
-			CHECK_POSIX_DO (pcrf_ASR (iterSess->c_str ()), );
+			CHECK_POSIX_DO (pcrf_ASR (*(soSessInfo.m_psoSessInfo)), );
 			continue;
 		}
 		/* загружаем список активных правил */

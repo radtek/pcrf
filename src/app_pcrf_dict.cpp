@@ -1,82 +1,87 @@
 #include "app_pcrf.h"
 
-struct dict_object *g_psoDictVend = NULL;
-struct dict_object *g_psoDictApp = NULL;
-struct dict_object *g_psoDictCCR = NULL;
-struct dict_object *g_psoDictCCA = NULL;
-struct dict_object *g_psoDictRAR = NULL;
-struct dict_object *g_psoDictRAA = NULL;
-struct dict_object *g_psoDictASR = NULL;
-struct dict_object *g_psoDictASA = NULL;
-struct dict_object *g_psoDictAuthApplicationId = NULL;
-struct dict_object *g_psoDictSessionID = NULL;
-struct dict_object *g_psoDictDestHost = NULL;
-struct dict_object *g_psoDictDestRealm = NULL;
-struct dict_object *g_psoDictRARType = NULL;
-struct dict_object *g_psoDictRC = NULL;
-struct dict_object *g_psoDictOrignHost = NULL;
-struct dict_object *g_psoDictOrignRealm = NULL;
-struct dict_object *g_psoDictCCRequestType = NULL;
-struct dict_object *g_psoDictCCRequestNumber = NULL;
-struct dict_object *g_psoDictOriginStateId = NULL;
+dict_object *g_psoDictVend = NULL;
+dict_object *g_psoDictApp = NULL;
+dict_object *g_psoDictCCR = NULL;
+dict_object *g_psoDictCCA = NULL;
+dict_object *g_psoDictRAR = NULL;
+dict_object *g_psoDictRAA = NULL;
+dict_object *g_psoDictASR = NULL;
+dict_object *g_psoDictASA = NULL;
+dict_object *g_psoDictAuthApplicationId = NULL;
+dict_object *g_psoDictSessionID = NULL;
+dict_object *g_psoDictDestHost = NULL;
+dict_object *g_psoDictDestRealm = NULL;
+dict_object *g_psoDictRARType = NULL;
+dict_object *g_psoDictRC = NULL;
+dict_object *g_psoDictOrignHost = NULL;
+dict_object *g_psoDictOrignRealm = NULL;
+dict_object *g_psoDictCCRequestType = NULL;
+dict_object *g_psoDictCCRequestNumber = NULL;
+dict_object *g_psoDictOriginStateId = NULL;
 
-struct dict_object *g_psoDictSupportedFeatures = NULL;
-struct dict_object *g_psoDictVendorId = NULL;
-struct dict_object *g_psoDictFeatureListID = NULL;
-struct dict_object *g_psoDictFeatureList = NULL;
+dict_object *g_psoDictSupportedFeatures = NULL;
+dict_object *g_psoDictVendorId = NULL;
+dict_object *g_psoDictFeatureListID = NULL;
+dict_object *g_psoDictFeatureList = NULL;
 
-struct dict_object *g_psoDictEventTrigger = NULL;
+dict_object *g_psoDictEventTrigger = NULL;
 
-struct dict_object *g_psoDictChargingRuleInstall = NULL;
-struct dict_object *g_psoDictChargingRuleRemove = NULL;
-struct dict_object *g_psoDictBearerIdentifier = NULL;
-struct dict_object *g_psoDictChargingRuleDefinition = NULL;
-struct dict_object *g_psoDictChargingRuleBaseName = NULL;
-struct dict_object *g_psoDictChargingRuleName = NULL;
-struct dict_object *g_psoDictRatingGroup = NULL;
-struct dict_object *g_psoDictServiceIdentifier = NULL;
-struct dict_object *g_psoDictFlowDescription = NULL;
-struct dict_object *g_psoDictFlowInformation = NULL;
-struct dict_object *g_psoDictQoSInformation = NULL;
-struct dict_object *g_psoDictQoSClassIdentifier = NULL;
-struct dict_object *g_psoDictMaxRequestedBandwidthUL = NULL;
-struct dict_object *g_psoDictMaxRequestedBandwidthDL = NULL;
-struct dict_object *g_psoDictGuaranteedBitrateUL = NULL;
-struct dict_object *g_psoDictGuaranteedBitrateDL = NULL;
-struct dict_object *g_psoDictAllocationRetentionPriority = NULL;
-struct dict_object *g_psoDictPriorityLevel = NULL;
-struct dict_object *g_psoDictPreemptionCapability = NULL;
-struct dict_object *g_psoDictPreemptionVulnerability = NULL;
-struct dict_object *g_psoDictOnline = NULL;
-struct dict_object *g_psoDictOffline = NULL;
-struct dict_object *g_psoDictMeteringMethod = NULL;
-struct dict_object *g_psoDictPrecedence = NULL;
-struct dict_object *g_psoDictMonitoringKey = NULL;
-struct dict_object *g_psoDictRedirectServer = NULL;
-struct dict_object *g_psoDictRedirectAddressType = NULL;
-struct dict_object *g_psoDictRedirectServerAddress = NULL;
+dict_object *g_psoDictChargingRuleInstall = NULL;
+dict_object *g_psoDictChargingRuleRemove = NULL;
+dict_object *g_psoDictBearerIdentifier = NULL;
+dict_object *g_psoDictChargingRuleDefinition = NULL;
+dict_object *g_psoDictChargingRuleBaseName = NULL;
+dict_object *g_psoDictChargingRuleName = NULL;
+dict_object *g_psoDictRatingGroup = NULL;
+dict_object *g_psoDictServiceIdentifier = NULL;
+dict_object *g_psoDictFlowDescription = NULL;
+dict_object *g_psoDictFlowInformation = NULL;
+dict_object *g_psoDictQoSInformation = NULL;
+dict_object *g_psoDictQoSClassIdentifier = NULL;
+dict_object *g_psoDictMaxRequestedBandwidthUL = NULL;
+dict_object *g_psoDictMaxRequestedBandwidthDL = NULL;
+dict_object *g_psoDictGuaranteedBitrateUL = NULL;
+dict_object *g_psoDictGuaranteedBitrateDL = NULL;
+dict_object *g_psoDictAllocationRetentionPriority = NULL;
+dict_object *g_psoDictPriorityLevel = NULL;
+dict_object *g_psoDictPreemptionCapability = NULL;
+dict_object *g_psoDictPreemptionVulnerability = NULL;
+dict_object *g_psoDictOnline = NULL;
+dict_object *g_psoDictOffline = NULL;
+dict_object *g_psoDictMeteringMethod = NULL;
+dict_object *g_psoDictPrecedence = NULL;
+dict_object *g_psoDictMonitoringKey = NULL;
+dict_object *g_psoDictRedirectServer = NULL;
+dict_object *g_psoDictRedirectAddressType = NULL;
+dict_object *g_psoDictRedirectServerAddress = NULL;
 
-struct dict_object *g_psoDictUsageMonitoringInformation = NULL;
-struct dict_object *g_psoDictGrantedServiceUnit = NULL;
-struct dict_object *g_psoDictCCTotalOctets = NULL;
-struct dict_object *g_psoDictCCInputOctets = NULL;
-struct dict_object *g_psoDictCCOutputOctets = NULL;
-struct dict_object *g_psoDictUsageMonitoringLevel = NULL;
-struct dict_object *g_psoDictUsageMonitoringReport = NULL;
+dict_object *g_psoDictUsageMonitoringInformation = NULL;
+dict_object *g_psoDictGrantedServiceUnit = NULL;
+dict_object *g_psoDictCCTotalOctets = NULL;
+dict_object *g_psoDictCCInputOctets = NULL;
+dict_object *g_psoDictCCOutputOctets = NULL;
+dict_object *g_psoDictUsageMonitoringLevel = NULL;
+dict_object *g_psoDictUsageMonitoringReport = NULL;
 
-struct dict_object *g_psoDictQoSUpgrade = NULL;
-struct dict_object *g_psoDictQoSCI = NULL;
-struct dict_object *g_psoDictIPCANType = NULL;
-struct dict_object *g_psoDictRATType = NULL;
-struct dict_object *g_psoDictQoSNegot = NULL;
-struct dict_object *g_psoDictBearerUsage = NULL;
-struct dict_object *g_psoDictBearerOper = NULL;
-struct dict_object *g_psoDictPCCRuleStatus = NULL;
-struct dict_object *g_psoDictRuleFailureCode = NULL;
-struct dict_object *g_psoDictXHWMonitoringKey = NULL;
-struct dict_object *g_psoDictXHWUsageReport = NULL;
-struct dict_object *g_psoDictXHWSessionUsage = NULL;
-struct dict_object *g_psoDictXHWServiceUsage = NULL;
+dict_object *g_psoDictQoSUpgrade = NULL;
+dict_object *g_psoDictQoSCI = NULL;
+dict_object *g_psoDictIPCANType = NULL;
+dict_object *g_psoDictRATType = NULL;
+dict_object *g_psoDictQoSNegot = NULL;
+dict_object *g_psoDictBearerUsage = NULL;
+dict_object *g_psoDictBearerOper = NULL;
+dict_object *g_psoDictPCCRuleStatus = NULL;
+dict_object *g_psoDictRuleFailureCode = NULL;
+dict_object *g_psoDictXHWMonitoringKey = NULL;
+dict_object *g_psoDictXHWUsageReport = NULL;
+dict_object *g_psoDictXHWSessionUsage = NULL;
+dict_object *g_psoDictXHWServiceUsage = NULL;
+
+dict_object *g_psoDictCiscoBBPackageInstall = NULL;
+dict_object *g_psoDictCiscoBBRTMonitorInstall = NULL;
+dict_object *g_psoDictCiscoBBVlinkUStreamInstall = NULL;
+dict_object *g_psoDictCiscoBBVlinkDStreamInstall = NULL;
 
 struct local_rules_definition {
     dict_avp_request avp_codes;
@@ -90,7 +95,7 @@ struct local_rules_definition {
 #define PARSE_loc_rules( _rulearray, _parent) {									\
 	int __ar;																	\
 	for (__ar=0; __ar < sizeof(_rulearray) / sizeof((_rulearray)[0]); __ar++) {	\
-	    struct dict_rule_data __data = { NULL,									\
+	    dict_rule_data __data = { NULL,									\
 					     (_rulearray)[__ar].position,							\
 					     0,														\
 					     (_rulearray)[__ar].min,								\
@@ -121,9 +126,9 @@ int app_pcrf_dict_init (void)
 
 	command_code_t cctCmdCode;
 	vendor_id_t vitVendId;
-	struct dict_avp_request_ex soAVPIdent;
-	struct dict_object **ppsoDictObj;
-	struct dict_object *psoDictType;
+	dict_avp_request_ex soAVPIdent;
+	dict_object **ppsoDictObj;
+	dict_object *psoDictType;
 
 	/* load vendor defination */
 	vitVendId = 10415;
@@ -152,7 +157,7 @@ int app_pcrf_dict_init (void)
 
 	/* Create the app_pcrf Application */
 	{
-		struct dict_application_data soAppData;
+		dict_application_data soAppData;
 		soAppData.application_id = 16777238;
 		soAppData.application_name = (char *) "Gx";
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_APPLICATION, &soAppData, g_psoDictVend, &g_psoDictApp));
@@ -405,16 +410,16 @@ int app_pcrf_dict_init (void)
 	/* Online */
 	{
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictOnline, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "DISABLE_ONLINE", { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "ENABLE_ONLINE",  { (uint8_t *) 1 }};
+		dict_enumval_data        t_1 = { (char *) "DISABLE_ONLINE", { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "ENABLE_ONLINE",  { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 	}
 	/* Offline */
 	{
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictOffline, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "DISABLE_OFFLINE", { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "ENABLE_OFFLINE",  { (uint8_t *) 1 }};
+		dict_enumval_data        t_1 = { (char *) "DISABLE_OFFLINE", { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "ENABLE_OFFLINE",  { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 	}
@@ -426,8 +431,8 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_data.avp_code = 1030;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "QoS_UPGRADE_NOT_SUPPORTED", { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "QoS_UPGRADE_SUPPORTED",     { (uint8_t *) 1 }};
+		dict_enumval_data        t_1 = { (char *) "QoS_UPGRADE_NOT_SUPPORTED", { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "QoS_UPGRADE_SUPPORTED",     { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 	}
@@ -447,12 +452,12 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "3GPP-GPRS", { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "DOCSIS",    { (uint8_t *) 1 }};
-		struct dict_enumval_data        t_3 = { (char *) "xDSL",      { (uint8_t *) 2 }};
-		struct dict_enumval_data        t_4 = { (char *) "WiMAX",     { (uint8_t *) 3 }};
-		struct dict_enumval_data        t_5 = { (char *) "3GPP2",     { (uint8_t *) 4 }};
-		struct dict_enumval_data        t_6 = { (char *) "3GPP-EPS",  { (uint8_t *) 5 }};
+		dict_enumval_data        t_1 = { (char *) "3GPP-GPRS", { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "DOCSIS",    { (uint8_t *) 1 }};
+		dict_enumval_data        t_3 = { (char *) "xDSL",      { (uint8_t *) 2 }};
+		dict_enumval_data        t_4 = { (char *) "WiMAX",     { (uint8_t *) 3 }};
+		dict_enumval_data        t_5 = { (char *) "3GPP2",     { (uint8_t *) 4 }};
+		dict_enumval_data        t_6 = { (char *) "3GPP-EPS",  { (uint8_t *) 5 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
@@ -468,15 +473,15 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "WLAN",           { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "UTRAN",          { (uint8_t *) 1000 }};
-		struct dict_enumval_data        t_3 = { (char *) "GERAN",          { (uint8_t *) 1001 }};
-		struct dict_enumval_data        t_4 = { (char *) "GAN",            { (uint8_t *) 1002 }};
-		struct dict_enumval_data        t_5 = { (char *) "HSPA_EVOLUTION", { (uint8_t *) 1003 }};
-		struct dict_enumval_data        t_6 = { (char *) "EUTRAN",         { (uint8_t *) 1004 }};
-		struct dict_enumval_data        t_7 = { (char *) "CDMA2000_1X",    { (uint8_t *) 2000 }};
-		struct dict_enumval_data        t_8 = { (char *) "HRPD",           { (uint8_t *) 2001 }};
-		struct dict_enumval_data        t_9 = { (char *) "UMB",            { (uint8_t *) 2002 }};
+		dict_enumval_data        t_1 = { (char *) "WLAN",           { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "UTRAN",          { (uint8_t *) 1000 }};
+		dict_enumval_data        t_3 = { (char *) "GERAN",          { (uint8_t *) 1001 }};
+		dict_enumval_data        t_4 = { (char *) "GAN",            { (uint8_t *) 1002 }};
+		dict_enumval_data        t_5 = { (char *) "HSPA_EVOLUTION", { (uint8_t *) 1003 }};
+		dict_enumval_data        t_6 = { (char *) "EUTRAN",         { (uint8_t *) 1004 }};
+		dict_enumval_data        t_7 = { (char *) "CDMA2000_1X",    { (uint8_t *) 2000 }};
+		dict_enumval_data        t_8 = { (char *) "HRPD",           { (uint8_t *) 2001 }};
+		dict_enumval_data        t_9 = { (char *) "UMB",            { (uint8_t *) 2002 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
@@ -495,8 +500,8 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "NO_QoS_NEGOTIATION",        { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "QoS_NEGOTIATION_SUPPORTED", { (uint8_t *) 1 }};
+		dict_enumval_data        t_1 = { (char *) "NO_QoS_NEGOTIATION",        { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "QoS_NEGOTIATION_SUPPORTED", { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 	}
@@ -508,8 +513,8 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "GENERAL",        { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "IMS_SIGNALLING", { (uint8_t *) 1 }};
+		dict_enumval_data        t_1 = { (char *) "GENERAL",        { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "IMS_SIGNALLING", { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 	}
@@ -521,9 +526,9 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "TERMINATION",   { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "ESTABLISHMENT", { (uint8_t *) 1 }};
-		struct dict_enumval_data        t_3 = { (char *) "MODIFICATION",  { (uint8_t *) 2 }};
+		dict_enumval_data        t_1 = { (char *) "TERMINATION",   { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "ESTABLISHMENT", { (uint8_t *) 1 }};
+		dict_enumval_data        t_3 = { (char *) "MODIFICATION",  { (uint8_t *) 2 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
@@ -536,9 +541,9 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "ACTIVE",               { (uint8_t *) 0 }};
-		struct dict_enumval_data        t_2 = { (char *) "INACTIVE",             { (uint8_t *) 1 }};
-		struct dict_enumval_data        t_3 = { (char *) "TEMPORARILY INACTIVE", { (uint8_t *) 2 }};
+		dict_enumval_data        t_1 = { (char *) "ACTIVE",               { (uint8_t *) 0 }};
+		dict_enumval_data        t_2 = { (char *) "INACTIVE",             { (uint8_t *) 1 }};
+		dict_enumval_data        t_3 = { (char *) "TEMPORARILY INACTIVE", { (uint8_t *) 2 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
@@ -551,25 +556,25 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		struct dict_enumval_data        t_1 = { (char *) "UNKNOWN_RULE_NAME",            { (uint8_t *) 1 }};
-		struct dict_enumval_data        t_2 = { (char *) "RATING_GROUP_ERROR",           { (uint8_t *) 2 }};
-		struct dict_enumval_data        t_3 = { (char *) "SERVICE_IDENTIFIER_ERROR",     { (uint8_t *) 3 }};
-		struct dict_enumval_data        t_4 = { (char *) "GW/PCEF_MALFUNCTION",          { (uint8_t *) 4 }};
-		struct dict_enumval_data        t_5 = { (char *) "RESOURCES_LIMITATION",         { (uint8_t *) 5 }};
-		struct dict_enumval_data        t_6 = { (char *) "MAX_NR_BEARERS_REACHED",       { (uint8_t *) 6 }};
-		struct dict_enumval_data        t_7 = { (char *) "UNKNOWN_BEARER_ID",            { (uint8_t *) 7 }};
-		struct dict_enumval_data        t_8 = { (char *) "MISSING_BEARER_ID",            { (uint8_t *) 8 }};
-		struct dict_enumval_data        t_9 = { (char *) "MISSING_FLOW_DESCRIPTION",     { (uint8_t *) 9 }};
-/*		struct dict_enumval_data        t_10 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *) 9 }}; дублирование числового значения */
-		struct dict_enumval_data        t_11 = { (char *) "RESOURCE_ALLOCATION_FAILURE", { (uint8_t *) 10 }};
-		struct dict_enumval_data        t_12 = { (char *) "UNSUCCESSFUL_QOS_VALIDATION", { (uint8_t *) 11 }};
-		struct dict_enumval_data        t_13 = { (char *) "INCORRECT_FLOW_INFORMATION",  { (uint8_t *) 12 }};
-		struct dict_enumval_data        t_14 = { (char *) "NO_BEARER_BOUND",             { (uint8_t *) 15 }};
-		struct dict_enumval_data        t_15 = { (char *) "DUPLICATE_RULE_NAME ",        { (uint8_t *) 1001 }};
-		struct dict_enumval_data        t_16 = { (char *) "FILTER_RESTRICTIONS",         { (uint8_t *) 1002 }};
-		struct dict_enumval_data        t_17 = { (char *) "TIME_CONTROL_ERROR",          { (uint8_t *) 1004 }};
-		struct dict_enumval_data        t_18 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1005 }};
-/*		struct dict_enumval_data        t_19 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1004 }}; дублирование числового значения */
+		dict_enumval_data        t_1 = { (char *) "UNKNOWN_RULE_NAME",            { (uint8_t *) 1 }};
+		dict_enumval_data        t_2 = { (char *) "RATING_GROUP_ERROR",           { (uint8_t *) 2 }};
+		dict_enumval_data        t_3 = { (char *) "SERVICE_IDENTIFIER_ERROR",     { (uint8_t *) 3 }};
+		dict_enumval_data        t_4 = { (char *) "GW/PCEF_MALFUNCTION",          { (uint8_t *) 4 }};
+		dict_enumval_data        t_5 = { (char *) "RESOURCES_LIMITATION",         { (uint8_t *) 5 }};
+		dict_enumval_data        t_6 = { (char *) "MAX_NR_BEARERS_REACHED",       { (uint8_t *) 6 }};
+		dict_enumval_data        t_7 = { (char *) "UNKNOWN_BEARER_ID",            { (uint8_t *) 7 }};
+		dict_enumval_data        t_8 = { (char *) "MISSING_BEARER_ID",            { (uint8_t *) 8 }};
+		dict_enumval_data        t_9 = { (char *) "MISSING_FLOW_DESCRIPTION",     { (uint8_t *) 9 }};
+/*		dict_enumval_data        t_10 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *) 9 }}; дублирование числового значения */
+		dict_enumval_data        t_11 = { (char *) "RESOURCE_ALLOCATION_FAILURE", { (uint8_t *) 10 }};
+		dict_enumval_data        t_12 = { (char *) "UNSUCCESSFUL_QOS_VALIDATION", { (uint8_t *) 11 }};
+		dict_enumval_data        t_13 = { (char *) "INCORRECT_FLOW_INFORMATION",  { (uint8_t *) 12 }};
+		dict_enumval_data        t_14 = { (char *) "NO_BEARER_BOUND",             { (uint8_t *) 15 }};
+		dict_enumval_data        t_15 = { (char *) "DUPLICATE_RULE_NAME ",        { (uint8_t *) 1001 }};
+		dict_enumval_data        t_16 = { (char *) "FILTER_RESTRICTIONS",         { (uint8_t *) 1002 }};
+		dict_enumval_data        t_17 = { (char *) "TIME_CONTROL_ERROR",          { (uint8_t *) 1004 }};
+		dict_enumval_data        t_18 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1005 }};
+/*		dict_enumval_data        t_19 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1004 }}; дублирование числового значения */
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
@@ -593,7 +598,7 @@ int app_pcrf_dict_init (void)
 
 	/* Huawai */
 	{
-        struct dict_vendor_data vendor_data = { 2011, (char *) "Huawai" };
+        dict_vendor_data vendor_data = { 2011, (char *) "Huawai" };
         CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
 	}
 
@@ -602,7 +607,7 @@ int app_pcrf_dict_init (void)
 		/* 
 			Unsigned32. 
 		*/
-		struct dict_avp_data data = { 
+		dict_avp_data data = { 
 		2008,									/* Code */
 		2011,									/* Vendor */
 		(char *) "X-HW-Monitoring-Key",			/* Name */
@@ -624,8 +629,8 @@ int app_pcrf_dict_init (void)
 		/*
 			Grouped
 		*/
-		struct dict_object * avp;
-		struct dict_avp_data data = {
+		dict_object * avp;
+		dict_avp_data data = {
 		2006,									/* Code */
 		2011,									/* Vendor */
 		(char *) "X-HW-Session-Usage",			/* Name */
@@ -633,7 +638,7 @@ int app_pcrf_dict_init (void)
 		AVP_FLAG_MANDATORY,						/* Fixed flag values */
 		AVP_TYPE_GROUPED						/* base type of data */
 		};
-		struct local_rules_definition rules[] = {
+		local_rules_definition rules[] = {
 			{  {0,412,NULL},	RULE_OPTIONAL,	-1, 1 },	/* "CC-Input-Octets" */
 			{  {0,414,NULL},	RULE_OPTIONAL,	-1, 1 }		/* "CC-Output-Octets" */
 		};
@@ -652,8 +657,8 @@ int app_pcrf_dict_init (void)
 		/*
 			Grouped
 		*/
-		struct dict_object * avp;
-		struct dict_avp_data data = {
+		dict_object * avp;
+		dict_avp_data data = {
 		2007,									/* Code */
 		2011,									/* Vendor */
 		(char *) "X-HW-Service-Usage",			/* Name */
@@ -661,7 +666,7 @@ int app_pcrf_dict_init (void)
 		AVP_FLAG_MANDATORY,						/* Fixed flag values */
 		AVP_TYPE_GROUPED						/* base type of data */
 		};
-		struct local_rules_definition rules[] = {
+		local_rules_definition rules[] = {
 			{  {0,432,NULL},	RULE_OPTIONAL,	-1, 1 },	/* "Rating-Group" */
 			{  {0,439,NULL},	RULE_OPTIONAL,	-1, 1 },	/* "Service-Identifier" */
 			{  {0,412,NULL},	RULE_OPTIONAL,	-1, 1 },	/* "CC-Input-Octets" */
@@ -682,8 +687,8 @@ int app_pcrf_dict_init (void)
 		/*
 			Grouped
 		*/
-		struct dict_object * avp;
-		struct dict_avp_data data = {
+		dict_object * avp;
+		dict_avp_data data = {
 		2005,									/* Code */
 		2011,									/* Vendor */
 		(char *) "X-HW-Usage-Report",			/* Name */
@@ -691,7 +696,7 @@ int app_pcrf_dict_init (void)
 		AVP_FLAG_MANDATORY,						/* Fixed flag values */
 		AVP_TYPE_GROUPED						/* base type of data */
 		};
-		struct local_rules_definition rules[] = {
+		local_rules_definition rules[] = {
 			{  {2011,2006,NULL},	RULE_OPTIONAL,	-1, 1 },	/* "X-HW-Session-Usage" */
 			{  {2011,2007,NULL},	RULE_OPTIONAL,	-1, 1 }		/* "X-HW-Service-Usage" */
 		};
@@ -702,6 +707,100 @@ int app_pcrf_dict_init (void)
 		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
 		soAVPIdent.avp_vendor.vendor_id = 2011;
 		soAVPIdent.avp_data.avp_code = 2005;
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
+	}
+
+	/* Cisco */
+	{
+        dict_vendor_data vendor_data = { 9, (char *) "Cisco" };
+        CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
+	}
+
+	/* Cisco-SCA BB-Package-Install */
+	{
+		/* 
+			Unsigned32. 
+		*/
+		dict_avp_data data = { 
+		1000,									/* Code */
+		9,										/* Vendor */
+		(char *) "Cisco-SCA BB-Package-Install",/* Name */
+		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY,	/* Fixed flags */
+		AVP_FLAG_VENDOR,						/* Fixed flag values */
+		AVP_TYPE_UNSIGNED32						/* base type of data */
+		};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
+
+		ppsoDictObj = &g_psoDictCiscoBBPackageInstall;
+		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
+		soAVPIdent.avp_vendor.vendor_id = 9;
+		soAVPIdent.avp_data.avp_code = 1000;
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
+	}
+
+	/* Cisco-SCA BB-Real-time-monitor-Install */
+	{
+		/* 
+			Unsigned32. 
+		*/
+		dict_avp_data data = { 
+		1001,									/* Code */
+		9,										/* Vendor */
+		(char *) "Cisco-SCA BB-Real-time-monitor-Install",/* Name */
+		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY,	/* Fixed flags */
+		AVP_FLAG_VENDOR,						/* Fixed flag values */
+		AVP_TYPE_UNSIGNED32						/* base type of data */
+		};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
+
+		ppsoDictObj = &g_psoDictCiscoBBRTMonitorInstall;
+		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
+		soAVPIdent.avp_vendor.vendor_id = 9;
+		soAVPIdent.avp_data.avp_code = 1001;
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
+	}
+
+	/* Cisco-SCA BB-Vlink-Upstream-Install */
+	{
+		/* 
+			Unsigned32. 
+		*/
+		dict_avp_data data = { 
+		1002,									/* Code */
+		9,										/* Vendor */
+		(char *) "Cisco-SCA BB-Vlink-Upstream-Install",/* Name */
+		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY,	/* Fixed flags */
+		AVP_FLAG_VENDOR,						/* Fixed flag values */
+		AVP_TYPE_UNSIGNED32						/* base type of data */
+		};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
+
+		ppsoDictObj = &g_psoDictCiscoBBVlinkUStreamInstall;
+		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
+		soAVPIdent.avp_vendor.vendor_id = 9;
+		soAVPIdent.avp_data.avp_code = 1002;
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
+	}
+
+	/* Cisco-SCA BB-Vlink-Downstream-Install */
+	{
+		/* 
+			Unsigned32. 
+		*/
+		dict_avp_data data = { 
+		1003,									/* Code */
+		9,										/* Vendor */
+		(char *) "Cisco-SCA BB-Vlink-Downstream-Install",/* Name */
+		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY,	/* Fixed flags */
+		AVP_FLAG_VENDOR,						/* Fixed flag values */
+		AVP_TYPE_UNSIGNED32						/* base type of data */
+		};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
+
+		ppsoDictObj = &g_psoDictCiscoBBVlinkDStreamInstall;
+		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
+		soAVPIdent.avp_vendor.vendor_id = 9;
+		soAVPIdent.avp_data.avp_code = 1003;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 	}
 

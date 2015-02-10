@@ -27,9 +27,14 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 int pcrf_db_insert_request (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo);
 
 /* обновление записи в таблице выданых политик */
-int pcrf_db_update_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SSessionPolicyInfo &p_soPoliciInfo);
+int pcrf_db_update_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SSessionPolicyInfo &p_soPoliciInfo);
 /* закрываем записи в таблице выданных политик */
-int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo);
+int pcrf_db_close_session_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo);
 
 int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 {
@@ -284,7 +289,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			printf ("pcrf_server_req_db_store: pcrf_db_update_session: result code: '%d'\n", iFnRes);
 		}
 		/* обрабатываем информацию о выданных политиках */
-		iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo, (unsigned int) -1, NULL);
+		iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo);
 		if (iFnRes) {
 			printf ("pcrf_server_req_db_store: pcrf_server_policy_db_store: result code: '%d'\n", iFnRes);
 		}
@@ -301,7 +306,9 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 	return iRetVal;
 }
 
-int pcrf_server_policy_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo, unsigned int p_uiRuleId, const char *p_pcszRuleName)
+int pcrf_server_policy_db_store (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB *p_psoMsgInfo)
 {
 	int iRetVal = 0;
 	int iFnRes;
@@ -784,24 +791,42 @@ int pcrf_db_insert_request (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo,
 	return iRetVal;
 }
 
-int pcrf_db_insert_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, unsigned int p_uiRuleId, const char *p_pcszRuleName)
+int pcrf_db_insert_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SDBAbonRule &p_soRule)
 {
 	int iRetVal = 0;
 
 	try {
 		otl_stream coStream;
 		coStream.set_commit (0);
+		char mcRuleName[255];
+		size_t stStrLen;
+		switch (p_soRule.m_soRuleId.m_uiProtocol) {
+		case 1: /* Gx */
+			stStrLen = p_soRule.m_coRuleName.v.length () > sizeof (mcRuleName) - 1 ? sizeof (mcRuleName) - 1 : p_soRule.m_coRuleName.v.length ();
+			p_soRule.m_coRuleName.v.copy (
+				mcRuleName,
+				stStrLen);
+			mcRuleName[stStrLen] = '\0';
+			break; /* Gx */
+		case 2: /* Cisco SCE Gx */
+			sprintf (mcRuleName, "%u", p_soRule.m_coSCE_PackageId.v);
+			break; /* Cisco SCE Gx */
+		}
 		coStream.open (
 			1,
-			"insert into ps.SessionPolicy"
-			" (session_id,time_start,rule_id,rule_name)"
-			" values (:1<char[255]>,:2<timestamp>,:rule_id<unsigned>,:3<char[255]>)",
+			"insert into ps.SessionPolicy "
+			"(session_id,time_start,rule_id,rule_name,protocol_id) "
+			"values (:session_id /* char[255] */, :time_start /* timestamp */, :rule_id /* unsigned */, :rule_name /* char[255] */, :protocol_id /* unsigned */)",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
 			<< p_soSessInfo.m_coTimeLast
-			<< p_uiRuleId
-			<< p_pcszRuleName;
+			<< p_soRule.m_soRuleId.m_uiRuleId
+			<< mcRuleName
+			<< p_soRule.m_soRuleId.m_uiProtocol;
 		p_coDBConn.commit ();
 	} catch (otl_exception &coExcept) {
 		iRetVal = coExcept.code;
@@ -812,7 +837,10 @@ int pcrf_db_insert_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 	return iRetVal;
 }
 
-int pcrf_db_update_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SSessionPolicyInfo &p_soPoliciInfo)
+int pcrf_db_update_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SSessionPolicyInfo &p_soPoliciInfo)
 {
 	int iRetVal = 0;
 
@@ -821,9 +849,15 @@ int pcrf_db_update_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 		coStream.set_commit (0);
 		coStream.open (
 			1,
-			"update ps.SessionPolicy"
-			" set time_end = :1<timestamp>, charging_rule_name = :2<char[255]>, pcc_rule_status = :3<char[64]>, rule_failure_code = :4<char[64]>"
-			" where session_id = :5<char[255]> and rule_name = :6<char[255]> and time_end is null",
+			"update ps.SessionPolicy "
+				"set time_end = :time_end /* timestamp */, "
+				"charging_rule_name = :charging_rule_name /* char[255] */, "
+				"pcc_rule_status = :pcc_rule_status /* char[64] */, "
+				"rule_failure_code = :rule_failure_code /* char[64]*/ "
+			"where "
+				"session_id = :session_id /* char[255]*/ "
+				"and rule_name = :rule_name /* char[255] */ "
+				"and time_end is null",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coTimeLast
@@ -842,7 +876,9 @@ int pcrf_db_update_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 	return iRetVal;
 }
 
-int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
+int pcrf_db_close_session_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = 0;
 
@@ -851,9 +887,13 @@ int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSes
 		coStream.set_commit (0);
 		coStream.open (
 			1,
-			"update ps.SessionPolicy"
-			" set time_end = :1<timestamp>"
-			" where session_id = :2<char[255]> and time_end is null",
+			"update "
+				"ps.SessionPolicy "
+			"set "
+				"time_end = :time_end /* timestamp */ "
+			"where "
+				"session_id = :session_id /* char[255] */ "
+				"and time_end is null",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coTimeLast
@@ -862,13 +902,16 @@ int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSes
 	} catch (otl_exception &coExcept) {
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
-		printf ("pcrf_db_close_session_policy: error: code: '%d'; description: '%s';\n", coExcept.code, coExcept.msg);
+		printf ("%s: error: code: '%d'; description: '%s';\n", __FUNCTION__, coExcept.code, coExcept.msg);
 	}
 
 	return iRetVal;
 }
 
-int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, std::string &p_strRuleName)
+int pcrf_db_close_session_policy (
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo,
+	SRuleId &p_soRuleId)
 {
 	int iRetVal = 0;
 
@@ -877,19 +920,24 @@ int pcrf_db_close_session_policy (otl_connect &p_coDBConn, SSessionInfo &p_soSes
 		coStream.set_commit (0);
 		coStream.open (
 			1,
-			"update ps.SessionPolicy"
-			" set time_end = :1<timestamp>"
-			" where session_id = :2<char[255]> and rule_name = :rule_name<char[255]> and time_end is null",
+			"update "
+				"ps.SessionPolicy "
+			"set "
+				"time_end = :time_end /* timestamp */ "
+			"where "
+				"session_id = :session_id /* char[255] */ "
+				"and rule_id = :rule_id /* unsigned */ "
+				"and time_end is null",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coTimeLast
 			<< p_soSessInfo.m_coSessionId
-			<< p_strRuleName;
+			<< p_soRuleId.m_uiRuleId;
 		p_coDBConn.commit ();
 	} catch (otl_exception &coExcept) {
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
-		printf ("pcrf_db_close_session_policy: error: code: '%d'; description: '%s';\n", coExcept.code, coExcept.msg);
+		printf ("%s: error: code: '%d'; description: '%s';\n", __FUNCTION__, coExcept.code, coExcept.msg);
 	}
 
 	return iRetVal;
@@ -906,15 +954,15 @@ int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 		coStream.open (
 			1,
 			"select "
-			  "sd.Subscriber_id "
+			  "Subscriber_id "
 			"from "
-			  "ps.Subscription_Data sd "
+			  "ps.Subscription_Data "
 			"where "
-			  "(sd.end_user_e164 is null or end_user_e164 = nvl(:end_user_e164 /* char[64] */, sd.end_user_e164)) "
-			  "and (sd.end_user_imsi is null or end_user_imsi = nvl(:end_user_imsi /* char[100] */, sd.end_user_imsi)) "
-			  "and (sd.end_user_sip_uri is null or end_user_sip_uri = nvl(:end_user_sip_uri /* char[100] */, sd.end_user_sip_uri)) "
-			  "and (sd.end_user_nai is null or end_user_nai = nvl(:end_user_nai /* char[100] */, sd.end_user_nai)) "
-			  "and (sd.end_user_private is null or end_user_private = nvl(:end_user_private /* char[100] */, sd.end_user_private))",
+			  "(end_user_e164 is null or end_user_e164 = :end_user_e164 /* char[64] */) "
+			  "and (end_user_imsi is null or end_user_imsi = :end_user_imsi /* char[100] */) "
+			  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
+			  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
+			  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
 			p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164
@@ -932,33 +980,70 @@ int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 	return iRetVal;
 }
 
-int pcrf_server_db_load_active_rules (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfoCache, std::vector<SDBAbonRule> &p_vectActive)
+int pcrf_server_db_load_active_rules (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfoCache,
+	std::vector<SDBAbonRule> &p_vectActive)
 {
 	int iRetVal = 0;
 
 	try {
 		otl_stream coStream;
+		/* определяем по какому протоколу работает пир */
+		unsigned int uiProtocol;
+		coStream.open (
+			1,
+			"select "
+				"protocol_id "
+			"from "
+				"ps.peer "
+			"where "
+				"host_name = :host_name /* char[100] */ "
+				"and realm = :realm /* char[100] */",
+			p_coDBConn);
+		coStream
+			<< p_soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v
+			<< p_soMsgInfoCache.m_psoSessInfo->m_coOriginRealm.v;
+		coStream
+			>> uiProtocol;
+		coStream.close ();
+		/* загружаем активные политики сессии */
 		SDBAbonRule soRule;
 		coStream.open (
 			10,
-			"select rule_id, rule_name from ps.sessionpolicy sp where sp.session_id = :session_id<char[255]> and time_end is null",
+			"select "
+				"rule_id,"
+				"rule_name,"
+				"protocol_id "
+			"from "
+				"ps.sessionpolicy sp "
+			"where "
+				"sp.session_id = :session_id /* char[255] */ "
+				"and sp.protocol_id = :protocol_id /* unsigned */ "
+				"and time_end is null",
 			p_coDBConn);
-		coStream << p_soMsgInfoCache.m_psoSessInfo->m_coSessionId;
+		coStream
+			<< p_soMsgInfoCache.m_psoSessInfo->m_coSessionId
+			<< uiProtocol;
 		while (! coStream.eof ()) {
 			coStream
-				>> soRule.m_uiRuleId
-				>> soRule.m_coRuleName;
+				>> soRule.m_soRuleId.m_uiRuleId
+				>> soRule.m_coRuleName
+				>> soRule.m_soRuleId.m_uiProtocol;
 			p_vectActive.push_back (soRule);
 		}
 	} catch (otl_exception &coExcept) {
 		iRetVal = coExcept.code;
-		printf ("pcrf_db_close_session_policy: error: code: '%d'; description: '%s';\n", coExcept.code, coExcept.msg);
+		printf ("%s: error: code: '%d'; description: '%s';\n", __FUNCTION__, coExcept.code, coExcept.msg);
 	}
 	return iRetVal;
 }
 
 /* загружает список идентификаторов правил абонента из БД */
-int load_abon_rule_list (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<unsigned int> &p_vectRuleList)
+int load_abon_rule_list (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<SRuleId> &p_vectRuleList)
 {
 	int iRetVal = 0;
 
@@ -967,22 +1052,27 @@ int load_abon_rule_list (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, st
 		otl_value<otl_datetime> coValidUntil;
 		otl_value<otl_datetime> coRuleTimeEnd;
 		otl_null coNULL;
-		unsigned int uiRuleId;
+		SRuleId soRuleId;
 		coStream.open (
 			10,
 			"select "
 				"pc.rule_id,"
+				"pc.protocol_id,"
 				"sp.valid_until,"
 				"case when trunc(sysdate,'dd') + pc.end_time > sysdate then trunc(sysdate,'dd') + pc.end_time else trunc(sysdate,'dd') + pc.end_time + 1 end rule_time_end "
 			"from "
 				"ps.subscriberpolicy sp "
 				"inner join ps.policy p on sp.policy_id = p.id "
 				"inner join ps.policy_content pc on p.id = pc.policy_id "
+				"inner join ps.protocol pp on pc.protocol_id = pp.id "
+				"inner join ps.peer peer on pp.id = peer.protocol_id "
 				"left join ps.apn apn on pc.apn_id = apn.id "
 				"left join (ps.location l inner join ps.sgsn_node n on n.location = l.id) on pc.location_id = l.id "
 				"left join ps.device_type dt on pc.device_type_id = dt.id "
 			"where "
 				"sp.subscriber_id = :subscriber_id /* char[64] */  "
+				"and peer.host_name = :host_name /* char[100] */ "
+				"and peer.realm = :realm /* char[100] */ "
 				"and nvl(sp.blocked_until,sysdate - 1) < sysdate "
 				"and nvl(sp.valid_until,sysdate + 1) > sysdate "
 				"and nvl(sp.ignore_flag,0) = 0 "
@@ -996,16 +1086,19 @@ int load_abon_rule_list (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, st
 			p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
+			<< p_soMsgInfo.m_psoSessInfo->m_coOriginHost.v
+			<< p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.v
 			<< p_soMsgInfo.m_psoSessInfo->m_coIPCANType
 			<< p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
 			<< p_soMsgInfo.m_psoSessInfo->m_coSGSNAddress
 			<< coNULL;
 		while (! coStream.eof ()) {
 			coStream
-				>> uiRuleId
+				>> soRuleId.m_uiRuleId
+				>> soRuleId.m_uiProtocol
 				>> coValidUntil
 				>> coRuleTimeEnd;
-			p_vectRuleList.push_back (uiRuleId);
+			p_vectRuleList.push_back (soRuleId);
 			/* если известна дата действия политик */
 			if (! coValidUntil.is_null ()) {
 				pcrf_server_db_insert_refqueue (p_coDBConn, coValidUntil.v, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId);
@@ -1024,20 +1117,54 @@ int load_abon_rule_list (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, st
 }
 
 /* загрузжает список идентификаторов правил по умолчанию */
-int load_def_rule_list (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<unsigned int> &p_vectRuleList)
+int load_def_rule_list (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<SRuleId> &p_vectRuleList)
 {
 	int iRetVal = 0;
+	unsigned int uiProto;
+	SRuleId soRuleId;
 
 	try {
-		unsigned int uiRuleId;
 		otl_stream coStream;
+		/* определяем по какому протоколу работает peer */
 		coStream.open (
-			10,
-			"select r.id from ps.rule r where r.default_rule_flag <> 0",
+			1,
+			"select protocol_id from ps.peer where host_name = :host_name /* char[100] */ and peer.realm = :realm /* char[100] */",
 			p_coDBConn);
-		while (! coStream.eof ()) {
-			coStream >> uiRuleId;
-			p_vectRuleList.push_back (uiRuleId);
+		coStream
+			<< p_soMsgInfo.m_psoSessInfo->m_coOriginHost.v
+			<< p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.v;
+		coStream
+			>> uiProto;
+		coStream.close ();
+		/* загружаем правила по умолчанию */
+		switch (uiProto) {
+		case 1: /* Gx */
+			coStream.open (
+				10,
+				"select r.id, 1 from ps.rule r where r.default_rule_flag <> 0",
+				p_coDBConn);
+			while (! coStream.eof ()) {
+				coStream
+					>> soRuleId.m_uiRuleId
+					>> soRuleId.m_uiProtocol;
+				p_vectRuleList.push_back (soRuleId);
+			}
+			break; /* Gx */
+		case 2: /* Gx Cisco SCE */
+			coStream.open (
+				10,
+				"select r.id, 2 from ps.SCE_rule r where r.default_rule_flag <> 0",
+				p_coDBConn);
+			while (! coStream.eof ()) {
+				coStream
+					>> soRuleId.m_uiRuleId
+					>> soRuleId.m_uiProtocol;
+				p_vectRuleList.push_back (soRuleId);
+			} 
+			break;  /* Gx Cisco SCE */
 		}
 	} catch (otl_exception &coExcept) {
 		iRetVal = coExcept.code;
@@ -1078,73 +1205,133 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 }
 
 /* загружает описание правила */
-int load_rule_info (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsigned int p_uiRuleId, std::vector<SDBAbonRule> &p_vectAbonRules)
+int load_rule_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	SRuleId &p_soRuleId,
+	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
 	int iFnRes;
 
 	try {
 		otl_stream coStream;
+		SDBMonitoringInfo soMonitInfo;
 		SDBAbonRule soAbonRule;
-		coStream.open (
-			10,
-			"select "
-				"r.rule_name,"
-				"r.dynamic_rule_flag,"
-				"r.rule_group_flag,"
-				"r.precedence_level,"
-				"r.rating_group_id,"
-				"r.service_id,"
-				"r.metering_method,"
-				"r.online_charging,"
-				"r.offline_charging,"
-				"qt.qos_class_identifier,"
-				"qt.max_requested_bandwidth_ul,"
-				"qt.max_requested_bandwidth_dl,"
-				"qt.guaranteed_bitrate_ul,"
-				"qt.guaranteed_bitrate_dl,"
-				"mk.key_code,"
-				"mk.dosage_total_octets,"
-				"mk.dosage_output_octets,"
-				"mk.dosage_input_octets,"
-				"rs.redirect_address_type,"
-				"rs.redirect_server_address "
-			"from "
-				"ps.rule r "
-				"left join ps.qos_template qt on r.qos_template_id = qt.id "
-				"left join ps.monitoring_key mk on r.monitoring_key_id = mk.id "
-				"left join ps.redirection_server rs on r.redirection_server_id = rs.id "
-			"where "
-				"r.id = :rule_id<unsigned>",
-			p_coDBConn);
-		coStream << p_uiRuleId;
-		coStream
-			>> soAbonRule.m_coRuleName
-			>> soAbonRule.m_coDynamicRuleFlag
-			>> soAbonRule.m_coRuleGroupFlag
-			>> soAbonRule.m_coPrecedenceLevel
-			>> soAbonRule.m_coRatingGroupId
-			>> soAbonRule.m_coServiceId
-			>> soAbonRule.m_coMeteringMethod
-			>> soAbonRule.m_coOnlineCharging
-			>> soAbonRule.m_coOfflineCharging
-			>> soAbonRule.m_coQoSClassIdentifier
-			>> soAbonRule.m_coMaxRequestedBandwidthUl
-			>> soAbonRule.m_coMaxRequestedBandwidthDl
-			>> soAbonRule.m_coGuaranteedBitrateUl
-			>> soAbonRule.m_coGuaranteedBitrateDl
-			>> soAbonRule.m_coKeyName
-			>> soAbonRule.m_coDosageTotalOctets
-			>> soAbonRule.m_coDosageOutputOctets
-			>> soAbonRule.m_coDosageInputOctets
-			>> soAbonRule.m_coRedirectAddressType
-			>> soAbonRule.m_coRedirectServerAddress;
-		CHECK_FCT (iFnRes = load_rule_flows (p_coDBConn, p_soMsgInfo, p_uiRuleId, soAbonRule.m_vectFlowDescr));
-		if (0 == iFnRes) {
-			soAbonRule.m_uiRuleId = p_uiRuleId;
+		switch (p_soRuleId.m_uiProtocol) {
+		case 1: /* Gx */
+			coStream.open (
+				10,
+				"select "
+					"r.rule_name,"
+					"r.dynamic_rule_flag,"
+					"r.rule_group_flag,"
+					"r.precedence_level,"
+					"r.rating_group_id,"
+					"r.service_id,"
+					"r.metering_method,"
+					"r.online_charging,"
+					"r.offline_charging,"
+					"qt.qos_class_identifier,"
+					"qt.max_requested_bandwidth_ul,"
+					"qt.max_requested_bandwidth_dl,"
+					"qt.guaranteed_bitrate_ul,"
+					"qt.guaranteed_bitrate_dl,"
+					"mk.key_code,"
+					"mk.dosage_total_octets,"
+					"mk.dosage_output_octets,"
+					"mk.dosage_input_octets,"
+					"rs.redirect_address_type,"
+					"rs.redirect_server_address "
+				"from "
+					"ps.rule r "
+					"left join ps.qos_template qt on r.qos_template_id = qt.id "
+					"left join ps.monitoring_key mk on r.monitoring_key_id = mk.id "
+					"left join ps.redirection_server rs on r.redirection_server_id = rs.id "
+				"where "
+					"r.id = :rule_id<unsigned>",
+				p_coDBConn);
+			coStream
+				<< p_soRuleId.m_uiRuleId;
+			coStream
+				>> soAbonRule.m_coRuleName
+				>> soAbonRule.m_coDynamicRuleFlag
+				>> soAbonRule.m_coRuleGroupFlag
+				>> soAbonRule.m_coPrecedenceLevel
+				>> soAbonRule.m_coRatingGroupId
+				>> soAbonRule.m_coServiceId
+				>> soAbonRule.m_coMeteringMethod
+				>> soAbonRule.m_coOnlineCharging
+				>> soAbonRule.m_coOfflineCharging
+				>> soAbonRule.m_coQoSClassIdentifier
+				>> soAbonRule.m_coMaxRequestedBandwidthUl
+				>> soAbonRule.m_coMaxRequestedBandwidthDl
+				>> soAbonRule.m_coGuaranteedBitrateUl
+				>> soAbonRule.m_coGuaranteedBitrateDl
+				>> soMonitInfo.m_coKeyName
+				>> soMonitInfo.m_coDosageTotalOctets
+				>> soMonitInfo.m_coDosageOutputOctets
+				>> soMonitInfo.m_coDosageInputOctets
+				>> soAbonRule.m_coRedirectAddressType
+				>> soAbonRule.m_coRedirectServerAddress;
+			CHECK_FCT (iFnRes = load_rule_flows (p_coDBConn, p_soMsgInfo, p_soRuleId.m_uiRuleId, soAbonRule.m_vectFlowDescr));
+			if (0 == iFnRes) {
+				soAbonRule.m_soRuleId = p_soRuleId;
+				soAbonRule.m_vectMonitInfo.push_back (soMonitInfo);
+				p_vectAbonRules.push_back (soAbonRule);
+			} else {
+				iRetVal = iFnRes;
+			}
+			break; /* Gx */
+		case 2: /* Gx Cisco SCE */
+			coStream.open (
+				10,
+				"select "
+					"r.name,"
+					"r.PACKAGE,"
+					"r.REAL_TIME_MONITOR,"
+					"r.VLINK_UPSTREAM,"
+					"r.VLINK_DOWNSTREAM "
+				"from "
+					"ps.SCE_rule r "
+				"where "
+					"r.id = :rule_id /* unsigned */",
+				p_coDBConn);
+			coStream
+				<< p_soRuleId.m_uiRuleId;
+			coStream
+				>> soAbonRule.m_coRuleName
+				>> soAbonRule.m_coSCE_PackageId
+				>> soAbonRule.m_coSCE_RealTimeMonitor
+				>> soAbonRule.m_coSCE_UpVirtualLink
+				>> soAbonRule.m_coSCE_DownVirtualLink;
+			soAbonRule.m_soRuleId = p_soRuleId;
+			coStream.close ();
+			coStream.open (
+				10,
+				"select "
+					"mk.key_code,"
+					"mk.dosage_total_octets,"
+					"mk.dosage_output_octets,"
+					"mk.dosage_input_octets "
+				"from "
+					"ps.sce_monitoring_key s "
+					"inner join ps.monitoring_key mk on s.monitoring_key_id = mk.id "
+				"where "
+					"s.sce_rule_id = :rule_id /* unsigned */",
+				p_coDBConn);
+			coStream
+				<< p_soRuleId.m_uiRuleId;
+			while (! coStream.eof ()) {
+				coStream
+					>> soMonitInfo.m_coKeyName
+					>> soMonitInfo.m_coDosageTotalOctets
+					>> soMonitInfo.m_coDosageOutputOctets
+					>> soMonitInfo.m_coDosageInputOctets;
+				soAbonRule.m_vectMonitInfo.push_back (soMonitInfo);
+			}
 			p_vectAbonRules.push_back (soAbonRule);
-		} else {
-			iRetVal = iFnRes;
+			break; /* Gx Cisco SCE */
 		}
 	} catch (otl_exception coExcept) {
 		iRetVal = coExcept.code;
@@ -1158,12 +1345,12 @@ int load_rule_info (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsigne
 int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::vector<unsigned int> p_vectRuleList,
+	std::vector<SRuleId> &p_vectRuleList,
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
 	int iFnRes;
-	std::vector<unsigned int>::iterator iter = p_vectRuleList.begin ();
+	std::vector<SRuleId>::iterator iter = p_vectRuleList.begin ();
 
 	for (; iter != p_vectRuleList.end (); ++iter) {
 		load_rule_info (p_coDBConn, p_soMsgInfo, *iter, p_vectAbonRules);
@@ -1172,7 +1359,9 @@ int load_rule_info (
 	return iRetVal;
 }
 
-int pcrf_server_db_load_session_info (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo)
+int pcrf_server_db_load_session_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo)
 {
 	int iRetVal = 0;
 
@@ -1185,16 +1374,24 @@ int pcrf_server_db_load_session_info (otl_connect &p_coDBConn, SMsgDataForDB &p_
 				"called_station_id,"
 				"ip_can_type,"
 				"sgsn_address,"
-				"sysdate "
-			"from ps.sessionList where session_id = :session_id<char[255]>",
+				"sysdate,"
+				"origin_host,"
+				"origin_realm "
+			"from "
+				"ps.sessionList "
+			"where "
+				"session_id = :session_id<char[255]>",
 			p_coDBConn);
-		coStream << p_soMsgInfo.m_psoSessInfo->m_coSessionId;
+		coStream
+			<< p_soMsgInfo.m_psoSessInfo->m_coSessionId;
 		coStream
 			>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
 			>> p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
 			>> p_soMsgInfo.m_psoSessInfo->m_coIPCANType
 			>> p_soMsgInfo.m_psoSessInfo->m_coSGSNAddress
-			>> p_soMsgInfo.m_psoSessInfo->m_coTimeLast;
+			>> p_soMsgInfo.m_psoSessInfo->m_coTimeLast
+			>> p_soMsgInfo.m_psoSessInfo->m_coOriginHost
+			>> p_soMsgInfo.m_psoSessInfo->m_coOriginRealm;
 		if (! p_soMsgInfo.m_psoSessInfo->m_coIPCANType.is_null ()) {
 			p_soMsgInfo.m_psoSessInfo->m_iIPCANType = atoi (p_soMsgInfo.m_psoSessInfo->m_coIPCANType.v.c_str ());
 		}
@@ -1206,7 +1403,10 @@ int pcrf_server_db_load_session_info (otl_connect &p_coDBConn, SMsgDataForDB &p_
 	return iRetVal;
 }
 
-int pcrf_server_db_abon_rule (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules)
+int pcrf_server_db_abon_rule (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
 
@@ -1215,7 +1415,7 @@ int pcrf_server_db_abon_rule (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInf
 
 	do {
 		/* список идентификаторов правил абонент */
-		std::vector<unsigned int> vectRuleList;
+		std::vector<SRuleId> vectRuleList;
 		/* если идентификатора подписчика определен */
 		if (p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.length ()) {
 			/* если абонент определен */
