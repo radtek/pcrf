@@ -44,6 +44,8 @@ int pcrf_cli_init (void);
 /* деинициализация клиента */
 void pcrf_cli_fini (void);
 
+/* инициализация списока клиентов и регистрация функции-валидатора клиента */
+int app_pcrf_load_peer (void);
 
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;

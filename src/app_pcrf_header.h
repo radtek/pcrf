@@ -1,3 +1,6 @@
+#include <freeDiameter/extension.h>
+#include <stdint.h>
+
 #define DEBUG
 
 #ifdef WIN32

@@ -44,6 +44,9 @@ static int pcrf_entry (char * conffile)
 	/* Advertise the support for the Gx application in the peer */
 	CHECK_FCT (fd_disp_app_support (g_psoDictApp, g_psoDictVend, 1, 0));
 
+	/* формирование списка клиентов и регистрация функции валидации клиента */
+	CHECK_FCT (app_pcrf_load_peer ());
+
 	return 0;
 }
 

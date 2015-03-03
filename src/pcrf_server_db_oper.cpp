@@ -257,51 +257,60 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo)
 {
 	int iRetVal = 0;
+	int iFnRes = 0;
 
-	/* проверка параметров */
-	if (NULL == p_psoMsgInfo->m_psoSessInfo
-			|| NULL == p_psoMsgInfo->m_psoReqInfo) {
-		return EINVAL;
-	}
-
-	int iFnRes;
-
-	dict_avp_request_ex soAVPParam;
-	char mcValue[0x10000];
-
-	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
-	case 1: /* INITIAL_REQUEST */
-		/* фиксируем дату начала сессии */
-		p_psoMsgInfo->m_psoSessInfo->m_coTimeStart = p_psoMsgInfo->m_psoSessInfo->m_coTimeLast;
-		iFnRes = pcrf_db_insert_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
-		if (iFnRes) {
-			printf ("pcrf_server_req_db_store: pcrf_db_insert_session: result code: '%d'\n", iFnRes);
+	do {
+		/* проверка параметров */
+		if (NULL == p_psoMsgInfo->m_psoSessInfo
+				|| NULL == p_psoMsgInfo->m_psoReqInfo) {
+			iRetVal = EINVAL;
+			break;
 		}
-		break;
-	case 3: /* TERMINATION_REQUEST */
-		/* фиксируем дату завершения сессии */
-		p_psoMsgInfo->m_psoSessInfo->m_coTimeEnd = p_psoMsgInfo->m_psoSessInfo->m_coTimeLast;
-	case 2: /* UPDATE_REQUEST */
-	case 4: /* EVENT_REQUEST */
-		/* выполянем запрос на обновление записи */
-		iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
-		if (iFnRes) {
-			printf ("pcrf_server_req_db_store: pcrf_db_update_session: result code: '%d'\n", iFnRes);
-		}
-		/* обрабатываем информацию о выданных политиках */
-		iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo);
-		if (iFnRes) {
-			printf ("pcrf_server_req_db_store: pcrf_server_policy_db_store: result code: '%d'\n", iFnRes);
-		}
-		break;
-	default:
-		break;
-	}
 
-	iFnRes = pcrf_db_insert_request (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *(p_psoMsgInfo->m_psoReqInfo));
-	if (iFnRes) {
-		printf ("pcrf_server_req_db_store: pcrf_db_insert_request: result code: '%d'\n", iFnRes);
-	}
+		dict_avp_request_ex soAVPParam;
+		char mcValue[0x10000];
+
+		switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
+		case 1: /* INITIAL_REQUEST */
+			/* фиксируем дату начала сессии */
+			p_psoMsgInfo->m_psoSessInfo->m_coTimeStart = p_psoMsgInfo->m_psoSessInfo->m_coTimeLast;
+			iFnRes = pcrf_db_insert_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
+			if (iFnRes) {
+				printf ("pcrf_server_req_db_store: pcrf_db_insert_session: result code: '%d'\n", iFnRes);
+			}
+			break;
+		case 3: /* TERMINATION_REQUEST */
+			/* фиксируем дату завершения сессии */
+			p_psoMsgInfo->m_psoSessInfo->m_coTimeEnd = p_psoMsgInfo->m_psoSessInfo->m_coTimeLast;
+		case 2: /* UPDATE_REQUEST */
+		case 4: /* EVENT_REQUEST */
+			/* выполянем запрос на обновление записи */
+			iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
+			if (iFnRes) {
+				printf ("pcrf_server_req_db_store: pcrf_db_update_session: result code: '%d'\n", iFnRes);
+			}
+			/* обрабатываем информацию о выданных политиках */
+			iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo);
+			if (iFnRes) {
+				printf ("pcrf_server_req_db_store: pcrf_server_policy_db_store: result code: '%d'\n", iFnRes);
+			}
+			break;
+		default:
+			break;
+		}
+
+		if (iFnRes) {
+			iRetVal = iFnRes;
+			break;
+		}
+
+		iFnRes = pcrf_db_insert_request (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *(p_psoMsgInfo->m_psoReqInfo));
+		if (iFnRes) {
+			printf ("pcrf_server_req_db_store: pcrf_db_insert_request: result code: '%d'\n", iFnRes);
+			iRetVal = iFnRes;
+			break;
+		}
+	} while (0);
 
 	return iRetVal;
 }
