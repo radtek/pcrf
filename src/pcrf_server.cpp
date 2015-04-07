@@ -2,6 +2,7 @@
 #include "app_pcrf_header.h"
 
 #include <vector>
+#include <stdio.h>
 
 /* handler for CCR req cb */
 static disp_hdl * app_pcrf_hdl_ccr = NULL;
@@ -17,6 +18,21 @@ avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo);
 
 /* функция заполнения avp X-HW-Usage-Report */
 avp * pcrf_make_HWUR ();
+
+/* выборка идентификатора абонента */
+int pcrf_extract_SubscriptionId(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
+/* выборка данных об устройстве абонента */
+int pcrf_extract_UEI(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
+/* выборка рапорта о назначении политик */
+int pcrf_extract_CRR(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
+/* выборка значений Supported-Features */
+int pcrf_extract_SF(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
+/* выборка значений Usage-Monitoring-Information */
+int pcrf_extract_UMI(avp *p_psoAVP, SRequestInfo &p_soReqInfo);
+/* выборка значений Used-Service-Unit */
+int pcrf_extract_USU(avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo);
+/* парсинг 3GPP-User-Location-Info */
+int pcrf_extract_user_location(avp_value &p_soAVPValue, std::string &p_strString);
 
 static int app_pcrf_ccr_cb (
 	msg ** p_ppsoMsg,
@@ -96,6 +112,15 @@ static int app_pcrf_ccr_cb (
 	/* Set the Origin-Host, Origin-Realm, Result-Code AVPs */
 	CHECK_FCT (fd_msg_rescode_set (ans, (char *) "DIAMETER_SUCCESS", NULL, NULL, 1));
 
+	/* Destination-Realm */
+	{
+		CHECK_FCT(fd_msg_avp_new(g_psoDictDestRealm, 0, &psoChildAVP));
+		soAVPVal.os.data = (uint8_t *)soMsgInfoCache.m_psoSessInfo->m_coOriginRealm.v.c_str();
+		soAVPVal.os.len = soMsgInfoCache.m_psoSessInfo->m_coOriginRealm.v.length();
+		CHECK_FCT(fd_msg_avp_setvalue(psoChildAVP, &soAVPVal));
+		CHECK_FCT(fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, psoChildAVP));
+	}
+
 	/* Destination-Host */
 	{
 		CHECK_FCT (fd_msg_avp_new (g_psoDictDestHost, 0, &psoChildAVP));
@@ -135,11 +160,14 @@ static int app_pcrf_ccr_cb (
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /* continue */);
 		}
 		/* Event-Trigger */
-		CHECK_FCT_DO (set_event_trigger (pcoDBConn, *(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+		CHECK_FCT_DO(set_event_trigger(pcoDBConn, *(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 		/* Usage-Monitoring-Information */
-		for (std::vector<SDBAbonRule>::iterator iter = vectAbonRules.begin (); iter != vectAbonRules.end (); ++ iter) {
-			psoChildAVP = NULL;
-			CHECK_FCT_DO (pcrf_make_UMI (ans, *iter), /* continue */ );
+		{
+			bool bEvenTriggerInstalled = false;
+			for (std::vector<SDBAbonRule>::iterator iter = vectAbonRules.begin (); iter != vectAbonRules.end (); ++ iter) {
+				psoChildAVP = NULL;
+				CHECK_FCT_DO (pcrf_make_UMI (ans, *iter, bEvenTriggerInstalled), /* continue */ );
+			}
 		}
 		/* Charging-Rule-Install */
 		psoChildAVP = pcrf_make_CRI (*(pcoDBConn), &soMsgInfoCache, vectAbonRules, ans);
@@ -150,11 +178,14 @@ static int app_pcrf_ccr_cb (
 		break; /* INITIAL_REQUEST */
 	case 2: /* UPDATE_REQUEST */
 		/* Event-Trigger */
-		CHECK_FCT_DO (set_event_trigger (pcoDBConn, *(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+		CHECK_FCT_DO(set_event_trigger(pcoDBConn, *(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 		/* Usage-Monitoring-Information */
-		for (std::vector<SDBAbonRule>::iterator iter = vectAbonRules.begin (); iter != vectAbonRules.end (); ++ iter) {
-			psoChildAVP = NULL;
-			CHECK_FCT_DO (pcrf_make_UMI (ans, *iter, false), /* continue */);
+		{
+			bool bEvenTriggerInstalled = false;
+			for (std::vector<SDBAbonRule>::iterator iter = vectAbonRules.begin(); iter != vectAbonRules.end(); ++iter) {
+				psoChildAVP = NULL;
+				CHECK_FCT_DO(pcrf_make_UMI(ans, *iter, bEvenTriggerInstalled, false, &(soMsgInfoCache.m_psoReqInfo->m_vectUsageInfo)), /* continue */);
+			}
 		}
 		/* Charging-Rule-Remove */
 		psoChildAVP = pcrf_make_CRR (*(pcoDBConn), &soMsgInfoCache, vectNotrelevant);
@@ -600,7 +631,7 @@ avp * pcrf_make_CRD (
 		}
 		/* Monitoring-Key */
 		std::vector<SDBMonitoringInfo>::iterator iterMK = p_soAbonRule.m_vectMonitInfo.begin ();
-		if (iterMK != p_soAbonRule.m_vectMonitInfo.end ()) {
+		if (iterMK != p_soAbonRule.m_vectMonitInfo.end () && iterMK->m_coKeyName.v.length()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMonitoringKey, 0, &psoAVPChild), return NULL);
 			soAVPVal.os.data = (uint8_t *) iterMK->m_coKeyName.v.c_str ();
 			soAVPVal.os.len = (size_t) iterMK->m_coKeyName.v.length ();
@@ -684,15 +715,19 @@ avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo)
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SDBAbonRule &p_soAbonRule,
-	bool p_bFull)
+	bool &p_bEvenTriggerInstalled,
+	bool p_bFull,
+	std::vector<SSessionUsageInfo> *p_pvectUsageInfo)
 {
 	avp
 		*psoAVPUMI = NULL, /* Usage-Monitoring-Information */
 		*psoAVPGSU = NULL, /* Granted-Service-Unit */
+		*psoAVPET = NULL,  /* Event-Trigger */
 		*psoAVPChild = NULL;
 	dict_avp_request soCrit;
 	union avp_value soAVPVal;
 	int iRetVal = 0;
+	bool bQuotaIsExhausted;
 
 	std::vector<SDBMonitoringInfo>::iterator iterMonitInfo = p_soAbonRule.m_vectMonitInfo.begin ();
 	for (; iterMonitInfo != p_soAbonRule.m_vectMonitInfo.end (); ++iterMonitInfo) {
@@ -706,71 +741,98 @@ int pcrf_make_UMI (
 				&& ! iterMonitInfo->m_coDosageInputOctets.is_null ()) {
 			continue;
 		}
+		/* проверяем не исчерпана ли квота */
+		bQuotaIsExhausted = false;
+		if (p_pvectUsageInfo) {
+			for (std::vector<SSessionUsageInfo>::iterator iterSU = p_pvectUsageInfo->begin(); iterSU != p_pvectUsageInfo->end(); ++iterSU) {
+				if (iterSU->m_coMonitoringKey.v == iterMonitInfo->m_coKeyName.v) {
+					if ((iterSU->m_coCCInputOctets.is_null () || iterSU->m_coCCInputOctets.v == 0)
+							&& (iterSU->m_coCCOutputOctets.is_null() || iterSU->m_coCCOutputOctets.v == 0)
+							&& (iterSU->m_coCCTotalOctets.is_null() || iterSU->m_coCCTotalOctets.v == 0)) {
+						bQuotaIsExhausted = true;
+					}
+					break;
+				}
+			}
+		}
 		/* Usage-Monitoring-Information */
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringInformation, 0, &psoAVPUMI), return NULL);
 		/* Monitoring-Key */
 		{
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMonitoringKey, 0, &psoAVPChild), return NULL);
-			switch (p_soAbonRule.m_soRuleId.m_uiProtocol) {
-			case 1: /* Gx */
-			case 2: /* Cisco SCE Gx */
-				soAVPVal.os.data = (uint8_t *) iterMonitInfo->m_coKeyName.v.c_str ();
-				soAVPVal.os.len = (size_t) iterMonitInfo->m_coKeyName.v.length ();
-				/*{
-					unsigned int uiMonitKey;
-					uiMonitKey = atol (iterMonitInfo->m_coKeyName.v.c_str ());
-					soAVPVal.os.data = (uint8_t *) &uiMonitKey;
-					soAVPVal.os.len = sizeof (uiMonitKey);
-				}*/
-				break; /* Gx */
-				break; /* Cisco SCE Gx */
+			soAVPVal.os.data = (uint8_t *) iterMonitInfo->m_coKeyName.v.c_str ();
+			soAVPVal.os.len = (size_t) iterMonitInfo->m_coKeyName.v.length ();
+			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+		}
+		if (bQuotaIsExhausted) { /* если квота исчерпана */
+			/* Usage-Monitoring-Support */
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictUsageMonitoringSupport, 0, &psoAVPChild), return NULL);
+			soAVPVal.i32 = 0;  /* USAGE_MONITORING_DISABLED */
+			CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return NULL);
+			/* put 'Usage-Monitoring-Support' into 'Usage-Monitoring-Information' */
+			CHECK_FCT_DO(fd_msg_avp_add(psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+		} else {
+			/* Granted-Service-Unit */
+			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictGrantedServiceUnit, 0, &psoAVPGSU), return NULL);
+			/* CC-Total-Octets */
+			if (! iterMonitInfo->m_coDosageTotalOctets.is_null ()) {
+				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCTotalOctets, 0, &psoAVPChild), return NULL);
+				soAVPVal.u64 = iterMonitInfo->m_coDosageTotalOctets.v;
+				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+				/* put 'CC-Total-Octets' into 'Granted-Service-Unit' */
+				CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 			}
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		}
-		/* Granted-Service-Unit */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictGrantedServiceUnit, 0, &psoAVPGSU), return NULL);
-		/* CC-Total-Octets */
-		if (! iterMonitInfo->m_coDosageTotalOctets.is_null ()) {
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCTotalOctets, 0, &psoAVPChild), return NULL);
-			soAVPVal.u64 = iterMonitInfo->m_coDosageTotalOctets.v;
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			/* put 'CC-Total-Octets' into 'Granted-Service-Unit' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		}
-		/* CC-Input-Octets */
-		if (! iterMonitInfo->m_coDosageInputOctets.is_null ()) {
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCInputOctets, 0, &psoAVPChild), return NULL);
-			soAVPVal.u64 = iterMonitInfo->m_coDosageInputOctets.v;
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			/* put 'CC-Input-Octets' into 'Granted-Service-Unit' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		}
-		/* CC-Output-Octets */
-		if (! iterMonitInfo->m_coDosageOutputOctets.is_null ()) {
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCOutputOctets, 0, &psoAVPChild), return NULL);
-			soAVPVal.u64 = iterMonitInfo->m_coDosageOutputOctets.v;
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			/* put 'CC-Output-Octets' into 'Granted-Service-Unit' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		}
-		/* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
-		CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU), return NULL);
-		if (p_bFull || 2 == p_soAbonRule.m_soRuleId.m_uiProtocol) {
-			/* Usage-Monitoring-Level */
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return NULL);
-			soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-			/* Usage-Monitoring-Report */
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return NULL);
-			soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			/* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+			/* CC-Input-Octets */
+			if (! iterMonitInfo->m_coDosageInputOctets.is_null ()) {
+				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCInputOctets, 0, &psoAVPChild), return NULL);
+				soAVPVal.u64 = iterMonitInfo->m_coDosageInputOctets.v;
+				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+				/* put 'CC-Input-Octets' into 'Granted-Service-Unit' */
+				CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+			}
+			/* CC-Output-Octets */
+			if (! iterMonitInfo->m_coDosageOutputOctets.is_null ()) {
+				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCOutputOctets, 0, &psoAVPChild), return NULL);
+				soAVPVal.u64 = iterMonitInfo->m_coDosageOutputOctets.v;
+				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+				/* put 'CC-Output-Octets' into 'Granted-Service-Unit' */
+				CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+			}
+			/* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
+			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU), return NULL);
+			if (p_bFull || 2 == p_soAbonRule.m_soRuleId.m_uiProtocol) {
+				/* Usage-Monitoring-Level */
+				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return NULL);
+				soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
+				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+				/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
+				CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+				/* Usage-Monitoring-Report */
+				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return NULL);
+				soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
+				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
+				/* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
+				CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+			}
 		}
 		if (psoAVPUMI) {
+			/* Event-Trigger */
+			if (!p_bEvenTriggerInstalled && !bQuotaIsExhausted) {
+				CHECK_FCT_DO(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVPET), return NULL);
+				switch (p_soAbonRule.m_soRuleId.m_uiProtocol) {
+				default:
+				case 1: /* Gx */
+					soAVPVal.i32 = 33;
+					break;
+				case 2: /* Gx Cisco SCE */
+					soAVPVal.i32 = 26;
+					break;
+				}
+				CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPET, &soAVPVal), return NULL);
+				CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPET));
+				p_bEvenTriggerInstalled = true;
+			}
 			CHECK_FCT (fd_msg_avp_add (p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI));
 		}
 	}
@@ -845,9 +907,9 @@ int set_event_trigger (
 	avp_value soAVPValue;
 	unsigned int uiProtocolId;
 
+	otl_stream coStream;
 	try {
 		/* определяем по какому протоколу работает пир */
-		otl_stream coStream;
 		coStream.open (
 			1,
 			"select "
@@ -864,23 +926,546 @@ int set_event_trigger (
 		coStream
 			>> uiProtocolId;
 		coStream.close ();
-		/* создаем пустую avp */
-		CHECK_FCT (fd_msg_avp_new (g_psoDictEventTrigger, 0, &psoAVP));
+		/* USER_LOCATION_CHANGE */
 		switch (uiProtocolId) {
 		case 1: /* Gx */
-			soAVPValue.i32 = 33; /* USAGE_REPORT */
+			CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
+			soAVPValue.i32 = 13;
+			CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
+			CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
 			break; /* Gx */
-		case 2: /* Cisco SCE Gx */
-			soAVPValue.i32 = 26; /* USAGE_REPORT */
-			break; /* Cisco SCE Gx */
 		}
-		/* задаем значение avp */
-		CHECK_FCT (fd_msg_avp_setvalue (psoAVP, &soAVPValue));
-		/* put 'Event-Trigger' into answer */
-		CHECK_FCT (fd_msg_avp_add (p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
 	} catch (otl_exception &coExcept) {
+		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		printf ("%s:%d: error: code: '%d'; description: '%s';\n", __FILE__, __LINE__, coExcept.code, coExcept.msg);
+		if (coStream.good()) {
+			coStream.close();
+		}
+	}
+
+	return iRetVal;
+}
+
+int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo)
+{
+	int iRetVal = 0;
+
+	/* проверка параметров */
+	if (NULL == p_psoMsgInfo->m_psoSessInfo
+		|| NULL == p_psoMsgInfo->m_psoReqInfo) {
+		return EINVAL;
+	}
+
+	int iDepth;
+	struct avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	char mcValue[0x10000];
+	vendor_id_t tVenId;
+
+	/* определяем время запроса */
+	time_t tSecsSince1970;
+	tm soTime;
+	if ((time_t)-1 != time(&tSecsSince1970)) {
+		if (localtime_r(&tSecsSince1970, &soTime)) {
+			fill_otl_datetime(p_psoMsgInfo->m_psoSessInfo->m_coTimeLast.v, soTime);
+			p_psoMsgInfo->m_psoSessInfo->m_coTimeLast.set_non_null();
+		}
+	}
+
+	/* ищем первую AVP */
+	iRetVal = fd_msg_browse_internal(p_psoMsgOrAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		if (AVP_FLAG_VENDOR & psoAVPHdr->avp_flags) {
+			tVenId = psoAVPHdr->avp_vendor;
+		} else {
+			tVenId = (vendor_id_t)-1;
+		}
+		switch (tVenId) {
+		default: /* vendor undefined */
+		case 0: /* Diameter */
+			switch (psoAVPHdr->avp_code) {
+			case 8: /* Framed-IP-Address */
+				if (4 == psoAVPHdr->avp_value->os.len) {
+					int iStrLen;
+					iStrLen = snprintf(mcValue, sizeof(mcValue) - 1, "%u.%u.%u.%u", psoAVPHdr->avp_value->os.data[0], psoAVPHdr->avp_value->os.data[1], psoAVPHdr->avp_value->os.data[2], psoAVPHdr->avp_value->os.data[3]);
+					if (iStrLen > 0) {
+						if (iStrLen >= sizeof(mcValue)) {
+							mcValue[sizeof(mcValue) - 1] = '\0';
+						}
+						p_psoMsgInfo->m_psoSessInfo->m_coFramedIPAddress = mcValue;
+					}
+				}
+				break;
+			case 30: /* Called-Station-Id */
+				p_psoMsgInfo->m_psoSessInfo->m_coCalledStationId.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoSessInfo->m_coCalledStationId.set_non_null();
+				break;
+			case 263: /* Session-Id */
+				p_psoMsgInfo->m_psoSessInfo->m_coSessionId.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoSessInfo->m_coSessionId.set_non_null();
+				break;
+			case 264: /* Origin-Host */
+				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.set_non_null();
+				break;
+			case 278: /* Origin-State-Id */
+				p_psoMsgInfo->m_psoSessInfo->m_coOriginStateId = psoAVPHdr->avp_value->u32;
+				break;
+			case 296: /* Origin-Realm */
+				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.set_non_null();
+				break;
+			case 295: /* Termination-Cause */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoSessInfo->m_coTermCause = mcValue;
+				}
+				break;
+			case 416: /* CC-Request-Type */
+				p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType = psoAVPHdr->avp_value->i32;
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coCCRequestType = mcValue;
+				}
+				break;
+			case 443: /* Subscription-Id */
+				pcrf_extract_SubscriptionId(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
+				break;
+			case 415: /* CC-Request-Number */
+				p_psoMsgInfo->m_psoReqInfo->m_coCCRequestNumber = psoAVPHdr->avp_value->u32;
+				break;
+			case 458: /* User-Equipment-Info */
+				pcrf_extract_UEI(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
+				break;
+			}
+			break; /* Diameter */ /* vendor undefined */
+		case 10415: /* 3GPP */
+			switch (psoAVPHdr->avp_code) {
+			case 6: /* 3GPP-SGSN-Address */
+			{
+				char mcIPAddr[16];
+				sprintf(mcIPAddr, "%u.%u.%u.%u", psoAVPHdr->avp_value->os.data[0], psoAVPHdr->avp_value->os.data[1], psoAVPHdr->avp_value->os.data[2], psoAVPHdr->avp_value->os.data[3]);
+				p_psoMsgInfo->m_psoSessInfo->m_coSGSNAddress = mcIPAddr;
+			}
+			break;
+			case 18: /* 3GPP-SGSN-MCC-MNC */
+				p_psoMsgInfo->m_psoReqInfo->m_coSGSNMCCMNC.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoReqInfo->m_coSGSNMCCMNC.set_non_null();
+				break;
+			case 21: /* 3GPP-RAT-Type */
+				p_psoMsgInfo->m_psoReqInfo->m_coRATType.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoReqInfo->m_coRATType.set_non_null();
+				break;
+			case 22: /* 3GPP-User-Location-Info */
+				if (0 == pcrf_extract_user_location(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_coUserLocationInfo.v)) {
+					p_psoMsgInfo->m_psoReqInfo->m_coUserLocationInfo.set_non_null();
+				}
+				break;
+			case 515: /* Max-Requested-Bandwidth-DL */
+				p_psoMsgInfo->m_psoReqInfo->m_coMaxRequestedBandwidthDl = psoAVPHdr->avp_value->u32;
+				break;
+			case 516: /* Max-Requested-Bandwidth-UL */
+				p_psoMsgInfo->m_psoReqInfo->m_coMaxRequestedBandwidthUl = psoAVPHdr->avp_value->u32;
+				break;
+			case 628: /* Supported-Features */
+				pcrf_extract_SF(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
+				break;
+			case 909: /* RAI */
+				p_psoMsgInfo->m_psoReqInfo->m_coRAI.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				p_psoMsgInfo->m_psoReqInfo->m_coRAI.set_non_null();
+				break;
+			case 1000: /* Bearer-Usage */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coBearerUsage = mcValue;
+				}
+				break;
+			case 1009: /* Online */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coOnlineCharging = mcValue;
+				}
+				break;
+			case 1008: /* Offline */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coOfflineCharging = mcValue;
+				}
+				break;
+			case 1016: /* QoS-Information */
+				pcrf_extract_req_data((void *)psoAVP, p_psoMsgInfo);
+				break;
+			case 1018: /* Charging-Rule-Report */
+				pcrf_extract_CRR(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
+				break;
+			case 1020: /* Bearer-Identifier */
+				if (p_psoMsgInfo->m_psoReqInfo->m_coBearerIdentifier.is_null()) {
+					p_psoMsgInfo->m_psoReqInfo->m_coBearerIdentifier.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+					p_psoMsgInfo->m_psoReqInfo->m_coBearerIdentifier.set_non_null();
+				}
+				break;
+			case 1021: /* Bearer-Operation */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coBearerOperation = mcValue;
+				}
+				break;
+			case 1025: /* Guaranteed-Bitrate-DL */
+				p_psoMsgInfo->m_psoReqInfo->m_coGuaranteedBitrateDl = psoAVPHdr->avp_value->u32;
+				break;
+			case 1026: /* Guaranteed-Bitrate-UL */
+				p_psoMsgInfo->m_psoReqInfo->m_coGuaranteedBitrateUl = psoAVPHdr->avp_value->u32;
+				break;
+			case 1027: /* IP-CAN-Type */
+				p_psoMsgInfo->m_psoSessInfo->m_iIPCANType = psoAVPHdr->avp_value->i32;
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoSessInfo->m_coIPCANType = mcValue;
+				}
+				break;
+			case 1028: /* QoS-Class-Identifier */
+				p_psoMsgInfo->m_psoReqInfo->m_iQoSClassIdentifier = psoAVPHdr->avp_value->i32;
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coQoSClassIdentifier = mcValue;
+				}
+				break;
+			case 1029: /* QoS-Negotiation */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coQoSNegotiation = mcValue;
+				}
+				break;
+			case 1030: /* QoS-Upgrade */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coQoSUpgrade = mcValue;
+				}
+				break;
+			case 1032: /* RAT-Type */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					p_psoMsgInfo->m_psoReqInfo->m_coRATType = mcValue;
+				}
+				break;
+			case 1049: /* Default-EPS-Bearer-QoS */
+				pcrf_extract_req_data((void *)psoAVP, p_psoMsgInfo);
+				break;
+			case 1067: /* Usage-Monitoring-Information */
+				pcrf_extract_UMI(psoAVP, *(p_psoMsgInfo->m_psoReqInfo));
+				break;
+			}
+			break; /* 3GPP */
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	return iRetVal;
+}
+
+int pcrf_extract_SubscriptionId(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+	int iSubscriptionIdType = -1;
+	std::string strSubscriptionIdData;
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 0:
+			switch (psoAVPHdr->avp_code) {
+			case 450: /* Subscription-Id-Type */
+				iSubscriptionIdType = psoAVPHdr->avp_value->i32;
+				break;
+			case 444: /* Subscription-Id-Data */
+				strSubscriptionIdData.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	if (strSubscriptionIdData.length()) {
+		switch (iSubscriptionIdType) {
+		case 0: /* END_USER_E164 */
+			p_soSessInfo.m_coEndUserE164 = strSubscriptionIdData;
+			break;
+		case 1: /* END_USER_IMSI */
+			p_soSessInfo.m_coEndUserIMSI = strSubscriptionIdData;
+			break;
+		case 2: /* END_USER_SIP_URI */
+			p_soSessInfo.m_coEndUserSIPURI = strSubscriptionIdData;
+			break;
+		case 3: /* END_USER_NAI */
+			p_soSessInfo.m_coEndUserNAI = strSubscriptionIdData;
+			break;
+		case 4: /* END_USER_PRIVATE */
+			p_soSessInfo.m_coEndUserPrivate = strSubscriptionIdData;
+			break;
+		}
+	}
+
+	return iRetVal;
+}
+
+int pcrf_extract_UEI(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+	int iType = -1;
+	std::string strInfo;
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 0:
+			switch (psoAVPHdr->avp_code) {
+			case 459: /* User-Equipment-Info-Type */
+				iType = psoAVPHdr->avp_value->i32;
+				break;
+			case 460: /* User-Equipment-Info-Value */
+				strInfo.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	switch (iType) {
+	case 0: /* IMEISV */
+		p_soSessInfo.m_coIMEI = strInfo;
+		break;
+	}
+
+	return iRetVal;
+}
+
+int pcrf_extract_CRR(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+	SSessionPolicyInfo soPolicy;
+	char mcValue[0x10000];
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 10415: /* 3GPP */
+			switch (psoAVPHdr->avp_code) {
+			case 1005: /* Charging-Rule-Name */
+				soPolicy.m_coChargingRuleName.v.insert(0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				soPolicy.m_coChargingRuleName.set_non_null();
+				break;
+			case 1019: /* PCC-Rule-Status */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					soPolicy.m_coPCCRuleStatus = mcValue;
+				}
+				break;
+			case 1031: /* Rule-Failure-Code */
+				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+					soPolicy.m_coRuleFailureCode = mcValue;
+				}
+				break;
+			}
+			break;
+		case 0:
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	p_soSessInfo.m_vectCRR.push_back(soPolicy);
+
+	return iRetVal;
+}
+
+int pcrf_extract_SF(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+	char mcValue[0x10000];
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 10415: /* 3GPP */
+			switch (psoAVPHdr->avp_code) {
+			case 629: /* Feature-List-Id */
+				p_soSessInfo.m_coFeatureListId = psoAVPHdr->avp_value->u32;
+				break;
+			case 630: /* Feature-List */
+				p_soSessInfo.m_coFeatureList = psoAVPHdr->avp_value->u32;
+				break;
+			}
+			break;
+		case 0:
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	return iRetVal;
+}
+
+int pcrf_extract_UMI(avp *p_psoAVP, SRequestInfo &p_soReqInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+	SSessionUsageInfo soUsageInfo;
+	bool bDone = false;
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 10415: /* 3GPP */
+			switch (psoAVPHdr->avp_code) {
+			case 1066: /* Monitoring-Key */
+				bDone = true;
+				soUsageInfo.m_coMonitoringKey.v.assign((const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+				soUsageInfo.m_coMonitoringKey.set_non_null();
+				break; /* Monitoring-Key */
+			}
+			break; /* 3GPP */
+		case 0:	/* Diameter */
+			switch (psoAVPHdr->avp_code) {
+			case 446: /* Used-Service-Unit */
+				pcrf_extract_USU(psoAVP, soUsageInfo);
+				break;
+			}
+			break;	/* Diameter */
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	if (bDone) {
+		p_soReqInfo.m_vectUsageInfo.push_back(soUsageInfo);
+	}
+
+	return iRetVal;
+}
+
+int pcrf_extract_USU(avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+
+	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 10415: /* 3GPP */
+			break;
+		case 0:
+			switch (psoAVPHdr->avp_code) {
+			case 412: /* CC-Input-Octets */
+				p_soUsageInfo.m_coCCInputOctets = psoAVPHdr->avp_value->u64;
+				break;
+			case 414: /* CC-Output-Octets */
+				p_soUsageInfo.m_coCCOutputOctets = psoAVPHdr->avp_value->u64;
+				break;
+			case 421: /* CC-Total-Octets */
+				p_soUsageInfo.m_coCCTotalOctets = psoAVPHdr->avp_value->u64;
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	return iRetVal;
+}
+
+int pcrf_extract_user_location(avp_value &p_soAVPValue, std::string &p_strString)
+{
+	int iRetVal = 0;
+	char mcDigit[32];
+	int iFnRes;
+
+	for (int i = 0; i < p_soAVPValue.os.len; ++i) {
+		iFnRes = snprintf(mcDigit, sizeof(mcDigit), "%02X", p_soAVPValue.os.data[i]);
+		if (iFnRes > 0 && iFnRes < sizeof(mcDigit)) {
+			p_strString += mcDigit;
+		} else {
+			iRetVal = errno;
+			break;
+		}
 	}
 
 	return iRetVal;

@@ -51,13 +51,13 @@ int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect
 {
 	int iRetVal = 0;
 
+	otl_stream coStream;
 	try {
 		peer_info soPeerInfo;
 		otl_value<std::string> coHostName;
 		otl_value<std::string> coRealm;
 		otl_value<std::string> coIPAddress;
 		otl_value<unsigned> coPort;
-		otl_stream coStream;
 		char mcDiamId[256];
 		coStream.open (
 			10,
@@ -88,9 +88,13 @@ int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect
 		}
 		coStream.close ();
 	} catch (otl_exception &coExcept) {
+		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (! iRetVal) {
 			iRetVal = -1;
+		}
+		if (coStream.good()) {
+			coStream.close();
 		}
 	}
 

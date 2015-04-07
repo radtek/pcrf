@@ -115,11 +115,14 @@ extern struct dict_object *g_psoDictCCOutputOctets;
 extern struct dict_object *g_psoDictRatingGroup;
 extern struct dict_object *g_psoDictUsageMonitoringLevel;
 extern struct dict_object *g_psoDictUsageMonitoringReport;
+extern struct dict_object *g_psoDictUsageMonitoringSupport;
 
 extern struct dict_object *g_psoDictCiscoBBPackageInstall;
 extern struct dict_object *g_psoDictCiscoBBRTMonitorInstall;
 extern struct dict_object *g_psoDictCiscoBBVlinkUStreamInstall;
 extern struct dict_object *g_psoDictCiscoBBVlinkDStreamInstall;
+
+extern struct dict_object *g_psoDictIPCANType;
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

@@ -57,6 +57,7 @@ struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;
 	otl_value<uint64_t> m_coCCInputOctets;
 	otl_value<uint64_t> m_coCCOutputOctets;
+	otl_value<uint64_t> m_coCCTotalOctets;
 };
 struct SRequestInfo {
 	int32_t m_iCCRequestType;
@@ -132,9 +133,11 @@ struct SDBAbonRule {
 	/* конструктор структуры */
 	SDBAbonRule () { m_bIsActivated = false; }
 };
+/* выборка данных из пакета */
+int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
 /* сохранение запроса в Ѕƒ */
-int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB);
-int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
+void fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm &p_soTime);
+int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
 int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo);
 int pcrf_server_policy_db_store (
 	otl_connect &p_coDBConn,
@@ -231,7 +234,9 @@ struct avp * pcrf_make_CRI (
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SDBAbonRule &p_soAbonRule,
-	bool p_bFull = true);
+	bool &p_bEvenTriggerInstalled,
+	bool p_bFull = true,
+	std::vector<SSessionUsageInfo> *p_pvectUsageInfo = NULL);
 /* задает значение Event-Trigger */
 int set_event_trigger (
 	otl_connect *p_pcoDBConn,

@@ -63,6 +63,7 @@ dict_object *g_psoDictCCInputOctets = NULL;
 dict_object *g_psoDictCCOutputOctets = NULL;
 dict_object *g_psoDictUsageMonitoringLevel = NULL;
 dict_object *g_psoDictUsageMonitoringReport = NULL;
+dict_object *g_psoDictUsageMonitoringSupport = NULL;
 
 dict_object *g_psoDictQoSUpgrade = NULL;
 dict_object *g_psoDictQoSCI = NULL;
@@ -404,6 +405,12 @@ int app_pcrf_dict_init (void)
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1069, NULL }};
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictUsageMonitoringReport, ENOENT));
+	}
+
+	/* Usage-Monitoring-Report */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1070, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictUsageMonitoringSupport, ENOENT));
 	}
 
 	/* дополняем словарь перечислимыми значениями */

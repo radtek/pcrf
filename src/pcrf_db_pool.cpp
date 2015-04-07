@@ -18,7 +18,6 @@ struct SDBPoolInfo {
 
 /* указатели на пул подключений к БД */
 static SDBPoolInfo *g_psoDBPoolHead = NULL;
-static SDBPoolInfo *g_psoDBPoolTail = NULL;
 
 /* семафор для организации очереди на получение сободного подключения к БД */
 static sem_t g_tDBPoolSem;
@@ -46,12 +45,6 @@ int pcrf_db_pool_init (void)
 	int iPoolSize = g_psoConf->m_iDBPoolSize ? g_psoConf->m_iDBPoolSize : DB_POOL_SIZE_DEF;
 
 	/* инициализация семафора */
-	//g_ptDBPoolSem = sem_open (NULL, O_CREAT);
-	//if (SEM_FAILED == g_ptDBPoolSem) {
-	//	iRetVal = errno;
-	//	goto fn_error;
-	//}
-	/* инициализация безыминного семафора */
 	CHECK_POSIX_DO (sem_init (&g_tDBPoolSem, 0, iPoolSize), goto fn_error);
 
 	/* инициализация мьютекса поиска свободного подключения */
@@ -63,9 +56,6 @@ int pcrf_db_pool_init (void)
 
 	for (int iInd = 0; iInd < iPoolSize; ++iInd) {
 		psoTmp = new SDBPoolInfo;
-		if (NULL ==  g_psoDBPoolTail) {
-			g_psoDBPoolTail  = psoTmp;
-		}
 		/* на всякий случай проверяем, все ли в порядке с указателем */
 		if (NULL == psoTmp) {
 			iRetVal = -1500;
@@ -121,7 +111,6 @@ void pcrf_db_pool_fin (void)
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
 	}
-	g_psoDBPoolTail = NULL;
 	/* освобождаем ресурсы, занятые мьютексом */
 	if (g_iMutexInitialized) {
 		pthread_mutex_destroy (&g_tMutex);
@@ -151,7 +140,7 @@ int pcrf_db_pool_get (void **p_ppcoDBConn)
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
 	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
-	CHECK_POSIX (pthread_mutex_timedlock (&g_tMutex, &soWaitTime));
+	CHECK_POSIX (pthread_mutex_lock (&g_tMutex));
 
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 	/* обходим весь пул начиная с головы пока не дойдем до конца */
@@ -171,6 +160,7 @@ int pcrf_db_pool_get (void **p_ppcoDBConn)
 		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
 	} else {
 		iRetVal = -2222;
+		LOG_F("%s: unexpected error: free db connection not found", __func__);
 	}
 	CHECK_POSIX (pthread_mutex_unlock (&g_tMutex));
 
@@ -262,17 +252,18 @@ int pcrf_db_pool_connect (otl_connect *p_pcoDBConn)
 		int iStrLen;
 
 		iStrLen = snprintf (mcConnString, sizeof (mcConnString) - 1, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer);
-		if (0 >= iStrLen) {
-			return -10;
+		if (iStrLen < 0) {
+			iRetVal = errno;
+			return iRetVal;
 		}
-		if (sizeof (mcConnString) - 1 <= iStrLen) {
+		if (iStrLen >= sizeof (mcConnString)) {
 			return -20;
 		}
 		mcConnString[iStrLen] = '\0';
 		p_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
 	} catch (otl_exception &coExcept) {
+		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		printf ("pcrf_db_pool_connect: error: code: '%d'; description: '%s';\n", coExcept.code, coExcept.msg);
 	}
 
 	return iRetVal;
@@ -290,7 +281,7 @@ void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn)
 int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
 {
 	int iRetVal = 0;
-
+	otl_stream coStream;
 	try {
 		const char *pcszCheckReq;
 
@@ -302,12 +293,16 @@ int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
 			pcszCheckReq = g_pcszDefCheckReq;
 		}
 
-		otl_stream coStream (1, pcszCheckReq, *p_pcoDBConn);
+		coStream.open (1, pcszCheckReq, *p_pcoDBConn);
 		char mcResult[32];
 		coStream >> mcResult;
+		coStream.close();
 	} catch (otl_exception &coExcept) {
+		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		printf ("pcrf_db_pool_check_conn: error: code: '%d'; description: '%s';\n", coExcept.code, coExcept.msg);
+		if (coStream.good()) {
+			coStream.close();
+		}
 	}
 
 	return iRetVal;

@@ -181,12 +181,15 @@ static int pcrf_client_RAR (
 	}
 
 	/* Event-Trigger */
-	CHECK_FCT_DO (set_event_trigger (pcoDBConn, *(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+	CHECK_FCT_DO(set_event_trigger(pcoDBConn, *(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
 
 	/* Usage-Monitoring-Information */
-	for (std::vector<SDBAbonRule>::iterator iterUMI = p_vectAbonRules.begin (); iterUMI != p_vectAbonRules.end (); ++ iterUMI) {
-		psoAVP = NULL;
-		CHECK_POSIX_DO (pcrf_make_UMI (psoReq, *iterUMI, false), /* continue */);
+	{
+		bool bEventTreggerInstalled = false;
+		for (std::vector<SDBAbonRule>::iterator iterUMI = p_vectAbonRules.begin(); iterUMI != p_vectAbonRules.end(); ++iterUMI) {
+			psoAVP = NULL;
+			CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *iterUMI, bEventTreggerInstalled, false), /* continue */);
+		}
 	}
 
 	/* Charging-Rule-Remove */
