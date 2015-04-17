@@ -41,52 +41,33 @@ static void pcrf_client_RAA (void * data, struct msg ** msg)
 		ASSERT ((void *) mi == data);
 	}
 
-	/* Now log content of the answer */
-	fprintf (stderr, "RECV RAA ");
-
 	/* Value of Result Code */
 	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictRC, &avp), return);
 	if (avp) {
 		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
 		iRC = hdr->avp_value->i32;
-		fprintf (stderr, "Result-Code: '%d'; ", iRC);
 	} else {
 		iRC = -1;
-		fprintf (stderr, "no 'Result-Code' AVP; ");
 	}
 
 	/* обрабатываем Result-Code */
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-		fprintf (stderr, "pcrf_client_RAA: Session-Id: '%s'; ", mi->m_pszSessionId);
-		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), );
-		if (iFnRes) {
-			fprintf (stderr, "pcrf_client_RAA: pcrf_client_db_fix_staled_sess: error code: '%d'; ", iFnRes);
-			fflush (stderr);
-		}
+		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), /*continue*/);
 		break;
 	}
 
 	/* Value of Origin-Host */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), return);
+	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), /*continue*/);
 	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
-		fprintf (stderr, "From '%.*s' ", (int) hdr->avp_value->os.len, hdr->avp_value->os.data);
-	} else {
-		fprintf (stderr, "no 'Origin-Host' AVP; ");
+		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 	}
 
 	/* Value of Origin-Realm */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), return);
+	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), /*continue*/);
 	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
-		fprintf (stderr, "('%.*s') ", (int) hdr->avp_value->os.len, hdr->avp_value->os.data);
-	} else {
-		fprintf (stderr, "no 'Origin-Realm' AVP;");
+		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 	}
-
-	fprintf (stderr, "\n");
-	fflush (stderr);
 
 	/* Free the message */
 	CHECK_FCT_DO (fd_msg_free (*msg), return);
@@ -98,7 +79,7 @@ static void pcrf_client_RAA (void * data, struct msg ** msg)
 /* отправка Re-Auth сообщени€ */
 static int pcrf_client_RAR (
 	SMsgDataForDB p_soReqInfo,
-	std::vector<SDBAbonRule> &p_vectNotRelevant,
+	std::vector<SDBAbonRule> &p_vectActiveRules,
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
@@ -181,19 +162,13 @@ static int pcrf_client_RAR (
 	}
 
 	/* Event-Trigger */
-	CHECK_FCT_DO(set_event_trigger(pcoDBConn, *(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+	CHECK_FCT_DO(set_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
 
 	/* Usage-Monitoring-Information */
-	{
-		bool bEventTreggerInstalled = false;
-		for (std::vector<SDBAbonRule>::iterator iterUMI = p_vectAbonRules.begin(); iterUMI != p_vectAbonRules.end(); ++iterUMI) {
-			psoAVP = NULL;
-			CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *iterUMI, bEventTreggerInstalled, false), /* continue */);
-		}
-	}
+	CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *(p_soReqInfo.m_psoSessInfo), false), /* continue */);
 
 	/* Charging-Rule-Remove */
-	psoAVP = pcrf_make_CRR (*(pcoDBConn), &p_soReqInfo, p_vectNotRelevant);
+	psoAVP = pcrf_make_CRR(*(pcoDBConn), &p_soReqInfo, p_vectActiveRules);
 	if (psoAVP) {
 		/* put 'Charging-Rule-Remove' into request */
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
@@ -215,10 +190,6 @@ static int pcrf_client_RAR (
 	/* Store this value in the session */
 	CHECK_FCT_DO (fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
 
-	/* Log sending the message */
-	fprintf(stderr, "SEND RAR '%s' to '%s' (%s)\n", p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str (), "ugw", "tattelecom.ru" );
-	fflush(stderr);
-
 	/* Send the request */
 	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_RAA, svg), goto out);
 
@@ -238,7 +209,6 @@ static void pcrf_ASA (void * data, struct msg ** msg)
 	struct session * sess;
 	struct avp * avp;
 	struct avp_hdr * hdr;
-	int error = 0;
 	int iRC;
 
 	CHECK_SYS_DO (clock_gettime (CLOCK_REALTIME, &ts), return);
@@ -254,70 +224,36 @@ static void pcrf_ASA (void * data, struct msg ** msg)
 		ASSERT ((void *) mi == data);
 	}
 
-	/* Now log content of the answer */
-	fprintf (stderr, "RECV ASA ");
-
 	/* Value of Result Code */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictRC, &avp), return);
+	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictRC, &avp), /*continue*/);
 	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
+		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 		iRC = hdr->avp_value->i32;
-		fprintf (stderr, "Status: %d ", iRC);
-		if (iRC != 2001)
-			error++;
 	} else {
 		iRC = -1;
-		fprintf (stderr, "no_Result-Code ");
-		error++;
 	}
 
 	/* обрабатываем Result-Code */
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-		fprintf (stderr, "pcrf_client_RAA: Session-Id: '%s' ", mi->m_pszSessionId);
-		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), );
-		if (iFnRes) {
-			fprintf (stderr, "pcrf_ASA: pcrf_client_db_fix_staled_sess: error code: '%d' ", iFnRes);
-			fflush (stderr);
-		}
+		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), /*continue*/);
 		break;
 	}
 
 	/* Value of Origin-Host */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), return);
+	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), /*continue*/);
 	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
-		fprintf (stderr, "From '%.*s' ", (int) hdr->avp_value->os.len, hdr->avp_value->os.data);
-	} else {
-		fprintf (stderr, "no_Origin-Host ");
-		error ++;
+		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 	}
 
 	/* Value of Origin-Realm */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), return);
+	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), /*continue*/);
 	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
-		fprintf (stderr, "('%.*s') ", (int) hdr->avp_value->os.len, hdr->avp_value->os.data);
-	} else {
-		fprintf (stderr, "no_Origin-Realm ");
-		error++;
+		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 	}
-
-	/* Display how long it took */
-	if (ts.tv_nsec > mi->m_soTS.tv_nsec) {
-		fprintf (stderr, "in %d.%06ld sec", 
-				(int)(ts.tv_sec - mi->m_soTS.tv_sec),
-				(long)(ts.tv_nsec - mi->m_soTS.tv_nsec) / 1000);
-	} else {
-		fprintf (stderr, "in %d.%06ld sec", 
-				(int)(ts.tv_sec + 1 - mi->m_soTS.tv_sec),
-				(long)(1000000000 + ts.tv_nsec - mi->m_soTS.tv_nsec) / 1000);
-	}
-	fprintf (stderr, "\n");
-	fflush (stderr);
 
 	/* Free the message */
-	CHECK_FCT_DO (fd_msg_free (*msg), return);
+	CHECK_FCT_DO (fd_msg_free (*msg), /*continue*/);
 	*msg = NULL;
 
 	return;
@@ -433,8 +369,6 @@ int pcrf_client_operate_refqueue_record (otl_connect &p_coDBConn, const char *p_
 	std::vector<SDBAbonRule> vectAbonRules;
 	/* список активных правил абонента */
 	std::vector<SDBAbonRule> vectActive;
-	/* список активных неактуальных правил */
-	std::vector<SDBAbonRule> vectNotrelevant;
 
 	/* инициализаци€ структуры хранени€ данных сообщени€ */
 	CHECK_POSIX_DO (pcrf_server_DBstruct_init (&soSessInfo), );
@@ -447,6 +381,8 @@ int pcrf_client_operate_refqueue_record (otl_connect &p_coDBConn, const char *p_
 		soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
 		/* загружаем из Ѕƒ информацию о сессии абонента */
 		CHECK_POSIX_DO (pcrf_server_db_load_session_info (p_coDBConn, soSessInfo), );
+		/* определ€ем идентификатор протокола пира */
+		CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), /*continue*/);
 		/* загружаем из Ѕƒ правила абонента */
 		CHECK_POSIX_DO (pcrf_server_db_abon_rule (p_coDBConn, soSessInfo, vectAbonRules), );
 		/* если у абонента нет активных политик завершаем его сессию */
@@ -457,9 +393,11 @@ int pcrf_client_operate_refqueue_record (otl_connect &p_coDBConn, const char *p_
 		/* загружаем список активных правил */
 		CHECK_POSIX_DO (pcrf_server_db_load_active_rules (p_coDBConn, soSessInfo, vectActive), );
 		/* формируем список неактуальных правил */
-		CHECK_POSIX_DO (pcrf_server_select_notrelevant_active (p_coDBConn, soSessInfo, vectActive, vectAbonRules, vectNotrelevant), );
+		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(p_coDBConn, soSessInfo, vectAbonRules, vectActive), );
+		/* загружаем информацию о мониторинге */
+		CHECK_POSIX_DO(pcrf_server_db_monit_key(p_coDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
 		/* посылаем RAR-запрос */
-		CHECK_POSIX_DO (pcrf_client_RAR (soSessInfo, vectNotrelevant, vectAbonRules), );
+		CHECK_POSIX_DO (pcrf_client_RAR (soSessInfo, vectActive, vectAbonRules), );
 	}
 
 	exit_here:
@@ -569,6 +507,8 @@ void pcrf_cli_fini (void)
 extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
 {
+	LOG_A("%p:%p:%p", state, sid, opaque);
+
 	if (state->m_pszSessionId) {
 		free (state->m_pszSessionId);
 		state->m_pszSessionId = NULL;

@@ -34,6 +34,11 @@ int pcrf_db_pool_init (void);
 /* деинициализация пула подключений к БД */
 void pcrf_db_pool_fin (void);
 
+/* инициализация трейсера */
+int pcrf_tracer_init(void);
+/* деинициализация трейсера */
+void pcrf_tracer_fini(void);
+
 /* инициализация сервера */
 int app_pcrf_serv_init (void);
 /* деинициализация сервера */

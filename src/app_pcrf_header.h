@@ -1,6 +1,11 @@
 #include <freeDiameter/extension.h>
 #include <stdint.h>
 
+#include <string.h>
+#include <time.h>
+#include <vector>
+#include <map>
+
 #define DEBUG
 
 #ifdef WIN32
@@ -28,7 +33,17 @@ struct SSessionPolicyInfo {
 	otl_value<std::string> m_coPCCRuleStatus;
 	otl_value<std::string> m_coRuleFailureCode;
 };
+/* структура для получения информации о мониторинге */
+struct SDBMonitoringInfo {
+	/*otl_value<std::string> m_coKeyName; */ /* в качестве имени ключа используется ключ std::map */
+	bool m_bDataLoaded;
+	otl_value<uint64_t> m_coDosageTotalOctets;
+	otl_value<uint64_t> m_coDosageOutputOctets;
+	otl_value<uint64_t> m_coDosageInputOctets;
+	SDBMonitoringInfo() { m_bDataLoaded = false; }
+};
 struct SSessionInfo {
+	unsigned int m_uiPeerProto;
 	otl_value<std::string> m_coSessionId;
 	std::string m_strSubscriberId;
 	otl_value<std::string> m_coOriginHost;
@@ -49,15 +64,27 @@ struct SSessionInfo {
 	otl_value<uint32_t> m_coFeatureList;	/* Feature-List */
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
-	otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
-	int32_t m_iIPCANType;
-	otl_value<std::string> m_coIPCANType;
+	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;
 	otl_value<uint64_t> m_coCCInputOctets;
 	otl_value<uint64_t> m_coCCOutputOctets;
 	otl_value<uint64_t> m_coCCTotalOctets;
+};
+struct SUserLocationInfo {
+	bool m_bLoaded;
+	otl_value<std::string> m_coSGSNMCCMNC;
+	otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
+	otl_value<std::string> m_coSGSNIPv6Address;
+	otl_value<std::string> m_coRATType;
+	otl_value<std::string> m_coIPCANType;
+	int32_t m_iIPCANType;
+	otl_value<std::string> m_coRAI;
+	otl_value<std::string> m_coCGI;
+	otl_value<std::string> m_coECGI;
+	otl_value<std::string> m_coTAI;
+	SUserLocationInfo() { m_bLoaded = false; }
 };
 struct SRequestInfo {
 	int32_t m_iCCRequestType;
@@ -73,13 +100,9 @@ struct SRequestInfo {
 	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
-	otl_value<std::string> m_coRATType;
 	otl_value<std::string> m_coQoSNegotiation;
-	otl_value<std::string> m_coSGSNMCCMNC;
-	otl_value<std::string> m_coUserLocationInfo;
-	otl_value<std::string> m_coRAI;
+	SUserLocationInfo m_soUserLocationInfo;
 	otl_value<std::string> m_coBearerUsage;
-	otl_value<std::string> m_coRuleFailureCode;
 	otl_value<std::string> m_coBearerOperation;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 };
@@ -87,27 +110,15 @@ struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
 	struct SRequestInfo *m_psoReqInfo;
 };
-/* дескриптор правила */
-struct SRuleId {
-	/* контекстнозависимый идентификатор правила.
-	   если m_uiProtocol = 1, то m_uiRuleId содержит ps.rule.id 
-	   если m_uiProtocol = 2, то m_uiRuleId содержит ps.SCE_rule.id */
-	unsigned int m_uiRuleId;
-	unsigned int m_uiProtocol;
-	/* конструктор структуры */
-	SRuleId () { m_uiRuleId = 0; m_uiProtocol = 0; }
-};
-/* структура для получения информации о мониторинге */
-struct SDBMonitoringInfo {
-	otl_value<std::string> m_coKeyName;
-	otl_value<uint64_t> m_coDosageTotalOctets;
-	otl_value<uint64_t> m_coDosageOutputOctets;
-	otl_value<uint64_t> m_coDosageInputOctets;
+struct SPeerInfo {
+	otl_value<std::string> m_coHostName;
+	otl_value<std::string> m_coHostReal;
+	unsigned int m_uiPeerProto;
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
 	bool m_bIsActivated;
-	SRuleId m_soRuleId;
+	bool m_bIsRelevant;
 	otl_value<std::string> m_coRuleName;
 	otl_value<int32_t> m_coDynamicRuleFlag;
 	otl_value<int32_t> m_coRuleGroupFlag;
@@ -129,9 +140,9 @@ struct SDBAbonRule {
 	otl_value<int32_t> m_coSCE_RealTimeMonitor;
 	otl_value<int32_t> m_coSCE_UpVirtualLink;
 	otl_value<int32_t> m_coSCE_DownVirtualLink;
-	std::vector<SDBMonitoringInfo> m_vectMonitInfo;
+	otl_value<std::string> m_coMonitKey;
 	/* конструктор структуры */
-	SDBAbonRule () { m_bIsActivated = false; }
+	SDBAbonRule() { m_bIsActivated = false; m_bIsRelevant = false; }
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
@@ -147,7 +158,7 @@ void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
 int pcrf_db_close_session_policy (
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo,
-	SRuleId &p_soRuleId);
+	std::string &p_strRuleName);
 /* добавление записи в таблицу выданых политик */
 int pcrf_db_insert_policy (
 	otl_connect &p_coDBConn,
@@ -199,7 +210,7 @@ int pcrf_server_db_load_active_rules (
 int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	SRuleId &p_soRuleId,
+	std::string &p_strRuleName,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
@@ -210,20 +221,27 @@ int pcrf_server_db_abon_rule (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
+/* загрузка Monitoring Key из БД */
+int pcrf_server_db_monit_key(
+	otl_connect &p_coDBConn,
+	SSessionInfo &p_soSessInfo);
+/* функция сохраняет в БД данные о локации абонента */
+int pcrf_server_db_user_location(
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo);
 
 /* функция формирования списка неактуальных правил */
 int pcrf_server_select_notrelevant_active (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
-	std::vector<SDBAbonRule> &p_vectActive,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
-	std::vector<SDBAbonRule> &p_vectNotrelevant);
+	std::vector<SDBAbonRule> &p_vectActive);
 
 /* функция заполнения avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB *p_psoReqInfo,
-	std::vector<SDBAbonRule> &p_vectNotRelevantRules);
+	std::vector<SDBAbonRule> &p_vectActive);
 /* функция заполнения avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI (
 	otl_connect &p_coDBConn,
@@ -233,13 +251,10 @@ struct avp * pcrf_make_CRI (
 /* функция заполнения avp Usage-Monitoring-Information */
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
-	SDBAbonRule &p_soAbonRule,
-	bool &p_bEvenTriggerInstalled,
-	bool p_bFull = true,
-	std::vector<SSessionUsageInfo> *p_pvectUsageInfo = NULL);
+	SSessionInfo &p_soSessInfo,
+	bool p_bFull = true);
 /* задает значение Event-Trigger */
 int set_event_trigger (
-	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
 
@@ -252,6 +267,8 @@ int pcrf_server_db_insert_refqueue (
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soRefQueue);
+/* функция определяет протокол пира */
+int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

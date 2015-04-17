@@ -58,18 +58,21 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 		/* делаем выборку из БД */
 		coStream << p_pcszSessionId;
 		coStream.flush ();
-		coStream >> coDateTime;
-		coStream.close ();
+		coStream
+			>> coDateTime;
+		if(coStream.good())
+			coStream.close ();
 		/* фиксируем правила зависшей сессиии */
 		coStream.open (
 			1,
-			"update ps.sessionPolicy "
+			"update ps.sessionRule "
 				"set time_end = :time_end/*timestamp*/ "
 				"where time_end is null and session_id = :session_id/*char[255]*/",
 			*pcoDBConn);
 		coStream << coDateTime << p_pcszSessionId;
 		pcoDBConn->commit ();
-		coStream.close();
+		if (coStream.good())
+			coStream.close();
 	} catch (otl_exception &coExcept) {
 		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;

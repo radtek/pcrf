@@ -261,6 +261,7 @@ int pcrf_db_pool_connect (otl_connect *p_pcoDBConn)
 		}
 		mcConnString[iStrLen] = '\0';
 		p_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
+		p_pcoDBConn->auto_commit_off();
 	} catch (otl_exception &coExcept) {
 		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;

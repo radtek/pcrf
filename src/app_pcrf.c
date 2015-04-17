@@ -35,6 +35,9 @@ static int pcrf_entry (char * conffile)
 	/* инициализация пула подключений к БД */
 	CHECK_FCT (pcrf_db_pool_init ());
 
+	/* инициализация трейсера */
+	CHECK_FCT (pcrf_tracer_init ());
+
 	/* Install the handlers for incoming messages */
 	CHECK_FCT (app_pcrf_serv_init ());
 
@@ -55,6 +58,7 @@ void fd_ext_fini(void)
 {
 	app_pcrf_serv_fini ();
 	pcrf_cli_fini ();
+	pcrf_tr();
 	pcrf_db_pool_fin ();
 }
 

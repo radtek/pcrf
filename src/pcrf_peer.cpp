@@ -2,10 +2,10 @@
 #include "app_pcrf_header.h"
 #include <vector>
 
-std::vector<peer_info> g_vectPeerList;
+std::vector<SPeerInfo> g_vectPeerList;
 
 /* функция загружает список клиентов */
-int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect &p_coDBConn);
+int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn);
 
 /* функция проводит валидации клиента */
 int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)(struct peer_info *));
@@ -47,25 +47,23 @@ int app_pcrf_load_peer ()
 	return iRetVal;
 }
 
-int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect &p_coDBConn)
+int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn)
 {
 	int iRetVal = 0;
 
 	otl_stream coStream;
 	try {
-		peer_info soPeerInfo;
+		SPeerInfo soPeerInfo;
 		otl_value<std::string> coHostName;
 		otl_value<std::string> coRealm;
-		otl_value<std::string> coIPAddress;
-		otl_value<unsigned> coPort;
+		otl_value<unsigned> coProto;
 		char mcDiamId[256];
 		coStream.open (
 			10,
 			"select "
 				"host_name,"
 				"realm,"
-				"ip_address,"
-				"port "
+				"protocol_id "
 			"from "
 				"ps.peer",
 			p_coDBConn);
@@ -73,17 +71,15 @@ int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect
 			coStream
 				>> coHostName
 				>> coRealm
-				>> coIPAddress
-				>> coPort;
-			memset (&soPeerInfo, 0, sizeof (soPeerInfo));
-			if (! coHostName.is_null ()) {
-				soPeerInfo.pi_diamid = strdup (coHostName.v.c_str ());
-				soPeerInfo.pi_diamidlen = coHostName.v.length ();
-			}
-			if (! coRealm.is_null ()) {
-				soPeerInfo.runtime.pir_realm = strdup (coRealm.v.c_str ());
-				soPeerInfo.runtime.pir_realmlen = coRealm.v.length ();
-			}
+				>> coProto;
+			if (! coHostName.is_null ())
+				soPeerInfo.m_coHostName = coHostName;
+			if (! coRealm.is_null ())
+				soPeerInfo.m_coHostReal = coRealm;
+			if (!coProto.is_null())
+				soPeerInfo.m_uiPeerProto = coProto.v;
+			else
+				soPeerInfo.m_uiPeerProto = 0;
 			p_vectPeerList.push_back (soPeerInfo);
 		}
 		coStream.close ();
@@ -101,27 +97,27 @@ int app_pcrf_load_peer_info (std::vector<peer_info> &p_vectPeerList, otl_connect
 	return iRetVal;
 }
 
-int app_pcrf_peer_compare (peer_info &p_soLeft, peer_info &p_soRight)
+int app_pcrf_peer_compare(peer_info &p_soLeft, SPeerInfo &p_soRight)
 {
 	int iRetVal;
 
 	/* сравниваем длины имен */
-	iRetVal = p_soLeft.pi_diamidlen - p_soRight.pi_diamidlen;
+	iRetVal = p_soLeft.pi_diamidlen - p_soRight.m_coHostName.v.length();
 	if (iRetVal) {
 		return iRetVal;
 	}
 	/* сравниваем содержимое имен */
-	iRetVal = memcmp (p_soLeft.pi_diamid, p_soRight.pi_diamid, p_soLeft.pi_diamidlen);
+	iRetVal = memcmp (p_soLeft.pi_diamid, p_soRight.m_coHostName.v.data(), p_soLeft.pi_diamidlen);
 	if (iRetVal) {
 		return iRetVal;
 	}
 	/* сравниваем длины реалмов */
-	iRetVal = p_soLeft.runtime.pir_realmlen - p_soRight.runtime.pir_realmlen;
+	iRetVal = p_soLeft.runtime.pir_realmlen - p_soRight.m_coHostReal.v.length();
 	if (iRetVal) {
 		return iRetVal;
 	}
 	/* сравниваем соответствие доменов */
-	iRetVal = memcmp (p_soLeft.runtime.pir_realm, p_soRight.runtime.pir_realm, p_soLeft.runtime.pir_realmlen);
+	iRetVal = memcmp (p_soLeft.runtime.pir_realm, p_soRight.m_coHostReal.v.data(), p_soLeft.runtime.pir_realmlen);
 	if (iRetVal) {
 		return iRetVal;
 	}
@@ -135,7 +131,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 
 	*p_piAuth = 0;
 
-	std::vector<peer_info>::iterator iterPeerList = g_vectPeerList.begin ();
+	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin();
 
 	for (; iterPeerList != g_vectPeerList.end (); ++ iterPeerList) {
 		if (0 == app_pcrf_peer_compare (*p_psoPeerInfo, *iterPeerList)) {
