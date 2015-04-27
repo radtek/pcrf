@@ -445,6 +445,7 @@ static void pcrf_tracer(
 			<< coOTLResultCode
 			<< pmcBuf;
 		pcoDBConn->commit();
+		coStream.close();
 	} catch (otl_exception coExcept) {
 		LOG_E("code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		if (coStream.good())

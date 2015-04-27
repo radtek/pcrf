@@ -26,8 +26,13 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 	memset (p_psoMsgToDB, 0, sizeof (*p_psoMsgToDB));
 
 	/* видел€ем пам€ть дл€ хранени€ данных запроса */
-	p_psoMsgToDB->m_psoSessInfo = new SSessionInfo;
-	p_psoMsgToDB->m_psoReqInfo = new SRequestInfo;
+	try {
+		p_psoMsgToDB->m_psoSessInfo = new SSessionInfo;
+		p_psoMsgToDB->m_psoReqInfo = new SRequestInfo;
+	} catch (std::bad_alloc &coBadAlloc) {
+		LOG_F("memory allocation error: '%s';", coBadAlloc.what());
+		iRetVal = ENOMEM;
+	}
 
 	return iRetVal;
 }
@@ -214,7 +219,7 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		/* выполн€ем запрос на добавление записи о сессии */
 		coStream.open (
 			1,
-			"insert into ps.SessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
+			"insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
 			"values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[16]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:time_start/*timestamp*/,:time_last_req/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
 			p_coDBConn);
 		coStream
@@ -374,11 +379,10 @@ int pcrf_db_insert_policy (
 			1,
 			"insert into ps.sessionRule "
 			"(session_id,time_start,rule_name) "
-			"values (:session_id /*char[255]*/, :time_start /*timestamp*/, :rule_name /*char[255]*/)",
+			"values (:session_id /*char[255]*/, sysdate, :rule_name /*char[255]*/)",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
-			<< p_soSessInfo.m_coTimeLast
 			<< mcRuleName;
 		p_coDBConn.commit ();
 		coStream.close();
@@ -603,6 +607,7 @@ int load_abon_rule_list (
 		coStream.open (
 			10,
 			"select "
+				"distinct "
 				"case when pc.protocol_id=1 then (select rule_name from ps.rule where id=pc.rule_id) when pc.protocol_id=2 then (select name from ps.sce_rule where id=pc.rule_id) end rule_name,"
 				"sp.valid_until,"
 				"case when trunc(sysdate, 'dd') + pc.end_time > sysdate then trunc(sysdate, 'dd') + pc.end_time else trunc(sysdate, 'dd') + pc.end_time + 1 end rule_time_end "
@@ -671,7 +676,8 @@ int load_def_rule_list (
 {
 	int iRetVal = 0;
 	unsigned int uiProto;
-	std::string strRuleName;
+	unsigned int uiRulePrecedence;
+	otl_value<std::string> coRuleName;
 
 	otl_stream coStream;
 	try {
@@ -691,8 +697,9 @@ int load_def_rule_list (
 				p_coDBConn);
 			while (! coStream.eof ()) {
 				coStream
-					>> strRuleName;
-				p_vectRuleList.push_back (strRuleName);
+					>> coRuleName;
+				if (!coRuleName.is_null())
+					p_vectRuleList.push_back (coRuleName.v);
 			}
 			break; /* Gx */
 		case 2: /* Gx Cisco SCE */
@@ -712,8 +719,9 @@ int load_def_rule_list (
 			/* выбираем из Ѕƒ только одну, самую первую, запись. выборка упор€дочена по precedence_level */
 			if (! coStream.eof ()) {
 				coStream
-					>> strRuleName;
-				p_vectRuleList.push_back (strRuleName);
+					>> coRuleName;
+				if (!coRuleName.is_null())
+					p_vectRuleList.push_back (coRuleName.v);
 			} else {
 				iRetVal = -1;
 			}
@@ -856,6 +864,7 @@ int load_rule_info (
 				10,
 				"select "
 					"r.id,"
+					"r.precedence_level,"
 					"r.name,"
 					"r.PACKAGE,"
 					"r.REAL_TIME_MONITOR,"
@@ -864,12 +873,13 @@ int load_rule_info (
 				"from "
 					"ps.SCE_rule r "
 				"where "
-					"r.rule_name = :rule_name /*char[100]*/",
+					"r.name = :rule_name /*char[100]*/",
 				p_coDBConn);
 			coStream
 				<< p_strRuleName;
 			coStream
 				>> uiRuleId
+				>> soAbonRule.m_coPrecedenceLevel
 				>> soAbonRule.m_coRuleName
 				>> soAbonRule.m_coSCE_PackageId
 				>> soAbonRule.m_coSCE_RealTimeMonitor
@@ -963,55 +973,57 @@ int pcrf_server_db_load_session_info (
 			p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_coSessionId;
-		coStream
-			>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-			>> p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
-			>> coIPCANType
-			>> coSGSNAddress
-			>> coRATType
-			>> p_soMsgInfo.m_psoSessInfo->m_coTimeLast
-			>> coOriginHost
-			>> coOriginReal;
+		if (!coStream.eof()) {
+			coStream
+				>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
+				>> p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
+				>> coIPCANType
+				>> coSGSNAddress
+				>> coRATType
+				>> p_soMsgInfo.m_psoSessInfo->m_coTimeLast
+				>> coOriginHost
+				>> coOriginReal;
+			/* если из Ѕƒ получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
+			if (!coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null ()) {
+				/* копируем значение, полученное из Ѕƒ */
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = coIPCANType;
+				/* Find the enum value corresponding to the rescode string, this will give the class of error */
+				struct dict_object * enum_obj = NULL;
+				struct dict_enumval_request req;
+				memset(&req, 0, sizeof(struct dict_enumval_request));
+
+				/* First, get the enumerated type of the Result-Code AVP (this is fast, no need to cache the object) */
+				CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &(req.type_obj), ENOENT));
+
+				/* Now search for the value given as parameter */
+				req.search.enum_name = (char *) coIPCANType.v.c_str ();
+				CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP));
+
+				/* finally retrieve its data */
+				CHECK_FCT_DO(fd_dict_getval(enum_obj, &(req.search)), return EINVAL);
+
+				/* copy the found value, we're done */
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = req.search.enum_value.i32;
+			}
+			/* если из Ѕƒ получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
+			if (!coSGSNAddress.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null()) {
+				/* копируем значение, полученное из Ѕƒ */
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = coSGSNAddress;
+			}
+			/* то же самое с RAT Type */
+			if (!coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()) {
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
+			}
+			/* то же самое с Origin-Host */
+			if (!coOriginHost.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginHost.is_null()) {
+				p_soMsgInfo.m_psoSessInfo->m_coOriginHost = coOriginHost;
+			}
+			/* то же самое с Origin-Realm */
+			if (!coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null()) {
+				p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
+			}
+		}
 		coStream.close();
-		/* если из Ѕƒ получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
-		if (!coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null ()) {
-			/* копируем значение, полученное из Ѕƒ */
-			p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = coIPCANType;
-			/* Find the enum value corresponding to the rescode string, this will give the class of error */
-			struct dict_object * enum_obj = NULL;
-			struct dict_enumval_request req;
-			memset(&req, 0, sizeof(struct dict_enumval_request));
-
-			/* First, get the enumerated type of the Result-Code AVP (this is fast, no need to cache the object) */
-			CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &(req.type_obj), ENOENT));
-
-			/* Now search for the value given as parameter */
-			req.search.enum_name = (char *) coIPCANType.v.c_str ();
-			CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP));
-
-			/* finally retrieve its data */
-			CHECK_FCT_DO(fd_dict_getval(enum_obj, &(req.search)), return EINVAL);
-
-			/* copy the found value, we're done */
-			p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = req.search.enum_value.i32;
-		}
-		/* если из Ѕƒ получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
-		if (!coSGSNAddress.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null()) {
-			/* копируем значение, полученное из Ѕƒ */
-			p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = coSGSNAddress;
-		}
-		/* то же самое с RAT Type */
-		if (!coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()) {
-			p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
-		}
-		/* то же самое с Origin-Host */
-		if (!coOriginHost.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginHost.is_null()) {
-			p_soMsgInfo.m_psoSessInfo->m_coOriginHost = coOriginHost;
-		}
-		/* то же самое с Origin-Realm */
-		if (!coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null()) {
-			p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
-		}
 	} catch (otl_exception &coExcept) {
 		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
@@ -1045,7 +1057,7 @@ int pcrf_server_db_user_location(
 			coStream.close();
 		coStream.open(
 			1,
-			"insert into ps.sessionlocation "
+			"insert into ps.sessionLocation "
 				"(session_id, time_start, time_end, sgsn_mcc_mnc, sgsn_ip_address, sgsn_ipv6_address, rat_type, ip_can_type, cgi, ecgi, tai, rai) "
 				"values "
 				"(:session_id/*char[255]*/, sysdate, null, :sgsn_mcc_mnc/*char[10]*/, :sgsn_ip_address/*char[15]*/, :sgsn_ipv6_address/*char[50]*/, :rat_type/*char[50]*/, :ip_can_type/*char[20]*/, :cgi/*char[20]*/, :ecgi/*char[20]*/, :tai/*char[20]*/, :rai/*char[20]*/)",
@@ -1094,13 +1106,29 @@ int pcrf_server_db_abon_rule (
 			load_abon_rule_list (p_coDBConn, p_soMsgInfo, vectRuleList);
 		}
 		if (0 == vectRuleList.size()) {
-			/* если абонент у абонента нет никаких политик */
+			/* если у абонента нет никаких политик */
 			/* загружаем правила по умолчанию */
 			load_def_rule_list (p_coDBConn, p_soMsgInfo, vectRuleList);
 		}
 		/* если список идентификаторов правил не пустой */
 		if (vectRuleList.size ()) {
 			load_rule_info (p_coDBConn, p_soMsgInfo, vectRuleList, p_vectAbonRules);
+			/* в случае с SCE нам надо оставить одно правило с наивысшим приоритетом */
+			if (p_vectAbonRules.size() && 2 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
+				SDBAbonRule soAbonRule;
+				std::vector<SDBAbonRule>::iterator iterList = p_vectAbonRules.begin();
+				if (iterList != p_vectAbonRules.end()) {
+					soAbonRule = *iterList;
+					++iterList;
+				}
+				while (iterList != p_vectAbonRules.end()) {
+					if (soAbonRule.m_coPrecedenceLevel.v > iterList->m_coPrecedenceLevel.v)
+						soAbonRule = *iterList;
+					++iterList;
+				}
+				p_vectAbonRules.clear();
+				p_vectAbonRules.push_back(soAbonRule);
+			}
 		}
 	} while (0);
 

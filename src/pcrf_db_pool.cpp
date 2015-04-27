@@ -54,30 +54,30 @@ int pcrf_db_pool_init (void)
 	/* инициализация пула БД */
 	SDBPoolInfo *psoTmp;
 
-	for (int iInd = 0; iInd < iPoolSize; ++iInd) {
-		psoTmp = new SDBPoolInfo;
-		/* на всякий случай проверяем, все ли в порядке с указателем */
-		if (NULL == psoTmp) {
-			iRetVal = -1500;
-			break;
+	try {
+		for (int iInd = 0; iInd < iPoolSize; ++iInd) {
+			psoTmp = new SDBPoolInfo;
+			/* инициализация струтуры */
+			memset (psoTmp, 0, sizeof (*psoTmp));
+			/* укладываем всех в список */
+			if (NULL == g_psoDBPoolHead) {
+				g_psoDBPoolHead = psoTmp;
+			} else {
+				psoTmp->m_psoNext = g_psoDBPoolHead;
+				g_psoDBPoolHead = psoTmp;
+			}
+			/* создаем объект класса подключения к БД */
+			psoTmp->m_pcoDBConn = new otl_connect;
+			if (psoTmp->m_pcoDBConn) {
+				CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp->m_pcoDBConn), goto fn_error);
+			}
 		}
-		/* инициализация струтуры */
-		memset (psoTmp, 0, sizeof (*psoTmp));
-		/* укладываем всех в список */
-		if (NULL == g_psoDBPoolHead) {
-			g_psoDBPoolHead = psoTmp;
-		} else {
-			psoTmp->m_psoNext = g_psoDBPoolHead;
-			g_psoDBPoolHead = psoTmp;
-		}
-		/* создаем объект класса подключения к БД */
-		psoTmp->m_pcoDBConn = new otl_connect;
-		/* снова, на всякий случай, проверяем указатель */
-		if (psoTmp->m_pcoDBConn) {
-			CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp->m_pcoDBConn), goto fn_error);
-			/* если возникла ошибка подключения */
-		}
+	} catch (std::bad_alloc &coBadAlloc) {
+		LOG_F("memory allocftion error: '%s';", coBadAlloc.what());
+		int iRetVal = ENOMEM;
+		goto fn_error;
 	}
+
 	/* если всё выполнено без ошибок выходим из функции */
 	goto fn_return;
 
@@ -190,11 +190,15 @@ int pcrf_db_pool_rel (void *p_pcoDBConn)
 	/* на всякий случай проверяем указатель */
 	if (psoTmp) {
 		/* метим подключение как незанятое */
-		psoTmp->m_iIsBusy = 0;
+		if (psoTmp->m_iIsBusy)
+			psoTmp->m_iIsBusy = 0;
+		else
+			LOG_F("connection is already freely")
 		/* освобождаем семафор */
 		sem_post (&g_tDBPoolSem);
 	} else {
 		/* такого быть не должно */
+		LOG_F("connection is not exists");
 		iRetVal = -2000;
 	}
 	/* снимаем блокировку участка кода */

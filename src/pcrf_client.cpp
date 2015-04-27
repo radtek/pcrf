@@ -346,10 +346,6 @@ static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 	/* Store this value in the session */
 	CHECK_FCT_DO (fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
 
-	/* Log sending the message */
-	fprintf(stderr, "SEND ASR '%s' to '%s' (%s)\n", p_soSessInfo.m_coSessionId.v.c_str (), "ugw", "tattelecom.ru" );
-	fflush(stderr);
-
 	/* Send the request */
 	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_RAA, svg), goto out);
 
