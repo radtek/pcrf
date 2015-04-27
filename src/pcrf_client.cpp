@@ -359,46 +359,50 @@ int pcrf_client_operate_refqueue_record (otl_connect &p_coDBConn, const char *p_
 	int iRetVal = 0;
 	std::vector<std::string> vectSessionList;
 
-	/* сведени€ о сессии */
-	SMsgDataForDB soSessInfo;
-	/* список правил профил€ абонента */
-	std::vector<SDBAbonRule> vectAbonRules;
-	/* список активных правил абонента */
-	std::vector<SDBAbonRule> vectActive;
-
-	/* инициализаци€ структуры хранени€ данных сообщени€ */
-	CHECK_POSIX_DO (pcrf_server_DBstruct_init (&soSessInfo), );
 	/* загружаем из Ѕƒ список сессий абонента */
 	CHECK_POSIX_DO (pcrf_client_db_load_session_list (p_coDBConn, p_pcszSubscriberId, vectSessionList), goto exit_here);
 
 	/* обходим все сессии абонента */
 	for (std::vector<std::string>::iterator iterSess = vectSessionList.begin (); iterSess != vectSessionList.end (); ++iterSess) {
-		/* задаем идентификтор сессии */
-		soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
-		/* загружаем из Ѕƒ информацию о сессии абонента */
-		CHECK_POSIX_DO (pcrf_server_db_load_session_info (p_coDBConn, soSessInfo), );
-		/* определ€ем идентификатор протокола пира */
-		CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), /*continue*/);
-		/* загружаем из Ѕƒ правила абонента */
-		CHECK_POSIX_DO (pcrf_server_db_abon_rule (p_coDBConn, soSessInfo, vectAbonRules), );
-		/* если у абонента нет активных политик завершаем его сессию */
-		if (0 == vectAbonRules.size ()) {
-			CHECK_POSIX_DO (pcrf_ASR (*(soSessInfo.m_psoSessInfo)), );
-			continue;
+		{
+			/* сведени€ о сессии */
+			SMsgDataForDB soSessInfo;
+			/* список правил профил€ абонента */
+			std::vector<SDBAbonRule> vectAbonRules;
+			/* список активных правил абонента */
+			std::vector<SDBAbonRule> vectActive;
+
+			/* инициализаци€ структуры хранени€ данных сообщени€ */
+			CHECK_POSIX_DO(pcrf_server_DBstruct_init(&soSessInfo), );
+			/* задаем идентификтор сессии */
+			soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
+			/* загружаем из Ѕƒ информацию о сессии абонента */
+			CHECK_POSIX_DO(pcrf_server_db_load_session_info(p_coDBConn, soSessInfo), );
+			/* определ€ем идентификатор протокола пира */
+			CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), /*continue*/);
+			/* загружаем из Ѕƒ правила абонента */
+			CHECK_POSIX_DO(pcrf_server_db_abon_rule(p_coDBConn, soSessInfo, vectAbonRules), );
+			/* если у абонента нет активных политик завершаем его сессию */
+			if (0 == vectAbonRules.size()) {
+				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );
+				/* освобождаем ресуры*/
+				pcrf_server_DBStruct_cleanup(&soSessInfo);
+				continue;
+			}
+			/* загружаем список активных правил */
+			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_coDBConn, soSessInfo, vectActive), );
+			/* формируем список неактуальных правил */
+			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(p_coDBConn, soSessInfo, vectAbonRules, vectActive), );
+			/* загружаем информацию о мониторинге */
+			CHECK_POSIX_DO(pcrf_server_db_monit_key(p_coDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
+			/* посылаем RAR-запрос */
+			CHECK_POSIX_DO(pcrf_client_RAR(soSessInfo, vectActive, vectAbonRules), );
+			/* освобождаем ресуры*/
+			pcrf_server_DBStruct_cleanup(&soSessInfo);
 		}
-		/* загружаем список активных правил */
-		CHECK_POSIX_DO (pcrf_server_db_load_active_rules (p_coDBConn, soSessInfo, vectActive), );
-		/* формируем список неактуальных правил */
-		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(p_coDBConn, soSessInfo, vectAbonRules, vectActive), );
-		/* загружаем информацию о мониторинге */
-		CHECK_POSIX_DO(pcrf_server_db_monit_key(p_coDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
-		/* посылаем RAR-запрос */
-		CHECK_POSIX_DO (pcrf_client_RAR (soSessInfo, vectActive, vectAbonRules), );
 	}
 
 	exit_here:
-	/* освобождаем ресуры*/
-	pcrf_server_DBStruct_cleanup (&soSessInfo);
 
 	return iRetVal;
 }

@@ -56,9 +56,7 @@ struct SSessionInfo {
 	otl_value<std::string> m_coEndUserPrivate;
 	otl_value<std::string> m_coIMEI;
 	otl_value<std::string> m_coFramedIPAddress;
-	otl_value<otl_datetime> m_coTimeStart;
 	otl_value<otl_datetime> m_coTimeEnd;
-	otl_value<otl_datetime> m_coTimeLast;
 	otl_value<std::string> m_coTermCause;
 	otl_value<uint32_t> m_coFeatureListId;	/* Feature-List-Id */
 	otl_value<uint32_t> m_coFeatureList;	/* Feature-List */

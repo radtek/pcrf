@@ -158,6 +158,7 @@ int pcrf_db_pool_get (void **p_ppcoDBConn)
 		/* помечаем подключение как занятое */
 		psoTmp->m_iIsBusy = 1;
 		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
+		LOG_A("selected DB connection: %p", psoTmp->m_pcoDBConn);
 	} else {
 		iRetVal = -2222;
 		LOG_F("%s: unexpected error: free db connection not found", __func__);
@@ -193,7 +194,7 @@ int pcrf_db_pool_rel (void *p_pcoDBConn)
 		if (psoTmp->m_iIsBusy)
 			psoTmp->m_iIsBusy = 0;
 		else
-			LOG_F("connection is already freely")
+			LOG_F("connection is already freely");
 		/* освобождаем семафор */
 		sem_post (&g_tDBPoolSem);
 	} else {

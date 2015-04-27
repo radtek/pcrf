@@ -79,7 +79,16 @@ static int app_pcrf_ccr_cb (
 		CHECK_POSIX_DO(pcrf_server_db_load_abon_id((*pcoDBConn), soMsgInfoCache), );
 		break;/* INITIAL_REQUEST */
 	case 3: /* TERMINATION_REQUEST */
-		soMsgInfoCache.m_psoSessInfo->m_coTimeEnd = soMsgInfoCache.m_psoSessInfo->m_coTimeLast;
+		{
+			time_t tSecsSince1970;
+			tm soTime;
+			if ((time_t)-1 != time(&tSecsSince1970)) {
+				if (localtime_r(&tSecsSince1970, &soTime)) {
+					fill_otl_datetime(soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.v, soTime);
+					soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.set_non_null();
+				}
+			}
+		}
 		break; /* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем идентификатор абонента из списка активных сессий абонента */
@@ -1172,16 +1181,6 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 	struct avp_hdr *psoAVPHdr;
 	char mcValue[0x10000];
 	vendor_id_t tVenId;
-
-	/* определяем время запроса */
-	time_t tSecsSince1970;
-	tm soTime;
-	if ((time_t)-1 != time(&tSecsSince1970)) {
-		if (localtime_r(&tSecsSince1970, &soTime)) {
-			fill_otl_datetime(p_psoMsgInfo->m_psoSessInfo->m_coTimeLast.v, soTime);
-			p_psoMsgInfo->m_psoSessInfo->m_coTimeLast.set_non_null();
-		}
-	}
 
 	/* ищем первую AVP */
 	iRetVal = fd_msg_browse_internal(p_psoMsgOrAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);

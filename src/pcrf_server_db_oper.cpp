@@ -55,8 +55,6 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 
 		switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
 		case 1: /* INITIAL_REQUEST */
-			/* фиксируем дату начала сессии */
-			p_psoMsgInfo->m_psoSessInfo->m_coTimeStart = p_psoMsgInfo->m_psoSessInfo->m_coTimeLast;
 			iFnRes = pcrf_db_insert_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 			if (iFnRes) {
 				iRetVal = iFnRes;
@@ -220,7 +218,7 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		coStream.open (
 			1,
 			"insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
-			"values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[16]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:time_start/*timestamp*/,:time_last_req/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
+			"values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[16]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,sysdate,sysdate,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
@@ -230,8 +228,6 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 			<< p_soSessInfo.m_coEndUserIMSI
 			<< p_soSessInfo.m_coEndUserE164
 			<< p_soSessInfo.m_coIMEI
-			<< p_soSessInfo.m_coTimeStart
-			<< p_soSessInfo.m_coTimeLast
 			<< p_soSessInfo.m_coFramedIPAddress
 			<< p_soSessInfo.m_coCalledStationId;
 		p_coDBConn.commit ();
@@ -259,12 +255,11 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		coStream.open (
 			1,
 			"update ps.SessionList"
-			" set time_end = :1<timestamp>, time_last_req = :2<timestamp>, termination_cause = :3<char[64]>"
+			" set time_end = :1<timestamp>, time_last_req = sysdate, termination_cause = :3<char[64]>"
 			" where session_id = :4<char[255]>",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coTimeEnd
-			<< p_soSessInfo.m_coTimeLast
 			<< p_soSessInfo.m_coTermCause
 			<< p_soSessInfo.m_coSessionId;
 		p_coDBConn.commit ();
@@ -361,20 +356,6 @@ int pcrf_db_insert_policy (
 	otl_stream coStream;
 	try {
 		coStream.set_commit (0);
-		char mcRuleName[255];
-		size_t stStrLen;
-		switch (p_soSessInfo.m_uiPeerProto) {
-		case 1: /* Gx */
-			stStrLen = p_soRule.m_coRuleName.v.length () > sizeof (mcRuleName) - 1 ? sizeof (mcRuleName) - 1 : p_soRule.m_coRuleName.v.length ();
-			p_soRule.m_coRuleName.v.copy (
-				mcRuleName,
-				stStrLen);
-			mcRuleName[stStrLen] = '\0';
-			break; /* Gx */
-		case 2: /* Cisco SCE Gx */
-			sprintf (mcRuleName, "%u", p_soRule.m_coSCE_PackageId.v);
-			break; /* Cisco SCE Gx */
-		}
 		coStream.open (
 			1,
 			"insert into ps.sessionRule "
@@ -383,7 +364,7 @@ int pcrf_db_insert_policy (
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
-			<< mcRuleName;
+			<< p_soRule.m_coRuleName;
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
@@ -411,7 +392,7 @@ int pcrf_db_update_policy (
 		coStream.open (
 			1,
 			"update ps.sessionRule "
-				"set time_end = :time_end /* timestamp */, "
+				"set time_end = sysdate, "
 				"rule_failure_code = :rule_failure_code /* char[64]*/ "
 			"where "
 				"session_id = :session_id /* char[255]*/ "
@@ -419,7 +400,6 @@ int pcrf_db_update_policy (
 				"and time_end is null",
 			p_coDBConn);
 		coStream
-			<< p_soSessInfo.m_coTimeLast
 			<< p_soPoliciInfo.m_coRuleFailureCode
 			<< p_soSessInfo.m_coSessionId
 			<< p_soPoliciInfo.m_coChargingRuleName;
@@ -451,13 +431,12 @@ int pcrf_db_close_session_policy (
 			"update "
 				"ps.sessionRule "
 			"set "
-				"time_end = :time_end /* timestamp */ "
+				"time_end = sysdate "
 			"where "
 				"session_id = :session_id /* char[255] */ "
 				"and time_end is null",
 			p_coDBConn);
 		coStream
-			<< p_soSessInfo.m_coTimeLast
 			<< p_soSessInfo.m_coSessionId;
 		p_coDBConn.commit ();
 		coStream.close();
@@ -488,14 +467,13 @@ int pcrf_db_close_session_policy (
 			"update "
 				"ps.sessionRule "
 			"set "
-				"time_end = :time_end /* timestamp */ "
+				"time_end = sysdate "
 			"where "
 				"session_id = :session_id /*char[255]*/ "
 				"and rule_name = :rule_name /*char[100]*/ "
 				"and time_end is null",
 			p_coDBConn);
 		coStream
-			<< p_soSessInfo.m_coTimeLast
 			<< p_soSessInfo.m_coSessionId
 			<< p_strRuleName;
 		p_coDBConn.commit ();
@@ -961,7 +939,6 @@ int pcrf_server_db_load_session_info (
 				"sloc.ip_can_type,"
 				"sloc.sgsn_ip_address,"
 				"sloc.rat_type,"
-				"sysdate,"
 				"sl.origin_host,"
 				"sl.origin_realm "
 			"from "
@@ -980,7 +957,6 @@ int pcrf_server_db_load_session_info (
 				>> coIPCANType
 				>> coSGSNAddress
 				>> coRATType
-				>> p_soMsgInfo.m_psoSessInfo->m_coTimeLast
 				>> coOriginHost
 				>> coOriginReal;
 			/* если из БД получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
