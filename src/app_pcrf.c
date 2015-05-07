@@ -19,8 +19,6 @@ static int app_pcrf_conf_init ()
 /* entry point */
 static int pcrf_entry (char * conffile)
 {
-	TRACE_ENTRY ("%p", conffile);
-
 	/* Initialize configuration */
 	CHECK_FCT (app_pcrf_conf_init ());
 

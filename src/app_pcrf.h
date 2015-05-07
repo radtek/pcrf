@@ -1,5 +1,3 @@
-#define DEBUG
-
 #include <freeDiameter/extension.h>
 
 /* module configuration */
@@ -11,6 +9,7 @@ struct SAppPCRFConf {
 	int m_iDBPoolSize;
 	int m_iDBPoolWait;
 	int m_iDBReqInterval;
+	int m_iOperateRefreshQueue;
 };
 
 extern struct SAppPCRFConf *g_psoConf;

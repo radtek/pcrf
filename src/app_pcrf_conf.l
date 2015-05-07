@@ -129,6 +129,10 @@
 				return DB_REQ_INTERVAL;
 			}
 
+(?i:"operate_refresh_queue")		{
+				return OPERATE_REFRESH_QUEUE;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

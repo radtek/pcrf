@@ -13,18 +13,21 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 		/* создаем объект класса потока ДБ */
 		coStream.open(
 			1000,
-			"select subscriber_id, refresh_date from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+			"select rowid, identifier, identifier_type, refresh_date, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
 			p_coDBConn);
 		/* делаем выборку из БД */
 		while (! coStream.eof ()) {
 			coStream
-				>> soQueueElem.m_strSubscriberId
-				>> soQueueElem.m_coRefreshDate;
+				>> soQueueElem.m_strRowId
+				>> soQueueElem.m_strIdentifier
+				>> soQueueElem.m_strIdentifierType
+				>> soQueueElem.m_coRefreshDate
+				>> soQueueElem.m_coAction;
 			p_vectQueue.push_back (soQueueElem);
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -41,7 +44,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	otl_datetime coDateTime;
 
 	/* запрашиваем указатель на объект подключения к БД */
-	CHECK_POSIX (pcrf_db_pool_get ((void**) &pcoDBConn));
+	CHECK_POSIX(pcrf_db_pool_get((void**)&pcoDBConn, __func__));
 
 	otl_stream coStream;
 	try {
@@ -83,7 +86,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 
 	/* возвращаем подключение к БД, если оно было получено */
 	if (pcoDBConn) {
-		pcrf_db_pool_rel (pcoDBConn);
+		pcrf_db_pool_rel(pcoDBConn, __func__);
 	}
 
 	return iRetVal;
@@ -91,7 +94,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 
 int pcrf_client_db_load_session_list (
 	otl_connect &p_coDBConn,
-	const char *p_pcszSubscriberId,
+	SRefQueue &p_soReqQueue,
 	std::vector<std::string> &p_vectSessionList)
 {
 	int iRetVal = 0;
@@ -100,20 +103,28 @@ int pcrf_client_db_load_session_list (
 	p_vectSessionList.clear ();
 
 	otl_stream coStream;
+
 	try {
 		std::string strSessionId;
-		coStream.open (
-			10,
-			"select session_id from ps.sessionList where subscriber_id = :subscriber_id<char[64]> and time_end is null",
-			p_coDBConn);
-		coStream
-			<< p_pcszSubscriberId;
-		while (! coStream.eof ()) {
+		if (0 == p_soReqQueue.m_strIdentifierType.compare("subscriber_id")) {
+			coStream.open (
+				10,
+				"select session_id from ps.sessionList where subscriber_id = :subscriber_id/*char[64]*/ and time_end is null",
+				p_coDBConn);
 			coStream
-				>> strSessionId;
-			p_vectSessionList.push_back (strSessionId);
+				<< p_soReqQueue.m_strIdentifier;
+			while (!coStream.eof()) {
+				coStream
+					>> strSessionId;
+				p_vectSessionList.push_back (strSessionId);
+			}
+			coStream.close();
+		} else if (0 == p_soReqQueue.m_strIdentifierType.compare("session_id")) {
+			p_vectSessionList.push_back(p_soReqQueue.m_strIdentifier);
+		} else {
+			LOG_F("unsupported identifier type");
+			iRetVal = -1;
 		}
-		coStream.close();
 	} catch (otl_exception &coExcept) {
 		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
@@ -134,11 +145,10 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 		coStream.set_commit (0);
 		coStream.open (
 			1,
-			"delete from ps.refreshqueue where module = 'pcrf' and subscriber_id = :subscriber_id /* char[64] */ and refresh_date = :refresh_date /* timestamp */",
+			"delete from ps.refreshQueue where rowid = :row_id /*char[256]*/",
 			p_coDBConn);
 		coStream
-			<< p_soRefQueue.m_strSubscriberId
-			<< p_soRefQueue.m_coRefreshDate;
+			<< p_soRefQueue.m_strRowId;
 		coStream.flush ();
 		p_coDBConn.commit ();
 		coStream.close();

@@ -8,9 +8,11 @@
 #include <stdio.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/types.h>
 
 /* структура для хранения сведений о пуле */
 struct SDBPoolInfo {
+	unsigned int m_uiNumber;
 	otl_connect *m_pcoDBConn;
 	volatile int m_iIsBusy;
 	SDBPoolInfo *m_psoNext;
@@ -41,6 +43,7 @@ int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn);
 int pcrf_db_pool_init (void)
 {
 	int iRetVal = 0;
+
 	/* если в конфигурационном файле не задан размер пула БД используем значение по умолчанию */
 	int iPoolSize = g_psoConf->m_iDBPoolSize ? g_psoConf->m_iDBPoolSize : DB_POOL_SIZE_DEF;
 
@@ -53,21 +56,24 @@ int pcrf_db_pool_init (void)
 	g_iMutexInitialized = 1;
 	/* инициализация пула БД */
 	SDBPoolInfo *psoTmp;
+	SDBPoolInfo *psoLast;
 
 	try {
-		for (int iInd = 0; iInd < iPoolSize; ++iInd) {
+		for (unsigned int iInd = 0; iInd < iPoolSize; ++iInd) {
 			psoTmp = new SDBPoolInfo;
 			/* инициализация струтуры */
 			memset (psoTmp, 0, sizeof (*psoTmp));
+			psoTmp->m_uiNumber = iInd;
 			/* укладываем всех в список */
 			if (NULL == g_psoDBPoolHead) {
 				g_psoDBPoolHead = psoTmp;
 			} else {
-				psoTmp->m_psoNext = g_psoDBPoolHead;
-				g_psoDBPoolHead = psoTmp;
+				psoLast->m_psoNext = psoTmp;
 			}
+			psoLast = psoTmp;
 			/* создаем объект класса подключения к БД */
 			psoTmp->m_pcoDBConn = new otl_connect;
+			psoTmp->m_pcoDBConn->otl_initialize(1);
 			if (psoTmp->m_pcoDBConn) {
 				CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp->m_pcoDBConn), goto fn_error);
 			}
@@ -118,7 +124,7 @@ void pcrf_db_pool_fin (void)
 	}
 }
 
-int pcrf_db_pool_get (void **p_ppcoDBConn)
+int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 {
 	int iRetVal = 0;
 
@@ -135,12 +141,14 @@ int pcrf_db_pool_get (void **p_ppcoDBConn)
 	soWaitTime.tv_nsec = soCurTime.tv_usec * 1000;
 
 	/* ждем когда освободится семафор или истечет таймаут */
-	CHECK_POSIX (sem_timedwait (&g_tDBPoolSem, &soWaitTime));
+	CHECK_POSIX_DO(sem_timedwait(&g_tDBPoolSem, &soWaitTime),
+		LOG_F("failed waiting for a free DB connection"); return errno);
 
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
 	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
-	CHECK_POSIX (pthread_mutex_lock (&g_tMutex));
+	CHECK_POSIX_DO((iRetVal = pthread_mutex_lock(&g_tMutex)),
+		sem_post(&g_tDBPoolSem); LOG_F("can not enter into critical section"); return iRetVal);
 
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 	/* обходим весь пул начиная с головы пока не дойдем до конца */
@@ -158,17 +166,17 @@ int pcrf_db_pool_get (void **p_ppcoDBConn)
 		/* помечаем подключение как занятое */
 		psoTmp->m_iIsBusy = 1;
 		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
-		LOG_A("selected DB connection: %p", psoTmp->m_pcoDBConn);
+		LOG_N("selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
 	} else {
 		iRetVal = -2222;
-		LOG_F("%s: unexpected error: free db connection not found", __func__);
+		LOG_F("unexpected error: free db connection not found");
 	}
 	CHECK_POSIX (pthread_mutex_unlock (&g_tMutex));
 
 	return iRetVal;
 }
 
-int pcrf_db_pool_rel (void *p_pcoDBConn)
+int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 {
 	int iRetVal = 0;
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
@@ -191,15 +199,17 @@ int pcrf_db_pool_rel (void *p_pcoDBConn)
 	/* на всякий случай проверяем указатель */
 	if (psoTmp) {
 		/* метим подключение как незанятое */
-		if (psoTmp->m_iIsBusy)
+		if (psoTmp->m_iIsBusy) {
 			psoTmp->m_iIsBusy = 0;
-		else
-			LOG_F("connection is already freely");
+			LOG_N("released DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+		} else {
+			LOG_F("connection is already freely: %p", psoTmp->m_pcoDBConn);
+		}
 		/* освобождаем семафор */
 		sem_post (&g_tDBPoolSem);
 	} else {
 		/* такого быть не должно */
-		LOG_F("connection is not exists");
+		LOG_F("connection is not exists: %p", p_pcoDBConn);
 		iRetVal = -2000;
 	}
 	/* снимаем блокировку участка кода */

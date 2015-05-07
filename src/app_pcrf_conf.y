@@ -123,6 +123,7 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		DB_POOL_SIZE
 %token 		DB_POOL_WAIT
 %token 		DB_REQ_INTERVAL
+%token 		OPERATE_REFRESH_QUEUE
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -144,6 +145,7 @@ conffile:		/* empty grammar is OK */
 			| conffile db_pool_size
 			| conffile db_pool_wait
 			| conffile db_req_interval
+			| conffile operate_refresh_queue
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -189,5 +191,11 @@ db_pool_wait:		DB_POOL_WAIT '=' INTEGER ';'
 db_req_interval:		DB_REQ_INTERVAL '=' INTEGER ';'
 			{
 				g_psoConf->m_iDBReqInterval = $3;
+			}
+			;
+
+operate_refresh_queue:		OPERATE_REFRESH_QUEUE '=' INTEGER ';'
+			{
+				g_psoConf->m_iOperateRefreshQueue = $3;
 			}
 			;

@@ -165,7 +165,10 @@ int pcrf_db_insert_policy (
 
 /* очередь элементов обновления политик */
 struct SRefQueue {
-	std::string m_strSubscriberId;
+	std::string m_strRowId;
+	std::string m_strIdentifier;
+	std::string m_strIdentifierType;
+	otl_value<std::string> m_coAction;
 	otl_datetime m_coRefreshDate;
 };
 
@@ -177,13 +180,13 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId);
 /* формирование списка сессий абонента */
 int pcrf_client_db_load_session_list (
 	otl_connect &p_coDBConn,
-	const char *p_pcszSubscriberId,
+	SRefQueue &p_soReqQueue,
 	std::vector<std::string> &p_vectSessionList);
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get (void **p_ppcoDBConn);
+int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient);
 /* возврат подключения к БД */
-int pcrf_db_pool_rel (void *p_pcoDBConn);
+int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 /* восстановление подключения к БД */
 /* возвращаемые значения:
 	-1 - подключение было неработоспособно и восстановить его не удалось
@@ -197,8 +200,10 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 
 /* загрузка идентификатора абонента из БД */
 int pcrf_server_db_load_abon_id (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfo);
+/* проверка зависших сессий */
+int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo);
 /* загрузка списка активных правил абонента */
 int pcrf_server_db_load_active_rules (
 	otl_connect &p_coDBConn,
@@ -237,12 +242,12 @@ int pcrf_server_select_notrelevant_active (
 
 /* функция заполнения avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectActive);
 /* функция заполнения avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	msg *p_soAns);
@@ -259,8 +264,10 @@ int set_event_trigger (
 /* функция добавляет запись в очередь обновления политик */
 int pcrf_server_db_insert_refqueue (
 	otl_connect &p_coDBConn,
-	otl_datetime &p_coDateTime,
-	std::string &p_strSubscriberId);
+	const char *p_pszIdentifierType,
+	const std::string &p_strIdentifier,
+	otl_datetime *p_pcoDateTime,
+	const char *p_pszAction);
 /* функция удаляет запись из очереди обновления политик */
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,

@@ -302,22 +302,22 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 				<< iter->m_coCCInputOctets
 				<< iter->m_coCCOutputOctets
 				<< iter->m_coCCTotalOctets;
-			LOG_A("%s;%s;%'llu;%'llu;%'llu;",
+			LOG_N("quota usage:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
-				iter->m_coCCInputOctets.v,
-				iter->m_coCCOutputOctets.v,
-				iter->m_coCCTotalOctets.v);
+				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
+				iter->m_coCCOutputOctets.is_null() ? -1: iter->m_coCCOutputOctets.v,
+				iter->m_coCCTotalOctets.is_null() ? -1: iter->m_coCCTotalOctets.v);
 			coStream
 				>> iter->m_coCCInputOctets
 				>> iter->m_coCCOutputOctets
 				>> iter->m_coCCTotalOctets;
-			LOG_A("%s;%s;%'llu;%'llu;%'llu;",
+			LOG_N("quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
-				iter->m_coCCInputOctets.v,
-				iter->m_coCCOutputOctets.v,
-				iter->m_coCCTotalOctets.v);
+				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
+				iter->m_coCCOutputOctets.is_null() ? -1: iter->m_coCCOutputOctets.v,
+				iter->m_coCCTotalOctets.is_null() ? -1: iter->m_coCCTotalOctets.v);
 			/* запоминаем полученную информацию чтобы не повтор€ть запросы к Ѕƒ по этому ключу мониторинга */
 			{
 				SDBMonitoringInfo soMonitInfo;
@@ -490,8 +490,11 @@ int pcrf_db_close_session_policy (
 }
 
 /* загружает идентификатор абонента (subscriber_id) из Ѕƒ */
-int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo)
+int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo)
 {
+	if (NULL == p_pcoDBConn)
+		return EINVAL;
+
 	int iRetVal = 0;
 
 	otl_stream coStream;
@@ -509,7 +512,7 @@ int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 			  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
 			  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
 			  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
-			p_coDBConn);
+			*p_pcoDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164
 			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI
@@ -525,6 +528,89 @@ int pcrf_server_db_load_abon_id (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 		if (coStream.good()) {
 			coStream.close();
 		}
+	}
+
+	return iRetVal;
+}
+
+int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo)
+{
+	if (NULL == p_pcoDBConn || NULL == p_psoSessInfo)
+		return EINVAL;
+
+	int iRetVal = 0;
+	otl_stream coStream;
+	std::string strSessionId;
+	std::map<std::string,int> mapSessList;
+
+	try {
+		coStream.set_commit(0);
+		/* ищем сессии по IMSI */
+		if (!p_psoSessInfo->m_coEndUserIMSI.is_null()) {
+			coStream.open(
+				100,
+				"select "
+					"session_id "
+				"from "
+					"ps.sessionList ps "
+				"where "
+					"ps.end_user_imsi = :end_user_imsi/*char[16]*/ "
+					"and ps.origin_host = :origin_host/*char[255]*/ "
+					"and ps.session_id <> :session_id/*char[255]*/ "
+					"and ps.time_end is null",
+				*p_pcoDBConn);
+			coStream
+				<< p_psoSessInfo->m_coEndUserIMSI
+				<< p_psoSessInfo->m_coOriginHost
+				<< p_psoSessInfo->m_coSessionId;
+			while (!coStream.eof()) {
+				coStream
+					>> strSessionId;
+				LOG_N("it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
+				mapSessList.insert(std::make_pair(strSessionId,0));
+			}
+			if (coStream.good())
+				coStream.close();
+		}
+		/* ищем сессии по ip-адресу */
+		if (!p_psoSessInfo->m_coFramedIPAddress.is_null()) {
+			coStream.open(
+				100,
+				"select "
+					"session_id "
+				"from "
+					"ps.sessionList ps "
+				"where "
+					"ps.framed_ip_address = :framed_ip_address/*char[16]*/ "
+					"and ps.origin_host = :origin_host/*char[255]*/ "
+					"and ps.session_id <> :session_id/*char[255]*/ "
+					"and ps.time_end is null",
+				*p_pcoDBConn);
+			coStream
+				<< p_psoSessInfo->m_coFramedIPAddress
+				<< p_psoSessInfo->m_coOriginHost
+				<< p_psoSessInfo->m_coSessionId;
+			while (!coStream.eof()) {
+				coStream
+					>> strSessionId;
+				LOG_N("it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
+				mapSessList.insert(std::make_pair(strSessionId, 0));
+			}
+			if (coStream.good())
+				coStream.close();
+		}
+		/* записываем сессии в очередь команд дл€ проверки */
+		for (std::map<std::string,int>::iterator iterList = mapSessList.begin(); iterList != mapSessList.end(); ++iterList) {
+			pcrf_server_db_insert_refqueue(*p_pcoDBConn, "session_id", iterList->first, NULL, "abort_session");
+		}
+	} catch (otl_exception &coExcept) {
+		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		iRetVal = coExcept.code;
+		if (coStream.get_error_state())
+			coStream.clean();
+		if (coStream.good())
+			coStream.close();
+		p_pcoDBConn->rollback();
 	}
 
 	return iRetVal;
@@ -627,11 +713,11 @@ int load_abon_rule_list (
 			p_vectRuleList.push_back (strRuleName);
 			/* если известна дата действи€ политик */
 			if (! coValidUntil.is_null ()) {
-				pcrf_server_db_insert_refqueue (p_coDBConn, coValidUntil.v, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId);
+				pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coValidUntil.v), NULL);
 			}
 			/* если известна дата действи€ правила */
 			if (! coRuleTimeEnd.is_null ()) {
-				pcrf_server_db_insert_refqueue (p_coDBConn, coRuleTimeEnd.v, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId);
+				pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coRuleTimeEnd.v), NULL);
 			}
 		}
 		coStream.close();
@@ -943,7 +1029,7 @@ int pcrf_server_db_load_session_info (
 				"sl.origin_realm "
 			"from "
 				"ps.sessionList sl "
-				"inner join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
+				"left join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
 			"where "
 				"sl.session_id = :session_id/*char[255]*/ "
 				"and sloc.time_end is null",
@@ -1140,18 +1226,18 @@ int pcrf_server_db_monit_key(
 					>> iterMonitList->second.m_coDosageInputOctets
 					>> iterMonitList->second.m_coDosageOutputOctets
 					>> iterMonitList->second.m_coDosageTotalOctets;
-				LOG_A("%s;%s;%'llu;%'llu;%'llu;",
+				LOG_N("quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 					p_soSessInfo.m_strSubscriberId.c_str(),
 					iterMonitList->first.c_str(),
-					iterMonitList->second.m_coDosageInputOctets.v,
-					iterMonitList->second.m_coDosageOutputOctets.v,
-					iterMonitList->second.m_coDosageTotalOctets.v);
+					iterMonitList->second.m_coDosageInputOctets.is_null() ? -1:  iterMonitList->second.m_coDosageInputOctets.v,
+					iterMonitList->second.m_coDosageOutputOctets.is_null() ? -1: iterMonitList->second.m_coDosageOutputOctets.v,
+					iterMonitList->second.m_coDosageTotalOctets.is_null() ? -1: iterMonitList->second.m_coDosageTotalOctets.v);
 			}
 			++iterMonitList;
 		}
 		p_coDBConn.rollback();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -1162,20 +1248,37 @@ int pcrf_server_db_monit_key(
 	return iRetVal;
 }
 
-int pcrf_server_db_insert_refqueue (otl_connect &p_coDBConn, otl_datetime &p_coDateTime, std::string &p_strSubscriberId)
+int pcrf_server_db_insert_refqueue (
+	otl_connect &p_coDBConn,
+	const char *p_pszIdentifierType,
+	const std::string &p_strIdentifier,
+	otl_datetime *p_coDateTime,
+	const char *p_pszAction)
 {
 	int iRetVal = 0;
 
 	otl_stream coStream;
+	otl_value<std::string> coAction;
+	otl_value<otl_datetime> coRefreshDate;
+
+	if (p_pszAction)
+		coAction = p_pszAction;
+	if (p_coDateTime)
+		coRefreshDate = *p_coDateTime;
 	try {
 		coStream.set_commit (0);
 		coStream.open (
 			1,
-			"insert into ps.refreshQueue (module, subscriber_id, refresh_date) values ('pcrf', :subscriber_id /*char[64]*/, :refresh_date /*timestamp*/)",
+			"insert into ps.refreshQueue "
+			"(identifier_type, identifier, module, refresh_date, action) "
+			"values "
+			"(:identifier_type /*char[64]*/, :identifier/*char[64]*/, 'pcrf', nvl(:refresh_date/*timestamp*/,sysdate), :action/*char[20]*/)",
 			p_coDBConn);
 		coStream
-			<< p_strSubscriberId
-			<< p_coDateTime;
+			<< p_pszIdentifierType
+			<< p_strIdentifier
+			<< coRefreshDate
+			<< coAction;
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
