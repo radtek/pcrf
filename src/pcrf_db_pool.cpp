@@ -1,5 +1,6 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
+#include "timemeasurer.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -16,6 +17,7 @@ struct SDBPoolInfo {
 	otl_connect *m_pcoDBConn;
 	volatile int m_iIsBusy;
 	SDBPoolInfo *m_psoNext;
+	CTimeMeasurer *m_pcoTM;
 };
 
 /* указатели на пул подключений к БД */
@@ -74,6 +76,7 @@ int pcrf_db_pool_init (void)
 			/* создаем объект класса подключения к БД */
 			psoTmp->m_pcoDBConn = new otl_connect;
 			psoTmp->m_pcoDBConn->otl_initialize(1);
+			psoTmp->m_pcoTM = new CTimeMeasurer();
 			if (psoTmp->m_pcoDBConn) {
 				CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp->m_pcoDBConn), goto fn_error);
 			}
@@ -113,6 +116,8 @@ void pcrf_db_pool_fin (void)
 			}
 			delete g_psoDBPoolHead->m_pcoDBConn;
 			g_psoDBPoolHead->m_pcoDBConn = NULL;
+			delete g_psoDBPoolHead->m_pcoTM;
+			g_psoDBPoolHead->m_pcoTM = NULL;
 		}
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
@@ -142,7 +147,7 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 
 	/* ждем когда освободится семафор или истечет таймаут */
 	CHECK_POSIX_DO(sem_timedwait(&g_tDBPoolSem, &soWaitTime),
-		LOG_F("failed waiting for a free DB connection"); return errno);
+		LOG_F("failed waiting for a free DB connection: '%s'", p_pszClient); return errno);
 
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
@@ -165,6 +170,7 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 	if (psoTmp) {
 		/* помечаем подключение как занятое */
 		psoTmp->m_iIsBusy = 1;
+		psoTmp->m_pcoTM->Set();
 		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
 		LOG_N("selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
 	} else {
@@ -200,8 +206,10 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 	if (psoTmp) {
 		/* метим подключение как незанятое */
 		if (psoTmp->m_iIsBusy) {
+			char mcTimeInterval[256];
 			psoTmp->m_iIsBusy = 0;
-			LOG_N("released DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
+			LOG_N("released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
 		} else {
 			LOG_F("connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}

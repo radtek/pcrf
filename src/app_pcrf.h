@@ -10,6 +10,7 @@ struct SAppPCRFConf {
 	int m_iDBPoolWait;
 	int m_iDBReqInterval;
 	int m_iOperateRefreshQueue;
+	int m_iLook4StalledSession;
 };
 
 extern struct SAppPCRFConf *g_psoConf;

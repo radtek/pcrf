@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 /* длительность интервала опроса БД по умолчанию */
 #define DB_REQ_INTERVAL 1
@@ -12,6 +13,8 @@ static struct session_handler * g_psoSessionHandler = NULL;
 static pthread_mutex_t g_tDBReqMutex;
 static pthread_t g_tThreadId = -1;
 static int g_iStop = 0;
+
+extern struct SAppPCRFConf *g_psoConf;
 
 struct sess_state {
 	struct timespec m_soTS;      /* Time of sending the message */

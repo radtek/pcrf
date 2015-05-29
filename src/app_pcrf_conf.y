@@ -124,6 +124,7 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		DB_POOL_WAIT
 %token 		DB_REQ_INTERVAL
 %token 		OPERATE_REFRESH_QUEUE
+%token 		LOOK4STALLEDSESSION
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -146,6 +147,7 @@ conffile:		/* empty grammar is OK */
 			| conffile db_pool_wait
 			| conffile db_req_interval
 			| conffile operate_refresh_queue
+			| conffile look4stalledsession
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -197,5 +199,11 @@ db_req_interval:		DB_REQ_INTERVAL '=' INTEGER ';'
 operate_refresh_queue:		OPERATE_REFRESH_QUEUE '=' INTEGER ';'
 			{
 				g_psoConf->m_iOperateRefreshQueue = $3;
+			}
+			;
+
+look4stalledsession:		LOOK4STALLEDSESSION '=' INTEGER ';'
+			{
+				g_psoConf->m_iLook4StalledSession = $3;
 			}
 			;

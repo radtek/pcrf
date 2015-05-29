@@ -133,6 +133,10 @@
 				return OPERATE_REFRESH_QUEUE;
 			}
 
+(?i:"look4stalledsession")		{
+				return LOOK4STALLEDSESSION;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

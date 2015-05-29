@@ -4,6 +4,8 @@
 #include <vector>
 #include <stdio.h>
 
+extern struct SAppPCRFConf *g_psoConf;
+
 /* handler for CCR req cb */
 static disp_hdl * app_pcrf_hdl_ccr = NULL;
 
@@ -76,7 +78,8 @@ static int app_pcrf_ccr_cb (
 		/* загружаем идентификтор абонента из профиля абонента */
 		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache), /*continue*/);
 		/* проверка наличия зависших сессий */
-		CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo), /*continue*/);
+		if (g_psoConf->m_iLook4StalledSession)
+			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo), /*continue*/);
 		break;/* INITIAL_REQUEST */
 	case 3: /* TERMINATION_REQUEST */
 		{
