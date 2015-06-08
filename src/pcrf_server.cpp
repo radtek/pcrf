@@ -44,7 +44,7 @@ static int app_pcrf_ccr_cb (
 	enum disp_action * p_pAct)
 {
 	int iFnRes;
-	msg *ans;
+	msg *ans = NULL;
 	avp *psoParentAVP = NULL;
 	avp *psoChildAVP = NULL;
 	union avp_value soAVPVal;
@@ -221,15 +221,15 @@ static int app_pcrf_ccr_cb (
 		break; /* UPDATE_REQUEST */
 	}
 
-	/* Send the answer */
-	CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
-
 	cleanup_and_exit:
 	pcrf_server_DBStruct_cleanup (&soMsgInfoCache);
 
 	/* освобождаем объект класса взаимодействия с БД */
 	if (pcoDBConn)
 		CHECK_POSIX_DO(pcrf_db_pool_rel((void *)pcoDBConn, __func__), /*continue*/);
+
+	/* Send the answer */
+	CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
 
 	return 0;
 }
