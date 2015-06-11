@@ -2,13 +2,15 @@
 #include "app_pcrf_header.h"
 #include <stdio.h>
 
+extern CLog *g_pcoLog;
+
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue)
 {
 	int iRetVal = 0;
 	char mcSubscriberId[256];
 	SRefQueue soQueueElem;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		/* создаем объект класса потока ДБ */
 		coStream.open(
@@ -27,7 +29,7 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -46,21 +48,20 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	/* запрашиваем указатель на объект подключения к БД */
 	CHECK_POSIX(pcrf_db_pool_get((void**)&pcoDBConn, __func__));
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		/* создаем объект класса потока ДБ */
-		coStream.set_commit (0);
 		/* закрываем зависшую сессию */
 		coStream.open (
-			1000,
+			1,
 			"update ps.SessionList "
 				"set time_end = time_last_req "
 				"where session_id = :1/*char[255],in*/ "
-				"returning time_end into :2/*timestamp,out*/",
+				"returning time_last_req into :2/*timestamp,out*/",
 			*pcoDBConn);
 		/* делаем выборку из БД */
-		coStream << p_pcszSessionId;
-		coStream.flush ();
+		coStream
+			<< p_pcszSessionId;
 		coStream
 			>> coDateTime;
 		if(coStream.good())
@@ -72,12 +73,26 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 				"set time_end = :time_end/*timestamp*/ "
 				"where time_end is null and session_id = :session_id/*char[255]*/",
 			*pcoDBConn);
-		coStream << coDateTime << p_pcszSessionId;
-		pcoDBConn->commit ();
+		coStream
+			<< coDateTime
+			<< p_pcszSessionId;
 		if (coStream.good())
 			coStream.close();
+		/* фиксируем локации зависшей сессиии */
+		coStream.open (
+			1,
+			"update ps.sessionLocation "
+				"set time_end = :time_end/*timestamp*/ "
+				"where time_end is null and session_id = :session_id/*char[255]*/",
+			*pcoDBConn);
+		coStream
+			<< coDateTime
+			<< p_pcszSessionId;
+		if (coStream.good())
+			coStream.close();
+		pcoDBConn->commit ();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -102,7 +117,7 @@ int pcrf_client_db_load_session_list (
 	/* очищаем список перед выполнением */
 	p_vectSessionList.clear ();
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 
 	try {
 		std::string strSessionId;
@@ -122,11 +137,11 @@ int pcrf_client_db_load_session_list (
 		} else if (0 == p_soReqQueue.m_strIdentifierType.compare("session_id")) {
 			p_vectSessionList.push_back(p_soReqQueue.m_strIdentifier);
 		} else {
-			LOG_F("unsupported identifier type");
+			UTL_LOG_F(*g_pcoLog, "unsupported identifier type");
 			iRetVal = -1;
 		}
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -140,9 +155,8 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"delete from ps.refreshQueue where rowid = :row_id /*char[256]*/",
@@ -153,7 +167,7 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();

@@ -11,6 +11,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+extern CLog *g_pcoLog;
+
 /* структура для хранения сведений о пуле */
 struct SDBPoolInfo {
 	unsigned int m_uiNumber;
@@ -82,7 +84,7 @@ int pcrf_db_pool_init (void)
 			}
 		}
 	} catch (std::bad_alloc &coBadAlloc) {
-		LOG_F("memory allocftion error: '%s';", coBadAlloc.what());
+		UTL_LOG_F(*g_pcoLog, "memory allocftion error: '%s';", coBadAlloc.what());
 		int iRetVal = ENOMEM;
 		goto fn_error;
 	}
@@ -147,13 +149,13 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 
 	/* ждем когда освободится семафор или истечет таймаут */
 	CHECK_POSIX_DO(sem_timedwait(&g_tDBPoolSem, &soWaitTime),
-		LOG_F("failed waiting for a free DB connection: '%s'", p_pszClient); return errno);
+		UTL_LOG_F(*g_pcoLog, "failed waiting for a free DB connection: '%s'", p_pszClient); return errno);
 
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
 	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
 	CHECK_POSIX_DO((iRetVal = pthread_mutex_lock(&g_tMutex)),
-		sem_post(&g_tDBPoolSem); LOG_F("can not enter into critical section"); return iRetVal);
+		sem_post(&g_tDBPoolSem); UTL_LOG_F(*g_pcoLog, "can not enter into critical section"); return iRetVal);
 
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 	/* обходим весь пул начиная с головы пока не дойдем до конца */
@@ -172,10 +174,10 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 		psoTmp->m_iIsBusy = 1;
 		psoTmp->m_pcoTM->Set();
 		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
-		LOG_N("selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+		UTL_LOG_N(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
 	} else {
 		iRetVal = -2222;
-		LOG_F("unexpected error: free db connection not found");
+		UTL_LOG_F(*g_pcoLog, "unexpected error: free db connection not found");
 	}
 	CHECK_POSIX (pthread_mutex_unlock (&g_tMutex));
 
@@ -209,15 +211,15 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 			char mcTimeInterval[256];
 			psoTmp->m_iIsBusy = 0;
 			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
-			LOG_N("released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
+			UTL_LOG_N(*g_pcoLog, "released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
 		} else {
-			LOG_F("connection is already freely: %p", psoTmp->m_pcoDBConn);
+			UTL_LOG_F(*g_pcoLog, "connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}
 		/* освобождаем семафор */
 		sem_post (&g_tDBPoolSem);
 	} else {
 		/* такого быть не должно */
-		LOG_F("connection is not exists: %p", p_pcoDBConn);
+		UTL_LOG_F(*g_pcoLog, "connection is not exists: %p", p_pcoDBConn);
 		iRetVal = -2000;
 	}
 	/* снимаем блокировку участка кода */
@@ -286,7 +288,7 @@ int pcrf_db_pool_connect (otl_connect *p_pcoDBConn)
 		p_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
 		p_pcoDBConn->auto_commit_off();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 	}
 
@@ -305,7 +307,7 @@ void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn)
 int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
 {
 	int iRetVal = 0;
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		const char *pcszCheckReq;
 
@@ -322,7 +324,7 @@ int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
 		coStream >> mcResult;
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();

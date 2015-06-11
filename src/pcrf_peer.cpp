@@ -2,6 +2,7 @@
 #include "app_pcrf_header.h"
 #include <vector>
 
+extern CLog *g_pcoLog;
 std::vector<SPeerInfo> g_vectPeerList;
 
 /* функция загружает список клиентов */
@@ -47,7 +48,7 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		SPeerInfo soPeerInfo;
 		otl_value<std::string> coHostName;
@@ -80,7 +81,7 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 		}
 		coStream.close ();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (! iRetVal) {
 			iRetVal = -1;

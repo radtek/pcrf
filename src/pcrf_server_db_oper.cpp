@@ -1,6 +1,8 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 
+extern CLog *g_pcoLog;
+
 /* добавление записи в список сессий */
 int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo);
 /* обновление записи в таблице сессий */
@@ -30,7 +32,7 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 		p_psoMsgToDB->m_psoSessInfo = new SSessionInfo;
 		p_psoMsgToDB->m_psoReqInfo = new SRequestInfo;
 	} catch (std::bad_alloc &coBadAlloc) {
-		LOG_F("memory allocation error: '%s';", coBadAlloc.what());
+		UTL_LOG_F(*g_pcoLog, "memory allocation error: '%s';", coBadAlloc.what());
 		iRetVal = ENOMEM;
 	}
 
@@ -70,9 +72,8 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 		case 3: /* TERMINATION_REQUEST */
 			/* закрываем открытые записи о локациях */
 			{
-				otl_stream coStream;
+				otl_nocommit_stream coStream;
 				try {
-					coStream.set_commit(0);
 					coStream.open(1, "update ps.sessionLocation set time_end = sysdate where time_end is null and session_id = :session_id/*char[255]*/", p_coDBConn);
 					coStream
 						<< p_psoMsgInfo->m_psoSessInfo->m_coSessionId;
@@ -80,7 +81,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 					if (coStream.good())
 						coStream.close();
 				} catch (otl_exception coExcept) {
-					LOG_E("code: '%d'; message: '%s'; query: '%s';", coExcept.code, coExcept.msg, coExcept.stm_text);
+					UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s';", coExcept.code, coExcept.msg, coExcept.stm_text);
 					if (coStream.good())
 						coStream.close();
 					p_coDBConn.rollback();
@@ -211,9 +212,8 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		/* выполняем запрос на добавление записи о сессии */
 		coStream.open (
 			1,
@@ -233,7 +233,7 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good()) {
@@ -248,9 +248,8 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		/* запрос на обновление записи о сессии */
 		coStream.open (
 			1,
@@ -265,7 +264,7 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good()) {
@@ -282,10 +281,9 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 	if (0 == p_soReqInfo.m_vectUsageInfo.size())
 		return 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		std::vector<SSessionUsageInfo>::iterator iter;
-		coStream.set_commit(0);
 		coStream.open(
 			1,
 			"begin ps.qm.ProcessQuota("
@@ -302,7 +300,7 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 				<< iter->m_coCCInputOctets
 				<< iter->m_coCCOutputOctets
 				<< iter->m_coCCTotalOctets;
-			LOG_N("quota usage:%s;%s;%'lld;%'lld;%'lld;",
+			UTL_LOG_N(*g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
 				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
@@ -312,7 +310,7 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 				>> iter->m_coCCInputOctets
 				>> iter->m_coCCOutputOctets
 				>> iter->m_coCCTotalOctets;
-			LOG_N("quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+			UTL_LOG_N(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
 				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
@@ -335,7 +333,7 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 		p_coDBConn.commit();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback();
 		if (coStream.good()) {
@@ -353,9 +351,8 @@ int pcrf_db_insert_policy (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"insert into ps.sessionRule "
@@ -368,7 +365,7 @@ int pcrf_db_insert_policy (
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good()) {
@@ -386,9 +383,8 @@ int pcrf_db_update_policy (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"update ps.sessionRule "
@@ -406,7 +402,7 @@ int pcrf_db_update_policy (
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good()) {
@@ -423,9 +419,8 @@ int pcrf_db_close_session_policy (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"update "
@@ -441,7 +436,7 @@ int pcrf_db_close_session_policy (
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good()) {
@@ -459,9 +454,8 @@ int pcrf_db_close_session_policy (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"update "
@@ -479,7 +473,7 @@ int pcrf_db_close_session_policy (
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		p_coDBConn.rollback ();
 		if (coStream.good())
@@ -497,7 +491,7 @@ int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMs
 
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		/* выполняем запрос к БД */
 		coStream.open (
@@ -523,7 +517,7 @@ int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMs
 			>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId;
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -539,12 +533,11 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		return EINVAL;
 
 	int iRetVal = 0;
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	std::string strSessionId;
 	std::map<std::string,int> mapSessList;
 
 	try {
-		coStream.set_commit(0);
 		/* ищем сессии по IMSI */
 		if (!p_psoSessInfo->m_coEndUserIMSI.is_null()) {
 			coStream.open(
@@ -566,7 +559,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 			while (!coStream.eof()) {
 				coStream
 					>> strSessionId;
-				LOG_N("it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
+				UTL_LOG_N(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
 				mapSessList.insert(std::make_pair(strSessionId,0));
 			}
 			if (coStream.good())
@@ -593,7 +586,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 			while (!coStream.eof()) {
 				coStream
 					>> strSessionId;
-				LOG_N("it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
+				UTL_LOG_N(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
 				mapSessList.insert(std::make_pair(strSessionId, 0));
 			}
 			if (coStream.good())
@@ -604,7 +597,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 			pcrf_server_db_insert_refqueue(*p_pcoDBConn, "session_id", iterList->first, NULL, "abort_session");
 		}
 	} catch (otl_exception &coExcept) {
-		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.get_error_state())
 			coStream.clean();
@@ -623,7 +616,7 @@ int pcrf_server_db_load_active_rules (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		/* загружаем активные политики сессии */
 		SDBAbonRule soRule;
@@ -646,7 +639,7 @@ int pcrf_server_db_load_active_rules (
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -663,7 +656,7 @@ int load_abon_rule_list (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		otl_value<otl_datetime> coValidUntil;
 		otl_value<otl_datetime> coRuleTimeEnd;
@@ -722,7 +715,7 @@ int load_abon_rule_list (
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -743,7 +736,7 @@ int load_def_rule_list (
 	unsigned int uiRulePrecedence;
 	otl_value<std::string> coRuleName;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		/* загружаем правила по умолчанию */
 		switch (p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
@@ -795,7 +788,7 @@ int load_def_rule_list (
 			coStream.close();
 		}
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -810,7 +803,7 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		std::string strFlowDescr;
 		coStream.open (
@@ -830,7 +823,7 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -850,7 +843,7 @@ int load_rule_info (
 	int iRetVal = 0;
 	int iFnRes;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		SDBMonitoringInfo soMonitInfo;
 		SDBAbonRule soAbonRule;
@@ -976,7 +969,7 @@ int load_rule_info (
 			coStream.close();
 		}
 	} catch (otl_exception coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -1010,7 +1003,7 @@ int pcrf_server_db_load_session_info (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	try {
 		otl_value<std::string> coIPCANType;
 		otl_value<std::string> coSGSNAddress;
@@ -1087,7 +1080,7 @@ int pcrf_server_db_load_session_info (
 		}
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -1107,10 +1100,9 @@ int pcrf_server_db_user_location(
 
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 
 	try {
-		coStream.set_commit(0);
 		coStream.open(1, "update ps.sessionLocation set time_end = sysdate where time_end is null and session_id = :session_id /*char[255]*/", p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_coSessionId;
@@ -1139,7 +1131,7 @@ int pcrf_server_db_user_location(
 		if (coStream.good())
 			coStream.close();
 	} catch (otl_exception coExcept) {
-		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		if (coStream.good())
 			coStream.close();
 		p_coDBConn.rollback();
@@ -1203,10 +1195,9 @@ int pcrf_server_db_monit_key(
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 
 	try {
-		coStream.set_commit(0);
 		coStream.open(
 			1,
 			"begin ps.qm.ProcessQuota("
@@ -1226,7 +1217,7 @@ int pcrf_server_db_monit_key(
 					>> iterMonitList->second.m_coDosageInputOctets
 					>> iterMonitList->second.m_coDosageOutputOctets
 					>> iterMonitList->second.m_coDosageTotalOctets;
-				LOG_N("quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+				UTL_LOG_N(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 					p_soSessInfo.m_strSubscriberId.c_str(),
 					iterMonitList->first.c_str(),
 					iterMonitList->second.m_coDosageInputOctets.is_null() ? -1:  iterMonitList->second.m_coDosageInputOctets.v,
@@ -1237,7 +1228,7 @@ int pcrf_server_db_monit_key(
 		}
 		p_coDBConn.rollback();
 	} catch (otl_exception &coExcept) {
-		LOG_E("code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();
@@ -1257,7 +1248,7 @@ int pcrf_server_db_insert_refqueue (
 {
 	int iRetVal = 0;
 
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	otl_value<std::string> coAction;
 	otl_value<otl_datetime> coRefreshDate;
 
@@ -1266,7 +1257,6 @@ int pcrf_server_db_insert_refqueue (
 	if (p_coDateTime)
 		coRefreshDate = *p_coDateTime;
 	try {
-		coStream.set_commit (0);
 		coStream.open (
 			1,
 			"insert into ps.refreshQueue "
@@ -1282,7 +1272,7 @@ int pcrf_server_db_insert_refqueue (
 		p_coDBConn.commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		LOG(FD_LOG_ERROR, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();

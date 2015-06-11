@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+extern CLog *g_pcoLog;
+
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize)
 {
 	int iRetVal = 0;

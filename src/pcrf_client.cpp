@@ -6,6 +6,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+extern CLog *g_pcoLog;
+
 /* длительность интервала опроса БД по умолчанию */
 #define DB_REQ_INTERVAL 1
 
@@ -203,13 +205,10 @@ static void pcrf_ASA (void * data, struct msg ** msg)
 {
 	int iFnRes;
 	struct sess_state * mi = NULL;
-	struct timespec ts;
 	struct session * sess;
 	struct avp * avp;
 	struct avp_hdr * hdr;
 	int iRC;
-
-	CHECK_SYS_DO (clock_gettime (CLOCK_REALTIME, &ts), return);
 
 	/* Search the session, retrieve its data */
 	{
@@ -268,7 +267,7 @@ static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 	struct session *psoSess = NULL;
 
 	/* Create the request */
-	CHECK_FCT_DO (fd_msg_new (g_psoDictASR, MSGFL_ALLOC_ETEID, &psoReq), goto out);
+	CHECK_FCT_DO (fd_msg_new (g_psoDictRAR, MSGFL_ALLOC_ETEID, &psoReq), goto out);
 
 	/* задаем идентификатор приложения */
 	{
@@ -331,6 +330,14 @@ static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 	{
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictRARType, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 0;
+		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
+		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
+	}
+
+	/* Set Session-Release-Cause AVP */
+	{
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSessionReleaseCause, 0, &psoAVP), goto out);
+		soAVPValue.u32 = 0; /* UNSPECIFIED_REASON */
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -553,7 +560,7 @@ void pcrf_cli_fini (void)
 extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
 {
-	LOG_A("%p:%p:%p", state, sid, opaque);
+	UTL_LOG_D(*g_pcoLog, "%p:%p:%p", state, sid, opaque);
 
 	if (state->m_pszSessionId) {
 		free (state->m_pszSessionId);

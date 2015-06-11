@@ -4,6 +4,7 @@
 #include <vector>
 #include <stdio.h>
 
+CLog *g_pcoLog = NULL;
 extern struct SAppPCRFConf *g_psoConf;
 
 /* handler for CCR req cb */
@@ -247,14 +248,14 @@ static void pcrf_tracer(
 	char *pmcBuf = NULL;
 	size_t stLen;
 	msg_hdr *psoMsgHdr;
-	otl_stream coStream;
+	otl_nocommit_stream coStream;
 	char mcEnumValue[256];
 	otl_connect *pcoDBConn = NULL;
 
-	LOG_A("parameters dump: %#x:%p:%p:%p:%p:%p", p_eHookType, p_psoMsg, p_psoPeer, p_pOther, p_psoPMD, p_pRegData);
+	UTL_LOG_D(*g_pcoLog, "parameters dump: %#x:%p:%p:%p:%p:%p", p_eHookType, p_psoMsg, p_psoPeer, p_pOther, p_psoPMD, p_pRegData);
 
 	if (NULL == p_psoMsg) {
-		LOG_E("NULL pointer to message structure");
+		UTL_LOG_E(*g_pcoLog, "NULL pointer to message structure");
 		return;
 	}
 
@@ -263,7 +264,7 @@ static void pcrf_tracer(
 	if (p_psoMsg) {
 		CHECK_MALLOC_DO(
 			fd_msg_dump_treeview(&pmcBuf, &stLen, NULL, p_psoMsg, fd_g_config->cnf_dict, 1, 1),
-			{ LOG_E("Error while dumping a message"); return; });
+			{ UTL_LOG_E(*g_pcoLog, "Error while dumping a message"); return; });
 	}
 
 	std::string strSessionId;
@@ -442,7 +443,6 @@ static void pcrf_tracer(
 			coOTLDestinReal = strDestinReal;
 		if (strResultCode.length())
 			coOTLResultCode = strResultCode;
-		coStream.set_commit(0);
 		coStream.open(1,
 			"insert into ps.requestList"
 			"(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
@@ -461,7 +461,7 @@ static void pcrf_tracer(
 		pcoDBConn->commit();
 		coStream.close();
 	} catch (otl_exception coExcept) {
-		LOG_E("code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		if (coStream.good())
 			coStream.close();
 	}
@@ -515,8 +515,22 @@ void app_pcrf_serv_fini (void)
 	if (app_pcrf_hdl_ccr) {
 		(void) fd_disp_unregister (&app_pcrf_hdl_ccr, NULL);
 	}
-	
-	return;
+}
+
+int pcrf_logger_init(void)
+{
+	int iRetVal = 0;
+
+	g_pcoLog = new CLog;
+
+	return g_pcoLog->Init (g_psoConf->m_pszLogFileMask);
+}
+
+void pcrf_logger_fini(void)
+{
+	g_pcoLog->Flush();
+	delete g_pcoLog;
+	g_pcoLog = NULL;
 }
 
 int pcrf_server_select_notrelevant_active (
@@ -1778,7 +1792,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 	switch (p_soAVPValue.os.data[0]) {
 	case eCGI:
 		if (p_soAVPValue.os.len < sizeof(soCGI)) {
-			LOG_E("value length less than size of SCGI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of SCGI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1787,7 +1801,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		break;
 	case eSAI:
 		if (p_soAVPValue.os.len < sizeof(soSAI)) {
-			LOG_E("value length less than size of SSAI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of SSAI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1796,7 +1810,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		break;
 	case eRAI:
 		if (p_soAVPValue.os.len < sizeof(soRAI)) {
-			LOG_E("value length less than size of SRAI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of SRAI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1805,7 +1819,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		break;
 	case eTAI:
 		if (p_soAVPValue.os.len < sizeof(soTAI)) {
-			LOG_E("value length less than size of STAI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of STAI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1814,7 +1828,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		break;
 	case eECGI:
 		if (p_soAVPValue.os.len < sizeof(soECGI)) {
-			LOG_E("value length less than size of SECGI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of SECGI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1823,7 +1837,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		break;
 	case eTAI_ECGI:
 		if (p_soAVPValue.os.len < sizeof(soTAI_ECGI)) {
-			LOG_E("value length less than size of soTAI_ECGI struct");
+			UTL_LOG_E(*g_pcoLog, "value length less than size of soTAI_ECGI struct");
 			iRetVal = -1;
 			break;
 		}
@@ -1835,7 +1849,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 	if (iRetVal)
 		return iRetVal;
 	if (NULL == psoMCCMNC) {
-		LOG_E("unexpected error: NULL pointer to MCCMNC");
+		UTL_LOG_E(*g_pcoLog, "unexpected error: NULL pointer to MCCMNC");
 		return -2;
 	}
 
@@ -1847,7 +1861,7 @@ int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soU
 		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
 	if (iFnRes < 0) {
 		iRetVal = errno;
-		LOG_E("snprintf error code: '%d'", iRetVal);
+		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", iRetVal);
 		mcMCCMNC[0] = '\0';
 	}
 	if (iFnRes > sizeof(mcMCCMNC))

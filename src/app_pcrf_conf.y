@@ -125,6 +125,7 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		DB_REQ_INTERVAL
 %token 		OPERATE_REFRESH_QUEUE
 %token 		LOOK4STALLEDSESSION
+%token 		LOG_FILE_MASK
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -148,6 +149,7 @@ conffile:		/* empty grammar is OK */
 			| conffile db_req_interval
 			| conffile operate_refresh_queue
 			| conffile look4stalledsession
+			| conffile log_file_mask
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -205,5 +207,12 @@ operate_refresh_queue:		OPERATE_REFRESH_QUEUE '=' INTEGER ';'
 look4stalledsession:		LOOK4STALLEDSESSION '=' INTEGER ';'
 			{
 				g_psoConf->m_iLook4StalledSession = $3;
+			}
+			;
+
+log_file_mask:		LOG_FILE_MASK '=' QSTRING ';'
+			{
+				free (g_psoConf->m_pszLogFileMask);
+				g_psoConf->m_pszLogFileMask = $3;
 			}
 			;

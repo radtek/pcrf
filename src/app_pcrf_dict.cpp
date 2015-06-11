@@ -36,6 +36,7 @@ dict_object *g_psoDictChargingRuleName = NULL;
 dict_object *g_psoDictRatingGroup = NULL;
 dict_object *g_psoDictServiceIdentifier = NULL;
 dict_object *g_psoDictFlowDescription = NULL;
+dict_object *g_psoDictSessionReleaseCause = NULL;
 dict_object *g_psoDictFlowInformation = NULL;
 dict_object *g_psoDictQoSInformation = NULL;
 dict_object *g_psoDictQoSClassIdentifier = NULL;
@@ -270,6 +271,12 @@ int app_pcrf_dict_init (void)
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 507, NULL }};
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictFlowDescription, ENOENT));
+	}
+
+	/* Session-Release-Cause */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1045, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictSessionReleaseCause, ENOENT));
 	}
 
 	/* Flow-Information */

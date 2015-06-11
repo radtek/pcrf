@@ -137,6 +137,10 @@
 				return LOOK4STALLEDSESSION;
 			}
 
+(?i:"log_file_mask")		{
+				return LOG_FILE_MASK;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

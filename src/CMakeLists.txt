@@ -24,6 +24,8 @@ SET( PCRF_APP_SRC
 	pcrf_peer.cpp
 	timemeasurer.h
 	timemeasurer.cpp
+	log.h
+	log.cpp
 )
 
 # Compile as a module

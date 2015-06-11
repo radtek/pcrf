@@ -11,6 +11,7 @@ struct SAppPCRFConf {
 	int m_iDBReqInterval;
 	int m_iOperateRefreshQueue;
 	int m_iLook4StalledSession;
+	char *m_pszLogFileMask;
 };
 
 extern struct SAppPCRFConf *g_psoConf;
@@ -48,6 +49,11 @@ void app_pcrf_serv_fini (void);
 int pcrf_cli_init (void);
 /* деинициализация клиента */
 void pcrf_cli_fini (void);
+
+/* инициализация логгера */
+int pcrf_logger_init (void);
+/* деинициализаци логгера */
+void pcrf_logger_fini(void);
 
 /* инициализация списока клиентов и регистрация функции-валидатора клиента */
 int app_pcrf_load_peer (void);
@@ -87,6 +93,7 @@ extern struct dict_object *g_psoDictChargingRuleName;
 extern struct dict_object *g_psoDictRatingGroup;
 extern struct dict_object *g_psoDictServiceIdentifier;
 extern struct dict_object *g_psoDictFlowDescription;
+extern struct dict_object *g_psoDictSessionReleaseCause;
 extern struct dict_object *g_psoDictFlowInformation;
 extern struct dict_object *g_psoDictQoSInformation;
 extern struct dict_object *g_psoDictQoSClassIdentifier;

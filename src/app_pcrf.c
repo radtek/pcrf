@@ -27,6 +27,9 @@ static int pcrf_entry (char * conffile)
 		CHECK_FCT (app_pcrf_conf_handle (conffile));
 	}
 
+	/* инищиализация логгера */
+	CHECK_FCT(pcrf_logger_init());
+
 	/* Install objects definitions for this app_pcrf application */
 	CHECK_FCT (app_pcrf_dict_init ());
 
@@ -58,6 +61,7 @@ void fd_ext_fini(void)
 	pcrf_cli_fini ();
 	pcrf_tr();
 	pcrf_db_pool_fin ();
+	pcrf_logger_fini();
 }
 
 EXTENSION_ENTRY ("app_pcrf", pcrf_entry);

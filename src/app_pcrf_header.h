@@ -6,6 +6,8 @@
 #include <vector>
 #include <map>
 
+#include "log.h"
+
 #define DEBUG
 
 #ifdef WIN32
