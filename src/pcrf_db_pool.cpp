@@ -22,6 +22,13 @@ struct SDBPoolInfo {
 	CTimeMeasurer *m_pcoTM;
 };
 
+/* восстановление подключения к БД */
+/* возвращаемые значения:
+-1 - подключение было неработоспособно и восстановить его не удалось
+0 - подключение работоспособно и его восстановление не потребовалось
+1 - подключение было неработоспособно и оно восстановлено */
+int pcrf_db_pool_restore(SDBPoolInfo *p_psoDBConnInfo);
+
 /* указатели на пул подключений к БД */
 static SDBPoolInfo *g_psoDBPoolHead = NULL;
 
@@ -38,11 +45,11 @@ static const char *g_pcszDefCheckReq = "select to_char(sysdate,'ddmmyyyy') from 
 #define DB_POOL_WAIT_DEF 1
 
 /* функция подключения к БД */
-int pcrf_db_pool_connect (otl_connect *p_pcoDBConn);
+int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo);
 /* функция отключение от БД */
 void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn);
 /* функция проверки работоспособности подключения к БД */
-int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn);
+int pcrf_db_pool_check_conn(SDBPoolInfo *p_psoDBConnInfo);
 
 int pcrf_db_pool_init (void)
 {
@@ -80,7 +87,7 @@ int pcrf_db_pool_init (void)
 			psoTmp->m_pcoDBConn->otl_initialize(1);
 			psoTmp->m_pcoTM = new CTimeMeasurer();
 			if (psoTmp->m_pcoDBConn) {
-				CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp->m_pcoDBConn), goto fn_error);
+				CHECK_POSIX_DO (pcrf_db_pool_connect (psoTmp), goto fn_error);
 			}
 		}
 	} catch (std::bad_alloc &coBadAlloc) {
@@ -170,11 +177,16 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 	}
 	/* на всякий случай, проверим указатель */
 	if (psoTmp) {
-		/* помечаем подключение как занятое */
-		psoTmp->m_iIsBusy = 1;
-		psoTmp->m_pcoTM->Set();
-		*p_ppcoDBConn = psoTmp->m_pcoDBConn;
-		UTL_LOG_N(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+		/* проверяем работоспособность подключения */
+		if (0 > pcrf_db_pool_restore(psoTmp)) {
+			/* соединение неработоспособно и восстановить его не удалось */
+		} else {
+			/* помечаем подключение как занятое */
+			psoTmp->m_iIsBusy = 1;
+			psoTmp->m_pcoTM->Set();
+			*p_ppcoDBConn = psoTmp->m_pcoDBConn;
+			UTL_LOG_N(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+		}
 	} else {
 		iRetVal = -2222;
 		UTL_LOG_F(*g_pcoLog, "unexpected error: free db connection not found");
@@ -232,15 +244,15 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 	return iRetVal;
 }
 
-int pcrf_db_pool_restore (void *p_pcoDBConn)
+int pcrf_db_pool_restore(SDBPoolInfo *p_psoDBConnInfo)
 {
 	int iFnRes;
-	otl_connect *pcoDBConn = (otl_connect *) p_pcoDBConn;
 
 	/* для начала самая простая проверка */
 	/* когда объект не подключен к БД */
-	if (! pcoDBConn->connected) {
-		iFnRes = pcrf_db_pool_connect (pcoDBConn);
+	if (! p_psoDBConnInfo->m_pcoDBConn->connected) {
+		UTL_LOG_E(*g_pcoLog, "DB not connected");
+		iFnRes = pcrf_db_pool_connect(p_psoDBConnInfo);
 		/* подключение восстановлено */
 		if (0 == iFnRes) {
 			return 1;
@@ -250,16 +262,18 @@ int pcrf_db_pool_restore (void *p_pcoDBConn)
 		}
 	}
 	/* проверяем подключение на работоспособность */
-	iFnRes = pcrf_db_pool_check_conn (pcoDBConn);
+	iFnRes = pcrf_db_pool_check_conn (p_psoDBConnInfo);
 	/* если подключение неработоспособно */
 	if (iFnRes) {
-		pcrf_db_pool_logoff (pcoDBConn);
-		iFnRes = pcrf_db_pool_connect (pcoDBConn);
-		/* подключение восстановлено */
+		pcrf_db_pool_logoff (p_psoDBConnInfo->m_pcoDBConn);
+		iFnRes = pcrf_db_pool_connect (p_psoDBConnInfo);
 		if (0 == iFnRes) {
+			/* подключение восстановлено */
+			UTL_LOG_N(*g_pcoLog, "DB connection '%u' restored", p_psoDBConnInfo->m_uiNumber);
 			return 1;
 		} else {
 			/* подключение восстановить не удалось */
+			UTL_LOG_E(*g_pcoLog, "can not to restore DB connection '%u'", p_psoDBConnInfo->m_uiNumber);
 			return -1;
 		}
 	} else {
@@ -268,7 +282,7 @@ int pcrf_db_pool_restore (void *p_pcoDBConn)
 	}
 }
 
-int pcrf_db_pool_connect (otl_connect *p_pcoDBConn)
+int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo)
 {
 	int iRetVal = 0;
 
@@ -285,10 +299,11 @@ int pcrf_db_pool_connect (otl_connect *p_pcoDBConn)
 			return -20;
 		}
 		mcConnString[iStrLen] = '\0';
-		p_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
-		p_pcoDBConn->auto_commit_off();
+		p_psoDBConnInfo->m_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
+		p_psoDBConnInfo->m_pcoDBConn->auto_commit_off();
+		UTL_LOG_N(*g_pcoLog, "DB connection '%u' is established successfully", p_psoDBConnInfo->m_uiNumber);
 	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "DB connection: '%u: error code: '%d'; message: '%s'; query: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 	}
 
@@ -304,7 +319,7 @@ void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn)
 	}
 }
 
-int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
+int pcrf_db_pool_check_conn(SDBPoolInfo *p_psoDBConnInfo)
 {
 	int iRetVal = 0;
 	otl_nocommit_stream coStream;
@@ -319,12 +334,12 @@ int pcrf_db_pool_check_conn (otl_connect *p_pcoDBConn)
 			pcszCheckReq = g_pcszDefCheckReq;
 		}
 
-		coStream.open (1, pcszCheckReq, *p_pcoDBConn);
+		coStream.open (1, pcszCheckReq, *p_psoDBConnInfo->m_pcoDBConn);
 		char mcResult[32];
 		coStream >> mcResult;
 		coStream.close();
 	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E(*g_pcoLog, "DB connection: '%u': error code: '%d'; message: '%s'; query: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();

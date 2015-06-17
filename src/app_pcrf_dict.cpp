@@ -46,6 +46,7 @@ dict_object *g_psoDictGuaranteedBitrateUL = NULL;
 dict_object *g_psoDictGuaranteedBitrateDL = NULL;
 dict_object *g_psoDictAllocationRetentionPriority = NULL;
 dict_object *g_psoDictPriorityLevel = NULL;
+dict_object *g_psoDictDefaultEPSBearerQoS = NULL;
 dict_object *g_psoDictPreemptionCapability = NULL;
 dict_object *g_psoDictPreemptionVulnerability = NULL;
 dict_object *g_psoDictOnline = NULL;
@@ -67,7 +68,6 @@ dict_object *g_psoDictUsageMonitoringReport = NULL;
 dict_object *g_psoDictUsageMonitoringSupport = NULL;
 
 dict_object *g_psoDictQoSUpgrade = NULL;
-dict_object *g_psoDictQoSCI = NULL;
 dict_object *g_psoDictIPCANType = NULL;
 dict_object *g_psoDictRATType = NULL;
 dict_object *g_psoDictQoSNegot = NULL;
@@ -84,6 +84,13 @@ dict_object *g_psoDictCiscoBBPackageInstall = NULL;
 dict_object *g_psoDictCiscoBBRTMonitorInstall = NULL;
 dict_object *g_psoDictCiscoBBVlinkUStreamInstall = NULL;
 dict_object *g_psoDictCiscoBBVlinkDStreamInstall = NULL;
+
+dict_object *g_psoDictSubscriptionId = NULL;
+dict_object *g_psoDictSubscriptionIdType = NULL;
+dict_object *g_psoDictSubscriptionIdData = NULL;
+
+dict_object *g_psoDictAPNAggregateMaxBitrateUL = NULL;
+dict_object *g_psoDictAPNAggregateMaxBitrateDL = NULL;
 
 struct local_rules_definition {
     dict_avp_request avp_codes;
@@ -327,6 +334,12 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAllocationRetentionPriority, ENOENT));
 	}
 
+	/* Default-EPS-Bearer-QoS */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1049, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictDefaultEPSBearerQoS, ENOENT));
+	}
+
 	/* Priority-Level */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1046, NULL }};
@@ -420,6 +433,27 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictUsageMonitoringSupport, ENOENT));
 	}
 
+	/* Subscription-Id */
+	CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Subscription-Id", &g_psoDictSubscriptionId, ENOENT));
+
+	/* Subscription-Id-Type */
+	CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Subscription-Id-Type", &g_psoDictSubscriptionIdType, ENOENT));
+
+	/* Subscription-Id-Data */
+	CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Subscription-Id-Data", &g_psoDictSubscriptionIdData, ENOENT));
+
+	/* APN-Aggregate-Max-Bitrate-UL */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1041, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAPNAggregateMaxBitrateUL, ENOENT));
+	}
+
+	/* APN-Aggregate-Max-Bitrate-DL */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1040, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAPNAggregateMaxBitrateDL, ENOENT));
+	}
+
 	/* дополняем словарь перечислимыми значениями */
 	/* Online */
 	{
@@ -449,14 +483,6 @@ int app_pcrf_dict_init (void)
 		dict_enumval_data        t_2 = { (char *) "QoS_UPGRADE_SUPPORTED",     { (uint8_t *) 1 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
-	}
-	/* QoS-Class-Identifier */
-	{
-		ppsoDictObj = &g_psoDictQoSCI;
-		memset (&soAVPIdent, 0, sizeof (soAVPIdent));
-		soAVPIdent.avp_vendor.vendor_id = 10415;
-		soAVPIdent.avp_data.avp_code = 1028;
-		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 	}
 	/* IP-CAN-Type */
 	{

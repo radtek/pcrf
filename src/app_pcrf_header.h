@@ -86,6 +86,15 @@ struct SUserLocationInfo {
 	otl_value<std::string> m_coTAI;
 	SUserLocationInfo() { m_bLoaded = false; }
 };
+struct SAllocationRetentionPriority {
+	otl_value<uint32_t> m_coPriorityLevel;
+	otl_value<int32_t> m_coPreemptionCapability;
+	otl_value<uint32_t> m_coPreemptionVulnerability;
+};
+struct SDefaultEPSBearerQoS {
+	otl_value<int32_t> m_coQoSClassIdentifier;
+	otl_value<SAllocationRetentionPriority> m_soARP;
+};
 struct SRequestInfo {
 	int32_t m_iCCRequestType;
 	otl_value<std::string> m_coCCRequestType;
@@ -94,16 +103,17 @@ struct SRequestInfo {
 	otl_value<std::string> m_coOnlineCharging;
 	otl_value<std::string> m_coOfflineCharging;
 	otl_value<std::string> m_coQoSUpgrade;
-	int32_t m_iQoSClassIdentifier;
-	otl_value<std::string> m_coQoSClassIdentifier;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
+	otl_value<uint32_t> m_coAPNAggregateMaxBitrateUL;
+	otl_value<uint32_t> m_coAPNAggregateMaxBitrateDL;
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
 	otl_value<std::string> m_coQoSNegotiation;
 	SUserLocationInfo m_soUserLocationInfo;
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
+	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 };
 struct SMsgDataForDB {
@@ -189,12 +199,6 @@ int pcrf_client_db_load_session_list (
 int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient);
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
-/* восстановление подключения к БД */
-/* возвращаемые значения:
-	-1 - подключение было неработоспособно и восстановить его не удалось
-	0 - подключение работоспособно и его восстановление не потребовалось 
-	1 - подключение было неработоспособно и оно восстановлено */
-int pcrf_db_pool_restore (void *p_pcoDBConn);
 
 /* функции работы с AVP */
 /* функция получения значения перечислимого типа */

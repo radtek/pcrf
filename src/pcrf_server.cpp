@@ -19,6 +19,15 @@ avp * pcrf_make_CRD (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule);
 /* функция заполнения avp Supported-Features */
 avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo);
 
+/* функция заполнения Subscription-Id */
+int pcrf_make_SI(msg *p_psoMsg, SMsgDataForDB &p_soReqInfo);
+
+/* функция заполнения APN-Aggregate-Max-Bitrate */
+int pcrf_make_APNAMBR(msg *p_psoMsg, SRequestInfo &p_soReqInfo);
+
+/* функция заполнения Default-EPS-Bearer-QoS */
+int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo);
+
 /* функция заполнения avp X-HW-Usage-Report */
 avp * pcrf_make_HWUR ();
 
@@ -34,6 +43,8 @@ int pcrf_extract_SF(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
 int pcrf_extract_UMI(avp *p_psoAVP, SRequestInfo &p_soReqInfo);
 /* выборка значений Used-Service-Unit */
 int pcrf_extract_USU(avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo);
+/* парсинг Default-EPS-Bearer-QoS */
+int pcrf_extract_DefaultEPSBearerQoS(avp *p_soAVPValue, SRequestInfo &p_soReqInfo);
 /* парсинг 3GPP-User-Location-Info */
 int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUserLocationInfo);
 
@@ -69,9 +80,6 @@ static int app_pcrf_ccr_cb (
 
 	/* запрашиваем объект класса для работы с БД */
 	CHECK_POSIX_DO(pcrf_db_pool_get((void **)&pcoDBConn, __func__), goto dummy_answer);
-
-	/* определяем протокол пира */
-	CHECK_POSIX_DO(pcrf_peer_proto(*(soMsgInfoCache.m_psoSessInfo)), /*continue*/);
 
 	/* дополняем данные запроса необходимыми параметрами */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
@@ -183,6 +191,16 @@ static int app_pcrf_ccr_cb (
 		CHECK_FCT_DO(fd_msg_avp_setvalue(psoChildAVP, &soAVPVal), break);
 		CHECK_FCT_DO(fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, psoChildAVP), break);
 	} while (0);
+
+	/* APN-Aggregate-Max-Bitrate */
+//	pcrf_make_APNAMBR(ans, *soMsgInfoCache.m_psoReqInfo);
+
+	/* Default-EPS-Bearer-QoS */
+//	pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
+
+	/* Subscription-Id */
+	pcrf_make_SI(ans, soMsgInfoCache);
+
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	case 1: /* INITIAL_REQUEST */
 		/* Supported-Features */
@@ -229,8 +247,9 @@ static int app_pcrf_ccr_cb (
 	if (pcoDBConn)
 		CHECK_POSIX_DO(pcrf_db_pool_rel((void *)pcoDBConn, __func__), /*continue*/);
 
-	/* Send the answer */
-	CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
+	/* если ответ сформирован отправляем его */
+	if (ans)
+		CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
 
 	return 0;
 }
@@ -576,18 +595,26 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 		/* QoS-Class-Identifier */
 		if (! p_soAbonRule.m_coQoSClassIdentifier.is_null ()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictQoSClassIdentifier, 0, &psoAVPChild), return NULL);
-			soAVPVal.i32 = p_soAbonRule.m_coQoSClassIdentifier.v;
+			if (!p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.is_null()
+					&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_coQoSClassIdentifier.is_null()) {
+				soAVPVal.i32 = p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_coQoSClassIdentifier.v;
+			} else {
+				soAVPVal.i32 = p_soAbonRule.m_coQoSClassIdentifier.v;
+			}
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
 
 		/* Max-Requested-Bandwidth-UL */
-		if (! p_soAbonRule.m_coMaxRequestedBandwidthDl.is_null ()) {
-			ui32Value = p_soAbonRule.m_coMaxRequestedBandwidthDl.v;
+		if (! p_soAbonRule.m_coMaxRequestedBandwidthUl.is_null ()) {
+			ui32Value = p_soAbonRule.m_coMaxRequestedBandwidthUl.v;
 			if (! p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthUl.is_null ()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthUl.v ? p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthUl.v : ui32Value;
 			}
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMaxRequestedBandwidthUL, 0, &psoAVPChild), return NULL);
+			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.is_null()) {
+				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v : ui32Value;
+			}
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictMaxRequestedBandwidthUL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
@@ -599,7 +626,10 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (! p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthDl.is_null ()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthDl.v ? p_psoReqInfo->m_psoReqInfo->m_coMaxRequestedBandwidthDl.v : ui32Value;
 			}
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMaxRequestedBandwidthDL, 0, &psoAVPChild), return NULL);
+			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.is_null()) {
+				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v : ui32Value;
+			}
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictMaxRequestedBandwidthDL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
@@ -611,7 +641,10 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (! p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateUl.is_null ()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateUl.v ? p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateUl.v : ui32Value;
 			}
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictGuaranteedBitrateUL, 0, &psoAVPChild), return NULL);
+			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.is_null()) {
+				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v : ui32Value;
+			}
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictGuaranteedBitrateUL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
@@ -623,7 +656,10 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (! p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateDl.is_null ()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateDl.v ? p_psoReqInfo->m_psoReqInfo->m_coGuaranteedBitrateDl.v : ui32Value;
 			}
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictGuaranteedBitrateDL, 0, &psoAVPChild), return NULL);
+			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.is_null()) {
+				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v : ui32Value;
+			}
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictGuaranteedBitrateDL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
@@ -634,7 +670,13 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 
 		/* Priority-Level */
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictPriorityLevel, 0, &psoAVPChild), return NULL);
-		soAVPVal.u32 = 2;
+		if (!p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.is_null()
+				&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.is_null()
+				&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.is_null()) {
+			soAVPVal.u32 = p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.v;
+		} else {
+			soAVPVal.u32 = p_soAbonRule.m_coQoSClassIdentifier.v;
+		}
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 		CHECK_FCT_DO (fd_msg_avp_add (psoAVPParent, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 
@@ -1004,6 +1046,145 @@ avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo)
 	return psoAVPSF;
 }
 
+int pcrf_make_SI(msg *p_psoMsg, SMsgDataForDB &p_soReqInfo)
+{
+	int iRetVal = 0;
+	avp *psoSI;
+	avp *psoSIType;
+	avp *psoSIData;
+	avp_value soAVPVal;
+
+	/* END_USER_E164 */
+	if (!p_soReqInfo.m_psoSessInfo->m_coEndUserE164.is_null()) {
+		/* Subscription-Id */
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionId, 0, &psoSI), return 0);
+		/* Subscription-Id-Type */
+		memset(&soAVPVal, 0, sizeof(soAVPVal));
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionIdType, 0, &psoSIType), return 0);
+		soAVPVal.u32 = (uint32_t) 0; /* END_USER_E164 */
+		CHECK_FCT_DO(fd_msg_avp_setvalue(psoSIType, &soAVPVal), return 0);
+		CHECK_FCT_DO(fd_msg_avp_add(psoSI, MSG_BRW_LAST_CHILD, psoSIType), return 0);
+		/* Subscription-Id-Data */
+		memset(&soAVPVal, 0, sizeof(soAVPVal));
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionIdData, 0, &psoSIData), return 0);
+		soAVPVal.os.data = (uint8_t*) p_soReqInfo.m_psoSessInfo->m_coEndUserE164.v.data();
+		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_coEndUserE164.v.length();
+		CHECK_FCT_DO(fd_msg_avp_setvalue(psoSIData, &soAVPVal), return 0);
+		CHECK_FCT_DO(fd_msg_avp_add(psoSI, MSG_BRW_LAST_CHILD, psoSIData), return 0);
+		/**/
+		CHECK_FCT_DO(fd_msg_avp_add(p_psoMsg, MSG_BRW_LAST_CHILD, psoSI), return 0);
+	}
+
+	/* END_USER_IMSI */
+	if (!p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.is_null()) {
+		/* Subscription-Id */
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionId, 0, &psoSI), return 0);
+		/* Subscription-Id-Type */
+		memset(&soAVPVal, 0, sizeof(soAVPVal));
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionIdType, 0, &psoSIType), return 0);
+		soAVPVal.u32 = (uint32_t)1; /* END_USER_IMSI */
+		CHECK_FCT_DO(fd_msg_avp_setvalue(psoSIType, &soAVPVal), return 0);
+		CHECK_FCT_DO(fd_msg_avp_add(psoSI, MSG_BRW_LAST_CHILD, psoSIType), return 0);
+		/* Subscription-Id-Data */
+		memset(&soAVPVal, 0, sizeof(soAVPVal));
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSubscriptionIdData, 0, &psoSIData), return 0);
+		soAVPVal.os.data = (uint8_t*)p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.v.data();
+		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.v.length();
+		CHECK_FCT_DO(fd_msg_avp_setvalue(psoSIData, &soAVPVal), return 0);
+		CHECK_FCT_DO(fd_msg_avp_add(psoSI, MSG_BRW_LAST_CHILD, psoSIData), return 0);
+		/**/
+		CHECK_FCT_DO(fd_msg_avp_add(p_psoMsg, MSG_BRW_LAST_CHILD, psoSI), return 0);
+	}
+
+	return iRetVal;
+}
+
+int pcrf_make_APNAMBR(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
+{
+	int iRetVal = 0;
+	avp *psoAVPQoSI = NULL;
+	avp *psoAVPChild = NULL;
+	avp_value soAVPVal;
+
+	if (!p_soReqInfo.m_coAPNAggregateMaxBitrateDL.is_null() || !p_soReqInfo.m_coAPNAggregateMaxBitrateUL.is_null()) {
+		/* QoS-Information */
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictQoSInformation, 0, &psoAVPQoSI), return NULL);
+		/* APN-Aggregate-Max-Bitrate-UL */
+		if (!p_soReqInfo.m_coAPNAggregateMaxBitrateUL.is_null()) {
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAPNAggregateMaxBitrateUL, 0, &psoAVPChild), return NULL);
+			soAVPVal.u32 = p_soReqInfo.m_coAPNAggregateMaxBitrateUL.v;
+			CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return NULL);
+			CHECK_FCT_DO(fd_msg_avp_add(psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+		}
+		/* APN-Aggregate-Max-Bitrate-DL */
+		if (!p_soReqInfo.m_coAPNAggregateMaxBitrateDL.is_null()) {
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAPNAggregateMaxBitrateDL, 0, &psoAVPChild), return NULL);
+			soAVPVal.u32 = p_soReqInfo.m_coAPNAggregateMaxBitrateDL.v;
+			CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return NULL);
+			CHECK_FCT_DO(fd_msg_avp_add(psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
+		}
+		/* put 'QoS-Information' into 'answer' */
+		CHECK_FCT_DO(fd_msg_avp_add(p_psoMsg, MSG_BRW_LAST_CHILD, psoAVPQoSI), return 0);
+	}
+
+	return iRetVal;
+}
+
+int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
+{
+	int iRetVal = 0;
+	avp *psoDEPSBQoS;
+	avp *psoARP;
+	avp *psoAVPChild;
+	avp_value soAVPVal;
+
+	/* Default-EPS-Bearer-QoS */
+	if (!p_soReqInfo.m_coDEPSBQoS.is_null()) {
+		/* Subscription-Id */
+		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictDefaultEPSBearerQoS, 0, &psoDEPSBQoS), return 0);
+		/* QoS-Class-Identifier */
+		if (!p_soReqInfo.m_coDEPSBQoS.v.m_coQoSClassIdentifier.is_null()) {
+			memset(&soAVPVal, 0, sizeof(soAVPVal));
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictQoSClassIdentifier, 0, &psoAVPChild), return 0);
+			soAVPVal.i32 = p_soReqInfo.m_coDEPSBQoS.v.m_coQoSClassIdentifier.v;
+			CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return 0);
+			CHECK_FCT_DO(fd_msg_avp_add(psoDEPSBQoS, MSG_BRW_LAST_CHILD, psoAVPChild), return 0);
+		}
+		/* Allocation-Retention-Priority */
+		if (!p_soReqInfo.m_coDEPSBQoS.v.m_soARP.is_null()) {
+			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAllocationRetentionPriority, 0, &psoARP), return 0);
+			/* Priority-Level */
+			if (!p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.is_null()) {
+				memset(&soAVPVal, 0, sizeof(soAVPVal));
+				CHECK_FCT_DO(fd_msg_avp_new(g_psoDictPriorityLevel, 0, &psoAVPChild), return 0);
+				soAVPVal.u32 = p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.v;
+				CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return 0);
+				CHECK_FCT_DO(fd_msg_avp_add(psoARP, MSG_BRW_LAST_CHILD, psoAVPChild), return 0);
+			}
+			/* Pre-emption-Capability */
+			if (!p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionCapability.is_null()) {
+				memset(&soAVPVal, 0, sizeof(soAVPVal));
+				CHECK_FCT_DO(fd_msg_avp_new(g_psoDictPreemptionCapability, 0, &psoAVPChild), return 0);
+				soAVPVal.i32 = p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionCapability.v;
+				CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return 0);
+				CHECK_FCT_DO(fd_msg_avp_add(psoARP, MSG_BRW_LAST_CHILD, psoAVPChild), return 0);
+			}
+			/* Pre-emption-Vulnerability */
+			if (!p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionVulnerability.is_null()) {
+				memset(&soAVPVal, 0, sizeof(soAVPVal));
+				CHECK_FCT_DO(fd_msg_avp_new(g_psoDictPreemptionVulnerability, 0, &psoAVPChild), return 0);
+				soAVPVal.u32 = p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionVulnerability.v;
+				CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return 0);
+				CHECK_FCT_DO(fd_msg_avp_add(psoARP, MSG_BRW_LAST_CHILD, psoAVPChild), return 0);
+			}
+			CHECK_FCT_DO(fd_msg_avp_add(psoDEPSBQoS, MSG_BRW_LAST_CHILD, psoARP), return 0);
+		}
+		CHECK_FCT_DO(fd_msg_avp_add(p_psoMsg, MSG_BRW_LAST_CHILD, psoDEPSBQoS), return 0);
+	}
+
+	return iRetVal;
+}
+
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SSessionInfo &p_soSessInfo,
@@ -1254,6 +1435,8 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 264: /* Origin-Host */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.set_non_null();
+				/* определяем протокол пира */
+				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 278: /* Origin-State-Id */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginStateId = psoAVPHdr->avp_value->u32;
@@ -1261,6 +1444,8 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 296: /* Origin-Realm */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.set_non_null();
+				/* определяем протокол пира */
+				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 295: /* Termination-Cause */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
@@ -1366,12 +1551,6 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = mcValue;
 				}
 				break;
-			case 1028: /* QoS-Class-Identifier */
-				p_psoMsgInfo->m_psoReqInfo->m_iQoSClassIdentifier = psoAVPHdr->avp_value->i32;
-				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
-					p_psoMsgInfo->m_psoReqInfo->m_coQoSClassIdentifier = mcValue;
-				}
-				break;
 			case 1029: /* QoS-Negotiation */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
 					p_psoMsgInfo->m_psoReqInfo->m_coQoSNegotiation = mcValue;
@@ -1387,8 +1566,15 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = mcValue;
 				}
 				break;
+			case 1040: /* APN-Aggregate-Max-Bitrate-DL */
+				p_psoMsgInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL = psoAVPHdr->avp_value->u32;
+				break;
+			case 1041: /* APN-Aggregate-Max-Bitrate-UL */
+				p_psoMsgInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL = psoAVPHdr->avp_value->u32;
+				break;
 			case 1049: /* Default-EPS-Bearer-QoS */
-				pcrf_extract_req_data((void *)psoAVP, p_psoMsgInfo);
+				p_psoMsgInfo->m_psoReqInfo->m_coDEPSBQoS.set_non_null();
+				pcrf_extract_DefaultEPSBearerQoS(psoAVP, *p_psoMsgInfo->m_psoReqInfo);
 				break;
 			case 1067: /* Usage-Monitoring-Information */
 				pcrf_extract_UMI(psoAVP, *(p_psoMsgInfo->m_psoReqInfo));
@@ -1437,6 +1623,12 @@ int pcrf_extract_SubscriptionId(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 			break;
 		}
 	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	/* исправляем косяк циски */
+	if (2 == p_soSessInfo.m_uiPeerProto /* Gx Cisco SCE */
+			&& iSubscriptionIdType == 0) { /* END_USER_E164 */
+		iSubscriptionIdType = 1; /* END_USER_IMSI */
+	}
 
 	if (strSubscriptionIdData.length()) {
 		switch (iSubscriptionIdType) {
@@ -1684,6 +1876,56 @@ int pcrf_extract_USU(avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo)
 				p_soUsageInfo.m_coCCTotalOctets = psoAVPHdr->avp_value->u64;
 				break;
 			}
+			break;
+		default:
+			break;
+		}
+	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, &iDepth));
+
+	return iRetVal;
+}
+
+int pcrf_extract_DefaultEPSBearerQoS(avp *p_soAVP, SRequestInfo &p_soReqInfo)
+{
+	int iRetVal = 0;
+
+	avp *psoAVP;
+	struct avp_hdr *psoAVPHdr;
+	int iDepth;
+
+	iRetVal = fd_msg_browse_internal((void *)p_soAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, &iDepth);
+	if (iRetVal) {
+		return iRetVal;
+	}
+
+	do {
+		/* получаем заголовок AVP */
+		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
+		if (iRetVal) {
+			break;
+		}
+		switch (psoAVPHdr->avp_vendor) {
+		case 10415: /* 3GPP */
+			switch (psoAVPHdr->avp_code) {
+			case 1028: /* QoS-Class-Identifier */
+				p_soReqInfo.m_coDEPSBQoS.v.m_coQoSClassIdentifier = psoAVPHdr->avp_value->i32;
+				break;
+			case 1034: /* Allocation-Retention-Priority */
+				p_soReqInfo.m_coDEPSBQoS.v.m_soARP.set_non_null();
+				pcrf_extract_DefaultEPSBearerQoS(psoAVP, p_soReqInfo);
+				break;
+			case 1046: /* Priority-Level */
+				p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel = psoAVPHdr->avp_value->u32;
+				break;
+			case 1047: /* Pre-emption-Capability */
+				p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionCapability = psoAVPHdr->avp_value->i32;
+				break;
+			case 1048: /* Pre-emption-Vulnerability */
+				p_soReqInfo.m_coDEPSBQoS.v.m_soARP.v.m_coPreemptionVulnerability = psoAVPHdr->avp_value->u32;
+				break;
+			}
+			break;
+		case 0:
 			break;
 		default:
 			break;
@@ -2008,7 +2250,7 @@ int pcrf_peer_proto(SSessionInfo &p_soSessInfo)
 
 	while (iterPeerList != g_vectPeerList.end()) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
-			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
+				&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
 			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
 			break;
 		}

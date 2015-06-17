@@ -103,6 +103,7 @@ extern struct dict_object *g_psoDictGuaranteedBitrateUL;
 extern struct dict_object *g_psoDictGuaranteedBitrateDL;
 extern struct dict_object *g_psoDictAllocationRetentionPriority;
 extern struct dict_object *g_psoDictPriorityLevel;
+extern struct dict_object *g_psoDictDefaultEPSBearerQoS;
 extern struct dict_object *g_psoDictPreemptionCapability;
 extern struct dict_object *g_psoDictPreemptionVulnerability;
 extern struct dict_object *g_psoDictOnline;
@@ -134,7 +135,15 @@ extern struct dict_object *g_psoDictCiscoBBRTMonitorInstall;
 extern struct dict_object *g_psoDictCiscoBBVlinkUStreamInstall;
 extern struct dict_object *g_psoDictCiscoBBVlinkDStreamInstall;
 
+extern struct dict_object *g_psoDictSubscriptionId;
+extern struct dict_object *g_psoDictSubscriptionIdType;
+extern struct dict_object *g_psoDictSubscriptionIdData;
+
 extern struct dict_object *g_psoDictIPCANType;
+
+extern struct dict_object *g_psoDictAPNAggregateMaxBitrateUL;
+extern struct dict_object *g_psoDictAPNAggregateMaxBitrateDL;
+
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */
