@@ -47,6 +47,8 @@ int pcrf_extract_USU(avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo);
 int pcrf_extract_DefaultEPSBearerQoS(avp *p_soAVPValue, SRequestInfo &p_soReqInfo);
 /* парсинг 3GPP-User-Location-Info */
 int pcrf_extract_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUserLocationInfo);
+/* парсинг RAI */
+int pcrf_extract_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue);
 
 static int app_pcrf_ccr_cb (
 	msg ** p_ppsoMsg,
@@ -1485,9 +1487,29 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
 				break;
 			case 21: /* 3GPP-RAT-Type */
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.set_non_null();
+				if (!psoAVPHdr->avp_value->os.len)
+					break;
 				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+				switch (psoAVPHdr->avp_value->os.data[0]) {
+				case 1:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "UTRAN";
+					break;
+				case 2:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = " GERAN";
+					break;
+				case 3:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "WLAN";
+					break;
+				case 4:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "GAN";
+					break;
+				case 5:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "HSPA Evolution";
+					break;
+				default:
+					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = false;
+					break;
+				}
 				break;
 			case 22: /* 3GPP-User-Location-Info */
 				pcrf_extract_user_location(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo);
@@ -1502,9 +1524,7 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 				pcrf_extract_SF(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
 				break;
 			case 909: /* RAI */
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRAI.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRAI.set_non_null();
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+				pcrf_extract_RAI(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRAI);
 				break;
 			case 1000: /* Bearer-Usage */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
@@ -2145,6 +2165,7 @@ void format_CGI(SCGI &p_soCGI, const char *p_pszMCCMNC, otl_value<std::string> &
 {
 	int iFnRes;
 	char mcValue[128];
+	std::string strSector;
 
 	p_coValue = p_pszMCCMNC;
 
@@ -2157,8 +2178,17 @@ void format_CGI(SCGI &p_soCGI, const char *p_pszMCCMNC, otl_value<std::string> &
 		return;
 	if (iFnRes > sizeof(mcValue))
 		mcValue[sizeof(mcValue) - 1] = '\0';
+	else
+		/* выбираем сектор - последн€€ цифра CI */
+		strSector = mcValue[iFnRes - 1];
+
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
+	/* формируем сектор */
+	if (strSector.length()) {
+		p_coValue.v[p_coValue.v.length() - 1] = '-';
+		p_coValue.v += strSector;
+	}
 }
 
 void format_SAI(SSAI &p_soSAI, const char *p_pszMCCMNC, otl_value<std::string> &p_coValue)
@@ -2173,10 +2203,10 @@ void format_SAI(SSAI &p_soSAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soSAI.m_soLAC.m_uiLAC1 << 8) + (p_soSAI.m_soLAC.m_uiLAC2),
 		(p_soSAI.m_soSAS.m_uiSAS1 << 8) + (p_soSAI.m_soSAS.m_uiSAS2));
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
 	if (iFnRes < 0)
 		return;
+	if (iFnRes > sizeof(mcValue))
+		mcValue[sizeof(mcValue) - 1] = '\0';
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -2193,10 +2223,10 @@ void format_RAI(SRAI &p_soRAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soRAI.m_soLAC.m_uiLAC1 << 8) + (p_soRAI.m_soLAC.m_uiLAC2),
 		p_soRAI.m_soRAC.m_uiRAC);
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
 	if (iFnRes < 0)
 		return;
+	if (iFnRes > sizeof(mcValue))
+		mcValue[sizeof(mcValue) - 1] = '\0';
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -2212,10 +2242,10 @@ void format_TAI(STAI &p_soTAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		mcValue, sizeof(mcValue),
 		"%u",
 		(p_soTAI.m_soTAC.m_uiTAC1 << 8) + (p_soTAI.m_soTAC.m_uiTAC2));
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
 	if (iFnRes < 0)
 		return;
+	if (iFnRes > sizeof(mcValue))
+		mcValue[sizeof(mcValue) - 1] = '\0';
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -2232,12 +2262,40 @@ void format_ECGI(SECGI &p_soECGI, const char *p_pszMCCMNC, otl_value<std::string
 		"%u-%u",
 		(p_soECGI.m_soECI.m_uiECI1 << 16) + (p_soECGI.m_soECI.m_uiECI2 << 8) + (p_soECGI.m_soECI.m_uiECI3),
 		p_soECGI.m_soECI.m_uiECI4);
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
 	if (iFnRes < 0)
 		return;
+	if (iFnRes > sizeof(mcValue))
+		mcValue[sizeof(mcValue) - 1] = '\0';
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
+}
+
+int pcrf_extract_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue)
+{
+	int iRetVal = 0;
+	int iFnRes;
+	char mcMCCMNC[128];
+	SRAI soRAI;
+
+	/* провер€ем размер данных */
+	if (p_soAVPValue.os.len < 5 + sizeof(soRAI.m_soLAC) + sizeof(soRAI.m_soRAC))
+		return EINVAL;
+
+	iFnRes = snprintf(
+		mcMCCMNC, sizeof(mcMCCMNC),
+		"%c%c%c-%c%c",
+		p_soAVPValue.os.data[0], p_soAVPValue.os.data[1], p_soAVPValue.os.data[2],
+		p_soAVPValue.os.data[3], p_soAVPValue.os.data[4]);
+	if (iFnRes < 0)
+		return errno;
+	if (iFnRes > sizeof(mcMCCMNC))
+		mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
+
+	memcpy(((char*)(&soRAI)) + sizeof(soRAI.m_soMCCMNC), &(p_soAVPValue.os.data[5]), sizeof(soRAI.m_soLAC) + sizeof(soRAI.m_soRAC));
+
+	format_RAI(soRAI, mcMCCMNC, p_coValue);
+
+	return iRetVal;
 }
 
 extern std::vector<SPeerInfo> g_vectPeerList;
