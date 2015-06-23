@@ -539,32 +539,32 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 
 	try {
 		/* ищем сессии по IMSI */
-		if (!p_psoSessInfo->m_coEndUserIMSI.is_null()) {
-			coStream.open(
-				100,
-				"select "
-					"session_id "
-				"from "
-					"ps.sessionList ps "
-				"where "
-					"ps.end_user_imsi = :end_user_imsi/*char[16]*/ "
-					"and ps.origin_host = :origin_host/*char[255]*/ "
-					"and ps.session_id <> :session_id/*char[255]*/ "
-					"and ps.time_end is null",
-				*p_pcoDBConn);
-			coStream
-				<< p_psoSessInfo->m_coEndUserIMSI
-				<< p_psoSessInfo->m_coOriginHost
-				<< p_psoSessInfo->m_coSessionId;
-			while (!coStream.eof()) {
-				coStream
-					>> strSessionId;
-				UTL_LOG_N(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
-				mapSessList.insert(std::make_pair(strSessionId,0));
-			}
-			if (coStream.good())
-				coStream.close();
-		}
+		//if (!p_psoSessInfo->m_coEndUserIMSI.is_null()) {
+		//	coStream.open(
+		//		100,
+		//		"select "
+		//			"session_id "
+		//		"from "
+		//			"ps.sessionList ps "
+		//		"where "
+		//			"ps.end_user_imsi = :end_user_imsi/*char[16]*/ "
+		//			"and ps.origin_host = :origin_host/*char[255]*/ "
+		//			"and ps.session_id <> :session_id/*char[255]*/ "
+		//			"and ps.time_end is null",
+		//		*p_pcoDBConn);
+		//	coStream
+		//		<< p_psoSessInfo->m_coEndUserIMSI
+		//		<< p_psoSessInfo->m_coOriginHost
+		//		<< p_psoSessInfo->m_coSessionId;
+		//	while (!coStream.eof()) {
+		//		coStream
+		//			>> strSessionId;
+		//		UTL_LOG_N(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
+		//		mapSessList.insert(std::make_pair(strSessionId,0));
+		//	}
+		//	if (coStream.good())
+		//		coStream.close();
+		//}
 		/* ищем сессии по ip-адресу */
 		if (!p_psoSessInfo->m_coFramedIPAddress.is_null()) {
 			coStream.open(

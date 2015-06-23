@@ -115,6 +115,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
+	std::vector<int32_t> m_vectEventTrigger;
 };
 struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
@@ -263,7 +264,7 @@ int pcrf_make_UMI (
 	SSessionInfo &p_soSessInfo,
 	bool p_bFull = true);
 /* задает значение Event-Trigger */
-int set_event_trigger (
+int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
 

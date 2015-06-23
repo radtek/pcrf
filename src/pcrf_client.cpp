@@ -164,7 +164,7 @@ static int pcrf_client_RAR (
 	}
 
 	/* Event-Trigger */
-	CHECK_FCT_DO(set_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+	CHECK_FCT_DO(set_ULCh_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
 
 	/* Usage-Monitoring-Information */
 	CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *(p_soReqInfo.m_psoSessInfo), false), /* continue */);
@@ -409,9 +409,9 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* задаем идентификтор сессии */
 			soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
 			/* загружаем из БД информацию о сессии абонента */
-			CHECK_POSIX_DO(pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo), );
+			CHECK_POSIX_DO(pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo), goto clear_and_continue);
 			/* определяем идентификатор протокола пира */
-			CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), /*continue*/);
+			CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), goto clear_and_continue);
 			/* если в поле action задано значение abort_session */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("abort_session")) {
 				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );
@@ -445,6 +445,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* посылаем RAR-запрос */
 			CHECK_POSIX_DO(pcrf_client_RAR(p_pcoDBConn, soSessInfo, vectActive, vectAbonRules), );
 			/* освобождаем ресуры*/
+		clear_and_continue:
 			pcrf_server_DBStruct_cleanup(&soSessInfo);
 		}
 	}

@@ -201,7 +201,7 @@ static int app_pcrf_ccr_cb (
 //	pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
 
 	/* Subscription-Id */
-	pcrf_make_SI(ans, soMsgInfoCache);
+//	pcrf_make_SI(ans, soMsgInfoCache);
 
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	case 1: /* INITIAL_REQUEST */
@@ -212,7 +212,7 @@ static int app_pcrf_ccr_cb (
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /* continue */);
 		}
 		/* Event-Trigger */
-		CHECK_FCT_DO(set_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+		CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 		/* Usage-Monitoring-Information */
 		CHECK_FCT_DO (pcrf_make_UMI (ans, *(soMsgInfoCache.m_psoSessInfo)), /* continue */ );
 		/* Charging-Rule-Install */
@@ -223,10 +223,34 @@ static int app_pcrf_ccr_cb (
 		}
 		break; /* INITIAL_REQUEST */
 	case 2: /* UPDATE_REQUEST */
-		/* Event-Trigger */
-		CHECK_FCT_DO(set_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
-		/* Usage-Monitoring-Information */
-		CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
+		/* обрабатываем триггеры */
+		{
+			std::vector<int32_t>::iterator iter = soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.begin();
+			for (; iter != soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.end(); iter++) {
+				switch (*iter) {
+				case 13: /* USER_LOCATION_CHANGE */
+					/* Event-Trigger */
+					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+					break;
+				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
+					/* Default-EPS-Bearer-QoS */
+					pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
+					break;
+				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
+					if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+						/* Usage-Monitoring-Information */
+						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
+					}
+					break;
+				case 33: /* USAGE_REPORT */ /* 3GPP notation */
+					if (1 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+						/* Usage-Monitoring-Information */
+						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
+					}
+					break;
+				}
+			}
+		}
 		/* Charging-Rule-Remove */
 		psoChildAVP = pcrf_make_CRR (pcoDBConn, &soMsgInfoCache, vectActive);
 		/* put 'Charging-Rule-Remove' into answer */
@@ -1356,7 +1380,7 @@ avp * pcrf_make_HWUR ()
 	return psoAVPHWUR;
 }
 
-int set_event_trigger (
+int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP)
 {
@@ -1531,6 +1555,11 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 					p_psoMsgInfo->m_psoReqInfo->m_coBearerUsage = mcValue;
 				}
 				break;
+			case 1006: /* Event-Trigger */
+				{
+					p_psoMsgInfo->m_psoReqInfo->m_vectEventTrigger.push_back(psoAVPHdr->avp_value->i32);
+				}
+				break;
 			case 1009: /* Online */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
 					p_psoMsgInfo->m_psoReqInfo->m_coOnlineCharging = mcValue;
@@ -1648,6 +1677,17 @@ int pcrf_extract_SubscriptionId(avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 	if (2 == p_soSessInfo.m_uiPeerProto /* Gx Cisco SCE */
 			&& iSubscriptionIdType == 0) { /* END_USER_E164 */
 		iSubscriptionIdType = 1; /* END_USER_IMSI */
+	}
+
+	/* исправляем косяк циски */
+	if (2 == p_soSessInfo.m_uiPeerProto /* Gx Cisco SCE */
+			&& iSubscriptionIdType == 1) { /* END_USER_IMSI */
+		if (strSubscriptionIdData.length() > 15) {
+			size_t stPos;
+			stPos = strSubscriptionIdData.find("_");
+			if (stPos != std::string::npos)
+				strSubscriptionIdData.resize(stPos);
+		}
 	}
 
 	if (strSubscriptionIdData.length()) {
