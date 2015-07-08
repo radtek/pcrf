@@ -65,7 +65,6 @@ struct SSessionInfo {
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
-	SSessionInfo () { m_uiPeerProto = 0; };
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;

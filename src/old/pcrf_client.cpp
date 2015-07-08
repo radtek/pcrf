@@ -410,6 +410,8 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
 			/* загружаем из БД информацию о сессии абонента */
 			CHECK_POSIX_DO(pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo), goto clear_and_continue);
+			/* определяем идентификатор протокола пира */
+			CHECK_POSIX_DO(pcrf_peer_proto(*(soSessInfo.m_psoSessInfo)), goto clear_and_continue);
 			/* если в поле action задано значение abort_session */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("abort_session")) {
 				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );

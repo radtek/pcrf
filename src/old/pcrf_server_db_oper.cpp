@@ -1015,16 +1015,10 @@ int pcrf_server_db_load_session_info (
 		otl_value<std::string> coRATType;
 		otl_value<std::string> coOriginHost;
 		otl_value<std::string> coOriginReal;
-		std::string strSessionId;
-		int iReq4SCEIsDone = 0;
-
-		strSessionId = p_soMsgInfo.m_psoSessInfo->m_coSessionId.v;
-		repeat_for_sce:
 		coStream.open (
 			1,
 			"select "
 				"sl.subscriber_id,"
-				"sl.framed_ip_address,"
 				"sl.called_station_id,"
 				"sloc.ip_can_type,"
 				"sloc.sgsn_ip_address,"
@@ -1039,11 +1033,10 @@ int pcrf_server_db_load_session_info (
 				"and sloc.time_end is null",
 			p_coDBConn);
 		coStream
-			<< strSessionId;
+			<< p_soMsgInfo.m_psoSessInfo->m_coSessionId;
 		if (!coStream.eof()) {
 			coStream
 				>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-				>> p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress
 				>> p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
 				>> coIPCANType
 				>> coSGSNAddress
@@ -1089,58 +1082,12 @@ int pcrf_server_db_load_session_info (
 			if (!coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null()) {
 				p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
 			}
-			/* если протокол пира еще не задан определен */
-			if (0 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
-				if (pcrf_peer_proto (*(p_soMsgInfo.m_psoSessInfo))) {
-					UTL_LOG_E (
-						*g_pcoLog,
-						"session_id: '%s': can not determine peer protocol",
-						p_soMsgInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
-					goto clear_and_finish;
-				}
-			}
-			/* если пир работает по протоколу Cisco SCE добираем данные из сессии ugw */
-			if (0 == iReq4SCEIsDone &&
-					2 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
-				coStream.close ();
-				coStream.open (
-					1,
-					"select "
-						"session_id "
-					"from "
-						"ps.sessionList sl "
-						"inner join ps.peer p on sl.origin_host = p.host_name "
-					"where "
-						"subscriber_id = :subscriber_id /*char[64]*/ "
-						"and framed_ip_address = :framed_ip_address /*char[16]*/ "
-						"and p.protocol_id = 1",
-					p_coDBConn);
-				coStream
-					<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-					<< p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress;
-				iReq4SCEIsDone = 1;
-				if (!coStream.eof ()) {
-					coStream
-						>> strSessionId;
-					coStream.close ();
-					goto repeat_for_sce;
-				} else {
-					UTL_LOG_E (
-						*g_pcoLog,
-						"subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
-						p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str (),
-						p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress.v.c_str ());
-					coStream.close ();
-				}
-			}
-			clear_and_finish:
-			coStream.close ();
 		} else {
 			/* no data found */
 			iRetVal = -1403;
 			UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; session_id: '%s'", -1403, "no data found", p_soMsgInfo.m_psoSessInfo->m_coSessionId.v.c_str());
-			coStream.close ();
 		}
+		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
