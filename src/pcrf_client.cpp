@@ -26,8 +26,8 @@ struct sess_state {
 extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque);
 
-/* получение ответа на Re-Auth сообщение */
-static void pcrf_client_RAA (void * data, struct msg ** msg)
+/* получение ответа на Re-Auth/Abort-Session сообщение */
+static void pcrf_client_XXA (void * data, struct msg ** msg)
 {
 	int iFnRes;
 	struct sess_state * mi = NULL;
@@ -60,18 +60,6 @@ static void pcrf_client_RAA (void * data, struct msg ** msg)
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
 		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), /*continue*/);
 		break;
-	}
-
-	/* Value of Origin-Host */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), /*continue*/);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
-	}
-
-	/* Value of Origin-Realm */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), /*continue*/);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
 	}
 
 	/* Free the message */
@@ -193,67 +181,11 @@ static int pcrf_client_RAR (
 	CHECK_FCT_DO (iRetVal = fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
 
 	/* Send the request */
-	CHECK_FCT_DO (iRetVal = fd_msg_send (&psoReq, pcrf_client_RAA, svg), goto out);
+	CHECK_FCT_DO (iRetVal = fd_msg_send (&psoReq, pcrf_client_XXA, svg), goto out);
 
 out:
 
 	return iRetVal;
-}
-
-/* получение ответа на Abort-Session сообщение */
-static void pcrf_ASA (void * data, struct msg ** msg)
-{
-	int iFnRes;
-	struct sess_state * mi = NULL;
-	struct session * sess;
-	struct avp * avp;
-	struct avp_hdr * hdr;
-	int iRC;
-
-	/* Search the session, retrieve its data */
-	{
-		int iIsNew;
-		CHECK_FCT_DO (fd_msg_sess_get (fd_g_config->cnf_dict, *msg, &sess, &iIsNew), return);
-		ASSERT (iIsNew == 0);
-
-		CHECK_FCT_DO (fd_sess_state_retrieve (g_psoSessionHandler, sess, &mi), return);
-		TRACE_DEBUG (INFO, "%p %p", mi, data);
-		ASSERT ((void *) mi == data);
-	}
-
-	/* Value of Result Code */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictRC, &avp), /*continue*/);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
-		iRC = hdr->avp_value->i32;
-	} else {
-		iRC = -1;
-	}
-
-	/* обрабатываем Result-Code */
-	switch (iRC) {
-	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-		CHECK_FCT_DO (iFnRes = pcrf_client_db_fix_staled_sess (mi->m_pszSessionId), /*continue*/);
-		break;
-	}
-
-	/* Value of Origin-Host */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignHost, &avp), /*continue*/);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
-	}
-
-	/* Value of Origin-Realm */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictOrignRealm, &avp), /*continue*/);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), /*continue*/);
-	}
-
-	/* Free the message */
-	CHECK_FCT_DO (fd_msg_free (*msg), /*continue*/);
-	*msg = NULL;
-
-	return;
 }
 
 /* отправка Abort-Session сообщени€ */
@@ -352,7 +284,7 @@ static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 	CHECK_FCT_DO (fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
 
 	/* Send the request */
-	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_RAA, svg), goto out);
+	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_XXA, svg), goto out);
 
 out:
 	return iRetVal;
@@ -405,11 +337,19 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			std::vector<SDBAbonRule> vectActive;
 
 			/* инициализаци€ структуры хранени€ данных сообщени€ */
-			CHECK_POSIX_DO (pcrf_server_DBstruct_init (&soSessInfo), goto clear_and_continue);
+			if (pcrf_server_DBstruct_init (&soSessInfo))
+				goto clear_and_continue;
 			/* задаем идентификтор сессии */
 			soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
 			/* загружаем из Ѕƒ информацию о сессии абонента */
-			CHECK_POSIX_DO(pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo), goto clear_and_continue);
+			if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo))
+				goto clear_and_continue;
+			/* провер€ем, подключен ли пир к freeDiameterd */
+			if (!pcrf_peer_is_connected (*soSessInfo.m_psoSessInfo)) {
+				iRetVal = ENOTCONN;
+				UTL_LOG_F (*g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str (), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str());
+				goto clear_and_continue;
+			}
 			/* если в поле action задано значение abort_session */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("abort_session")) {
 				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );
@@ -440,6 +380,8 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* освобождаем ресуры*/
 		clear_and_continue:
 			pcrf_server_DBStruct_cleanup(&soSessInfo);
+			if (iRetVal)
+				break;
 		}
 	}
 
@@ -485,7 +427,8 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		soWaitTime.tv_nsec = 0;
 
 		/* запрашиваем подключение к Ѕƒ */
-		CHECK_POSIX_DO(pcrf_db_pool_get((void**)&(pcoDBConn), __func__), continue);
+		if (pcrf_db_pool_get((void**)&(pcoDBConn), __func__))
+			continue;
 		/* создаем список обновлени€ политик */
 		CHECK_POSIX_DO(pcrf_client_db_refqueue((*pcoDBConn), vectQueue), goto clear_and_continue);
 

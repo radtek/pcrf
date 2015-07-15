@@ -126,6 +126,8 @@ struct SPeerInfo {
 	otl_value<std::string> m_coHostName;
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerProto;
+	int m_iIsConnected;
+	SPeerInfo () { m_iIsConnected = 0; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
@@ -157,7 +159,7 @@ struct SDBAbonRule {
 	SDBAbonRule() { m_bIsActivated = false; m_bIsRelevant = false; }
 };
 /* выборка данных из пакета */
-int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
+int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
 /* сохранение запроса в БД */
 void fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm &p_soTime);
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
@@ -282,6 +284,8 @@ int pcrf_client_db_delete_refqueue (
 	SRefQueue &p_soRefQueue);
 /* функция определяет протокол пира */
 int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
+/* определяет подключен ли пер */
+int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

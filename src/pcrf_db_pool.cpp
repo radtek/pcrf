@@ -141,6 +141,7 @@ void pcrf_db_pool_fin (void)
 int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 {
 	int iRetVal = 0;
+	int iFnRes;
 
 	/* инициализация значения */
 	*p_ppcoDBConn = NULL;
@@ -155,14 +156,20 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 	soWaitTime.tv_nsec = soCurTime.tv_usec * 1000;
 
 	/* ждем когда освободится семафор или истечет таймаут */
-	CHECK_POSIX_DO(sem_timedwait(&g_tDBPoolSem, &soWaitTime),
-		UTL_LOG_F(*g_pcoLog, "failed waiting for a free DB connection: '%s'", p_pszClient); return errno);
+	if (sem_timedwait (&g_tDBPoolSem, &soWaitTime)) {
+		UTL_LOG_F (*g_pcoLog, "failed waiting for a free DB connection: '%s'", p_pszClient);
+		return errno;
+	}
 
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
 	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
-	CHECK_POSIX_DO((iRetVal = pthread_mutex_lock(&g_tMutex)),
-		sem_post(&g_tDBPoolSem); UTL_LOG_F(*g_pcoLog, "can not enter into critical section"); return iRetVal);
+	iRetVal = pthread_mutex_lock (&g_tMutex);
+	if (iRetVal) {
+		sem_post (&g_tDBPoolSem);
+		UTL_LOG_F (*g_pcoLog, "can not enter into critical section: error code: '%u'", iRetVal);
+		return iRetVal;
+	}
 
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 	/* обходим весь пул начиная с головы пока не дойдем до конца */
@@ -191,7 +198,9 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 		iRetVal = -2222;
 		UTL_LOG_F(*g_pcoLog, "unexpected error: free db connection not found");
 	}
-	CHECK_POSIX (pthread_mutex_unlock (&g_tMutex));
+	iFnRes = pthread_mutex_unlock (&g_tMutex);
+	if (iFnRes)
+		UTL_LOG_F (*g_pcoLog, "can not enter into critical section: error code: '%u'", iFnRes);
 
 	return iRetVal;
 }

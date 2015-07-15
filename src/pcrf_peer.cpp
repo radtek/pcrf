@@ -134,8 +134,47 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 		if (0 == app_pcrf_peer_compare (*p_psoPeerInfo, *iterPeerList)) {
 			*p_piAuth = 1;
 			p_psoPeerInfo->config.pic_flags.sec = PI_SEC_NONE;
+			iterPeerList->m_iIsConnected = 1;
 			break;
 		}
+	}
+
+	return iRetVal;
+}
+
+int pcrf_peer_proto (SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = -1403;
+
+	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
+
+	while (iterPeerList != g_vectPeerList.end ()) {
+		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
+			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
+			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+			iRetVal = 0;
+			break;
+		}
+		++iterPeerList;
+	}
+
+	return iRetVal;
+}
+
+int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
+{
+	int iRetVal = -1403;
+
+	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
+
+	while (iterPeerList != g_vectPeerList.end ()) {
+		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
+			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
+			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+			iRetVal = iterPeerList->m_iIsConnected;
+			break;
+		}
+		++iterPeerList;
 	}
 
 	return iRetVal;
