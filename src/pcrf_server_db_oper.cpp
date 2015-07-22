@@ -218,7 +218,7 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 		coStream.open (
 			1,
 			"insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
-			"values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[16]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,sysdate,sysdate,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
+			"values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[32]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,sysdate,sysdate,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
 			p_coDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
@@ -658,39 +658,23 @@ int load_abon_rule_list (
 	int iRetVal = 0;
 
 	otl_nocommit_stream coStream;
+	otl_refcur_stream coRefCur;
+	otl_value<otl_datetime> coRefreshTime;
+	std::string strRuleName;
 	try {
-		otl_value<otl_datetime> coValidUntil;
-		otl_value<otl_datetime> coRuleTimeEnd;
-		otl_null coNULL;
 		coStream.open (
-			10,
-			"select "
-				"distinct "
-				"case when pc.protocol_id=1 then (select rule_name from ps.rule where id=pc.rule_id) when pc.protocol_id=2 then (select name from ps.sce_rule where id=pc.rule_id) end rule_name,"
-				"sp.valid_until,"
-				"case when trunc(sysdate, 'dd') + pc.end_time > sysdate then trunc(sysdate, 'dd') + pc.end_time else trunc(sysdate, 'dd') + pc.end_time + 1 end rule_time_end "
-			"from "
-				"ps.subscriberpolicy sp "
-				"inner join ps.policy p on sp.policy_id = p.id "
-				"inner join ps.policy_content pc on p.id = pc.policy_id "
-				"left join ps.apn apn on pc.apn_id = apn.id "
-				"left join(ps.location l inner join ps.sgsn_node n on n.location = l.id) on pc.location_id = l.id "
-				"left join ps.device_type dt on pc.device_type_id = dt.id "
-			"where "
-				"sp.subscriber_id = :subscriber_id /*char[64]*/ "
-				"and pc.protocol_id = :peer_proto /*unsigned*/ "
-				"and(p.default_policy_flag is NULL or p.default_policy_flag = 0) "
-				"and nvl(sp.blocked_until, sysdate - 1) < sysdate "
-				"and nvl(sp.valid_until, sysdate + 1) > sysdate "
-				"and nvl(sp.ignore_flag, 0) = 0 "
-				"and(pc.ip_can_type is null or pc.ip_can_type = :ip_can_type /*char[20]*/) "
-				"and(pc.rat_type is null or pc.rat_type = :rat_type /*char[20]*/) "
-				"and(apn.access_point_name is null or apn.access_point_name = :apn_name /*char[255]*/) "
-				"and(n.ip_address is null or n.ip_address = :sgsn_node_ip_address /*char[16]*/) "
-				"and(dt.id is null or dt.id = nvl(:device_type_id /*unsigned*/, dt.id)) "
-				"and "
-					"((nvl(pc.start_time, 0) < nvl(pc.end_time, 1) and sysdate between trunc(sysdate, 'dd') + nvl(pc.start_time, 0) and trunc(sysdate, 'dd') + nvl(pc.end_time, 1)) "
-					"or(nvl(pc.start_time, 0) > nvl(pc.end_time, 1) and sysdate between trunc(sysdate, 'dd') + nvl(pc.start_time, 0) and trunc(sysdate, 'dd') + nvl(pc.end_time, 1) + 1))",
+			1,
+			"begin "
+				":cur<refcur,out[32]> := ps.GetSubRules("
+						":subscriber_id <char[64],in>,"
+						":peer_proto <unsigned,in>,"
+						":ip_can_type <char[20],in>,"
+						":rat_type <char[20],in>,"
+						":apn_name <char[255],in>,"
+						":sgsn_node_ip_address <char[16],in>,"
+						":IMEI <char[20],in>"
+					");"
+			"end;",
 			p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
@@ -699,21 +683,19 @@ int load_abon_rule_list (
 			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType
 			<< p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
 			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress
-			<< coNULL;
-		std::string strRuleName;
+			<< p_soMsgInfo.m_psoSessInfo->m_coIMEI;
 		while (! coStream.eof ()) {
 			coStream
-				>> strRuleName
-				>> coValidUntil
-				>> coRuleTimeEnd;
-			p_vectRuleList.push_back (strRuleName);
-			/* если известна дата действия политик */
-			if (! coValidUntil.is_null ()) {
-				pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coValidUntil.v), NULL);
-			}
-			/* если известна дата действия правила */
-			if (! coRuleTimeEnd.is_null ()) {
-				pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coRuleTimeEnd.v), NULL);
+				>> coRefCur;
+			while(!coRefCur.eof()) {
+				coRefCur
+					>> strRuleName
+					>> coRefreshTime;
+				p_vectRuleList.push_back (strRuleName);
+				/* если известна дата действия политик */
+				if (! coRefreshTime.is_null ()) {
+					pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coRefreshTime.v), NULL);
+				}
 			}
 		}
 		coStream.close();
@@ -1288,7 +1270,7 @@ int pcrf_server_db_monit_key(
 			}
 			++iterMonitList;
 		}
-		p_coDBConn.rollback();
+		p_coDBConn.commit();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;

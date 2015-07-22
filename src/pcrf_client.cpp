@@ -369,9 +369,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* загружаем информацию о мониторинге */
 			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
 			/* проверяем наличие изменений в политиках */
-			/* только для ugw */
-			if (1 == soSessInfo.m_psoSessInfo->m_uiPeerProto &&
-					!pcrf_client_is_any_changes(vectActive, vectAbonRules)) {
+			if (!pcrf_client_is_any_changes(vectActive, vectAbonRules)) {
 				UTL_LOG_N (*g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str (), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
 				goto clear_and_continue;
 			}
