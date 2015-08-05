@@ -312,7 +312,7 @@ int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo)
 		p_psoDBConnInfo->m_pcoDBConn->auto_commit_off();
 		UTL_LOG_N(*g_pcoLog, "DB connection '%u' is established successfully", p_psoDBConnInfo->m_uiNumber);
 	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "DB connection: '%u: error code: '%d'; message: '%s'; query: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_F(*g_pcoLog, "DB connection: '%u: error code: '%d'; message: '%s'; query: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
 	}
 
