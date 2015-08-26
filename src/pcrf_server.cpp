@@ -68,6 +68,8 @@ static int app_pcrf_ccr_cb (
 	/* список активных правил абонента */
 	std::vector<SDBAbonRule> vectActive;
 	otl_connect *pcoDBConn = NULL;
+	const char *pszResultCode = "DIAMETER_SUCCESS";
+	std::string strSessionId;
 
 	if (p_ppsoMsg == NULL) {
 		return EINVAL;
@@ -81,14 +83,23 @@ static int app_pcrf_ccr_cb (
 	pcrf_extract_req_data (pMsgOrAVP, &soMsgInfoCache);
 
 	/* запрашиваем объект класса для работы с БД */
-	if (pcrf_db_pool_get((void **)&pcoDBConn, __func__))
+	if (pcrf_db_pool_get ((void **)&pcoDBConn, __func__)) {
+		pszResultCode = "DIAMETER_TOO_BUSY";
 		goto dummy_answer;
+	}
 
 	/* дополняем данные запроса необходимыми параметрами */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	case 1: /* INITIAL_REQUEST */
 		/* загружаем идентификтор абонента из профиля абонента */
 		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache), /*continue*/);
+		/* загрузка данных сессии UGW для обслуживания запроса SCE */
+		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+			if (pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
+				strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
+			}
+		}
 		/* проверка наличия зависших сессий */
 		if (g_psoConf->m_iLook4StalledSession)
 			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo), /*continue*/);
@@ -104,9 +115,19 @@ static int app_pcrf_ccr_cb (
 				}
 			}
 		}
+		break;	/* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем идентификатор абонента из списка активных сессий абонента */
-		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache);
+		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
+		/* загрузка данных сессии UGW для обслуживания запроса SCE */
+		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+			if (pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
+				strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+			}
+		} else {
+			strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+		}
+		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
 		break; /* DEFAULT */
 	}
 
@@ -118,7 +139,7 @@ static int app_pcrf_ccr_cb (
 	case 1: /* INITIAL_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем из БД правила абонента */
-		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules), );
+		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules), /* continue */);
 		break; /* INITIAL_REQUEST */ /* DEFAULT */
 	case 3: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
@@ -153,7 +174,7 @@ static int app_pcrf_ccr_cb (
 	} while (0);
 
 	/* Set the Origin-Host, Origin-Realm, Result-Code AVPs */
-	CHECK_FCT_DO (fd_msg_rescode_set (ans, (char *) "DIAMETER_SUCCESS", NULL, NULL, 1), /*continue*/);
+	CHECK_FCT_DO (fd_msg_rescode_set (ans, (char *)pszResultCode, NULL, NULL, 1), /*continue*/);
 
 	/* Destination-Realm */
 	do {
@@ -194,15 +215,6 @@ static int app_pcrf_ccr_cb (
 		CHECK_FCT_DO(fd_msg_avp_setvalue(psoChildAVP, &soAVPVal), break);
 		CHECK_FCT_DO(fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, psoChildAVP), break);
 	} while (0);
-
-	/* APN-Aggregate-Max-Bitrate */
-//	pcrf_make_APNAMBR(ans, *soMsgInfoCache.m_psoReqInfo);
-
-	/* Default-EPS-Bearer-QoS */
-//	pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
-
-	/* Subscription-Id */
-//	pcrf_make_SI(ans, soMsgInfoCache);
 
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	case 1: /* INITIAL_REQUEST */

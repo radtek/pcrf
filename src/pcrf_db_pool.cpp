@@ -260,7 +260,7 @@ int pcrf_db_pool_restore(SDBPoolInfo *p_psoDBConnInfo)
 	/* для начала самая простая проверка */
 	/* когда объект не подключен к БД */
 	if (! p_psoDBConnInfo->m_pcoDBConn->connected) {
-		UTL_LOG_E(*g_pcoLog, "DB not connected");
+		UTL_LOG_E (*g_pcoLog, "DB not connected: '%u'", p_psoDBConnInfo->m_uiNumber);
 		iFnRes = pcrf_db_pool_connect(p_psoDBConnInfo);
 		/* подключение восстановлено */
 		if (0 == iFnRes) {
@@ -312,7 +312,7 @@ int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo)
 		p_psoDBConnInfo->m_pcoDBConn->auto_commit_off();
 		UTL_LOG_N(*g_pcoLog, "DB connection '%u' is established successfully", p_psoDBConnInfo->m_uiNumber);
 	} catch (otl_exception &coExcept) {
-		UTL_LOG_F(*g_pcoLog, "DB connection: '%u: error code: '%d'; message: '%s'; query: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_F(*g_pcoLog, "DB connection: '%u': error code: '%d'; message: '%s'", p_psoDBConnInfo->m_uiNumber, coExcept.code, coExcept.msg);
 		iRetVal = coExcept.code;
 	}
 

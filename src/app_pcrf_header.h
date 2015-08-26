@@ -152,8 +152,8 @@ struct SDBAbonRule {
 	std::vector<std::string> m_vectFlowDescr;
 	otl_value<int32_t> m_coSCE_PackageId;
 	otl_value<int32_t> m_coSCE_RealTimeMonitor;
-	otl_value<int32_t> m_coSCE_UpVirtualLink;
-	otl_value<int32_t> m_coSCE_DownVirtualLink;
+	otl_value<uint32_t> m_coSCE_UpVirtualLink;
+	otl_value<uint32_t> m_coSCE_DownVirtualLink;
 	otl_value<std::string> m_coMonitKey;
 	/* конструктор структуры */
 	SDBAbonRule() { m_bIsActivated = false; m_bIsRelevant = false; }
@@ -225,10 +225,13 @@ int load_rule_info (
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
+/* поиск сессии UGW дл€ загрузки данных дл€ SCE */
+int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo);
+	SMsgDataForDB &p_soMsgInfo,
+	std::string &p_strSessionId);
 /* загрузка списка правил абонента из Ѕƒ */
 int pcrf_server_db_abon_rule (
 	otl_connect &p_coDBConn,

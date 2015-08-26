@@ -910,9 +910,7 @@ int load_rule_info (
 					"r.precedence_level,"
 					"r.name,"
 					"r.PACKAGE,"
-					"r.REAL_TIME_MONITOR,"
-					"r.VLINK_UPSTREAM,"
-					"r.VLINK_DOWNSTREAM "
+					"r.REAL_TIME_MONITOR "
 				"from "
 					"ps.SCE_rule r "
 				"where "
@@ -925,11 +923,34 @@ int load_rule_info (
 				>> soAbonRule.m_coPrecedenceLevel
 				>> soAbonRule.m_coRuleName
 				>> soAbonRule.m_coSCE_PackageId
-				>> soAbonRule.m_coSCE_RealTimeMonitor
-				>> soAbonRule.m_coSCE_UpVirtualLink
-				>> soAbonRule.m_coSCE_DownVirtualLink;
+				>> soAbonRule.m_coSCE_RealTimeMonitor;
 			soAbonRule.m_coRuleName = p_strRuleName;
 			coStream.close ();
+			/* TODO */
+			/* только дл€ тестовой точки доступа */
+			if (!p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.is_null () && 0 == p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru")) {
+				if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null ()) {
+					coStream.open(1, "select VLINKID from ps.SCE_VLINK where CGI = :location_id/*char[20]*/", p_coDBConn);
+					coStream
+						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI;
+				} else if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null ()) {
+					coStream.open (1, "select VLINKID from ps.SCE_VLINK where ECGI = :location_id/*char[20]*/", p_coDBConn);
+					coStream
+						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI;
+				} else
+					goto continue_whithout_vlink;
+				if(!coStream.eof()) {
+					coStream
+						>> soAbonRule.m_coSCE_UpVirtualLink;
+				} else {
+					soAbonRule.m_coSCE_UpVirtualLink.v = 0;
+					soAbonRule.m_coSCE_UpVirtualLink.set_non_null();
+				}
+				soAbonRule.m_coSCE_DownVirtualLink = soAbonRule.m_coSCE_UpVirtualLink;
+				coStream.close();
+			}
+			continue_whithout_vlink:
+			/* TODO */
 			coStream.open (
 				10,
 				"select "
@@ -984,9 +1005,54 @@ int load_rule_info (
 	return iRetVal;
 }
 
+int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId)
+{
+	int iRetVal = 0;
+
+	otl_nocommit_stream coStream;
+	try {
+		coStream.open (
+			1,
+			"select "
+				"session_id "
+			"from "
+				"ps.sessionList sl "
+				"inner join ps.peer p on sl.origin_host = p.host_name "
+			"where "
+				"subscriber_id = :subscriber_id /*char[64]*/ "
+				"and framed_ip_address = :framed_ip_address /*char[16]*/ "
+				"and p.protocol_id = 1",
+			p_coDBConn);
+		coStream
+			<< p_strSubscriberId
+			<< p_strFramedIPAddress;
+		if (!coStream.eof ()) {
+			coStream
+				>> p_strUGWSessionId;
+		} else {
+			UTL_LOG_E (
+				*g_pcoLog,
+				"subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
+				p_strSubscriberId.c_str (),
+				p_strFramedIPAddress.c_str ());
+			iRetVal = -1403;
+		}
+		coStream.close ();
+	} catch (otl_exception &coExcept) {
+		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		iRetVal = coExcept.code;
+		if (coStream.good()) {
+			coStream.close();
+		}
+	}
+
+	return iRetVal;
+}
+
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo)
+	SMsgDataForDB &p_soMsgInfo,
+	std::string &p_strSessionId)
 {
 	int iRetVal = 0;
 
@@ -997,11 +1063,10 @@ int pcrf_server_db_load_session_info (
 		otl_value<std::string> coRATType;
 		otl_value<std::string> coOriginHost;
 		otl_value<std::string> coOriginReal;
-		std::string strSessionId;
-		int iReq4SCEIsDone = 0;
+		otl_value<std::string> coCGI;
+		otl_value<std::string> coECGI;
 
-		strSessionId = p_soMsgInfo.m_psoSessInfo->m_coSessionId.v;
-		repeat_for_sce:
+		/* загружаем данные по сессии из Ѕƒ */
 		coStream.open (
 			1,
 			"select "
@@ -1012,7 +1077,9 @@ int pcrf_server_db_load_session_info (
 				"sloc.sgsn_ip_address,"
 				"sloc.rat_type,"
 				"sl.origin_host,"
-				"sl.origin_realm "
+				"sl.origin_realm,"
+				"sloc.cgi,"
+				"sloc.ecgi "
 			"from "
 				"ps.sessionList sl "
 				"left join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
@@ -1021,7 +1088,7 @@ int pcrf_server_db_load_session_info (
 				"and sloc.time_end is null",
 			p_coDBConn);
 		coStream
-			<< strSessionId;
+			<< p_strSessionId;
 		if (!coStream.eof()) {
 			coStream
 				>> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
@@ -1031,7 +1098,9 @@ int pcrf_server_db_load_session_info (
 				>> coSGSNAddress
 				>> coRATType
 				>> coOriginHost
-				>> coOriginReal;
+				>> coOriginReal
+				>> coCGI
+				>> coECGI;
 			/* если из Ѕƒ получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
 			if (!coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null ()) {
 				/* копируем значение, полученное из Ѕƒ */
@@ -1071,58 +1140,20 @@ int pcrf_server_db_load_session_info (
 			if (!coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null()) {
 				p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
 			}
-			/* если протокол пира еще не задан определен */
-			if (0 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
-				if (pcrf_peer_proto (*(p_soMsgInfo.m_psoSessInfo))) {
-					UTL_LOG_E (
-						*g_pcoLog,
-						"session_id: '%s': can not determine peer protocol",
-						p_soMsgInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
-					goto clear_and_finish;
-				}
+			/* то же самое с CGI */
+			if (!coCGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null()) {
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI = coCGI;
 			}
-			/* если пир работает по протоколу Cisco SCE добираем данные из сессии ugw */
-			if (0 == iReq4SCEIsDone &&
-					2 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
-				coStream.close ();
-				coStream.open (
-					1,
-					"select "
-						"session_id "
-					"from "
-						"ps.sessionList sl "
-						"inner join ps.peer p on sl.origin_host = p.host_name "
-					"where "
-						"subscriber_id = :subscriber_id /*char[64]*/ "
-						"and framed_ip_address = :framed_ip_address /*char[16]*/ "
-						"and p.protocol_id = 1",
-					p_coDBConn);
-				coStream
-					<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-					<< p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress;
-				iReq4SCEIsDone = 1;
-				if (!coStream.eof ()) {
-					coStream
-						>> strSessionId;
-					coStream.close ();
-					goto repeat_for_sce;
-				} else {
-					UTL_LOG_E (
-						*g_pcoLog,
-						"subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
-						p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str (),
-						p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress.v.c_str ());
-					coStream.close ();
-				}
+			/* то же самое с ECGI */
+			if (!coECGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null()) {
+				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI = coECGI;
 			}
-			clear_and_finish:
-			coStream.close ();
 		} else {
 			/* no data found */
 			iRetVal = -1403;
-			UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; session_id: '%s'", -1403, "no data found", p_soMsgInfo.m_psoSessInfo->m_coSessionId.v.c_str());
-			coStream.close ();
+			UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; session_id: '%s'", -1403, "no data found", p_strSessionId.c_str());
 		}
+		coStream.close ();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;

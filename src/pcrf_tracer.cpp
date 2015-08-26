@@ -23,8 +23,6 @@ static void pcrf_tracer (
 	char mcEnumValue[256];
 	otl_connect *pcoDBConn = NULL;
 
-	UTL_LOG_D (*g_pcoLog, "parameters dump: %#x:%p:%p:%p:%p:%p", p_eHookType, p_psoMsg, p_psoPeer, p_pOther, p_psoPMD, p_pRegData);
-
 	if (NULL == p_psoMsg) {
 		UTL_LOG_E (*g_pcoLog, "NULL pointer to message structure");
 		return;
