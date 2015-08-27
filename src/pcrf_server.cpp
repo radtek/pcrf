@@ -95,8 +95,7 @@ static int app_pcrf_ccr_cb (
 		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache), /*continue*/);
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
-			if (pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
-				strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
 				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
 			}
 		}
@@ -121,13 +120,10 @@ static int app_pcrf_ccr_cb (
 		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
-			if (pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
-				strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
+				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
 			}
-		} else {
-			strSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
 		}
-		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
 		break; /* DEFAULT */
 	}
 
@@ -136,7 +132,6 @@ static int app_pcrf_ccr_cb (
 
 	/* загружаем правила из БД */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
-	case 1: /* INITIAL_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем из БД правила абонента */
 		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules), /* continue */);
@@ -1216,7 +1211,7 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 264: /* Origin-Host */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.set_non_null();
-				/* определяем протокол пира */
+				/* определяем диалект хоста */
 				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 278: /* Origin-State-Id */
@@ -1225,7 +1220,7 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 296: /* Origin-Realm */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.set_non_null();
-				/* определяем протокол пира */
+				/* определяем диалект хоста */
 				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 295: /* Termination-Cause */

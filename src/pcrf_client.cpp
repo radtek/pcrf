@@ -344,21 +344,18 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* загружаем из БД информацию о сессии абонента */
 			{
 				std::string strSessionId;
-				/* необходимо получить из БД subscriber_id */
+				/* получаем из БД информацию о сессии */
 				if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v))
 					goto clear_and_continue;
 				/* необходимо определить диалект хоста */
 				CHECK_POSIX_DO (pcrf_peer_proto(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
 				/* для сессии SCE находим сессию UGW */
 				if (2 == soSessInfo.m_psoSessInfo->m_uiPeerProto) {
-					if (pcrf_server_find_ugw_session(*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
-						strSessionId = soSessInfo.m_psoSessInfo->m_coSessionId.v;
+					if (0 == pcrf_server_find_ugw_session(*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
+						/* и получаем дополнительные сведения */
+						pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strSessionId);
 					}
-				} else {
-					strSessionId = soSessInfo.m_psoSessInfo->m_coSessionId.v;
 				}
-				if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strSessionId))
-					goto clear_and_continue;
 			}
 			/* проверяем, подключен ли пир к freeDiameterd */
 			if (!pcrf_peer_is_connected (*soSessInfo.m_psoSessInfo)) {
