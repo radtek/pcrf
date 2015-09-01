@@ -281,6 +281,10 @@ int pcrf_server_db_insert_refqueue (
 	const std::string &p_strIdentifier,
 	otl_datetime *p_pcoDateTime,
 	const char *p_pszAction);
+
+/* функция определяет vlink_id для Cisco SCE */
+int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAbonRule &p_soAbonRule);
+
 /* функция удаляет запись из очереди обновления политик */
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,

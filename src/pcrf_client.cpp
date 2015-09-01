@@ -375,6 +375,20 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );
 				goto clear_and_continue;
 			}
+			/* загружаем vlink_id для Cisco SCE */
+			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("update_vlink_id")) {
+				/* только для Cisco SCE */
+				if (2 == soSessInfo.m_psoSessInfo->m_uiPeerProto) {
+					if (vectAbonRules.size()) {
+						pcrf_get_vlink_id(*p_pcoDBConn, soSessInfo, vectAbonRules[0]);
+						/* посылаем RAR-запрос */
+						CHECK_POSIX_DO(pcrf_client_RAR(p_pcoDBConn, soSessInfo, vectActive, vectAbonRules), );
+						goto clear_and_continue;
+					}
+				} else {
+					goto clear_and_continue;
+				}
+			}
 			/* загружаем список активных правил */
 			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*p_pcoDBConn, soSessInfo, vectActive), );
 			/* формируем список неактуальных правил */

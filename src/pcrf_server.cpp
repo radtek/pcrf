@@ -82,6 +82,28 @@ static int app_pcrf_ccr_cb (
 	msg_or_avp *pMsgOrAVP = *p_ppsoMsg;
 	pcrf_extract_req_data (pMsgOrAVP, &soMsgInfoCache);
 
+	/* необходимо определить диалект хоста */
+	CHECK_POSIX_DO (pcrf_peer_proto(*soMsgInfoCache.m_psoSessInfo), /*continue*/);
+
+	/* исправляем косяки циски */
+	if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {	/* Gx Cisco SCE */
+		/* переносим значение E164 на IMSI */
+		if (soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.is_null() && !soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.is_null()) {
+			soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI = soMsgInfoCache.m_psoSessInfo->m_coEndUserE164;
+			soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.v.clear();
+			soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.set_null();
+		}
+		/* отсекаем суффикс от IMSI */
+		if (!soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.is_null()) {
+			if (soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.length() > 15) {
+				size_t stPos;
+				stPos = soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.find("_");
+				if (stPos != std::string::npos)
+					soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.resize(stPos);
+			}
+		}
+	}
+
 	/* запрашиваем объект класса для работы с БД */
 	if (pcrf_db_pool_get ((void **)&pcoDBConn, __func__)) {
 		pszResultCode = "DIAMETER_TOO_BUSY";
@@ -148,6 +170,9 @@ static int app_pcrf_ccr_cb (
 		/* загружаем список активных правил */
 		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive), );
 	case 1: /* INITIAL_REQUEST */
+		/* определяем vlink_id для Cisco SCE */
+		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto && vectAbonRules.size())
+			pcrf_get_vlink_id(*(pcoDBConn), soMsgInfoCache, vectAbonRules[0]);
 		/* формируем список неактуальных правил */
 		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(*(pcoDBConn), soMsgInfoCache, vectAbonRules, vectActive), );
 		/* загружаем информацию о мониторинге */
@@ -239,6 +264,9 @@ static int app_pcrf_ccr_cb (
 				case 13: /* USER_LOCATION_CHANGE */
 					/* Event-Trigger */
 					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+					/* просим обновить vlink_id для SCE */
+					if (0 == soMsgInfoCache.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru"))
+						pcrf_server_db_insert_refqueue (*(pcoDBConn), "subscriber_id", soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, NULL, "update_vlink_id");
 					break;
 				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
 					/* Default-EPS-Bearer-QoS */
@@ -1211,8 +1239,6 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 264: /* Origin-Host */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginHost.set_non_null();
-				/* определяем диалект хоста */
-				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 278: /* Origin-State-Id */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginStateId = psoAVPHdr->avp_value->u32;
@@ -1220,8 +1246,6 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 			case 296: /* Origin-Realm */
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
 				p_psoMsgInfo->m_psoSessInfo->m_coOriginRealm.set_non_null();
-				/* определяем диалект хоста */
-				pcrf_peer_proto(*p_psoMsgInfo->m_psoSessInfo);
 				break;
 			case 295: /* Termination-Cause */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
@@ -1424,23 +1448,6 @@ int pcrf_extract_SubscriptionId (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 			break;
 		}
 	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, NULL));
-
-	/* исправляем косяк циски */
-	if (2 == p_soSessInfo.m_uiPeerProto /* Gx Cisco SCE */
-			&& iSubscriptionIdType == 0) { /* END_USER_E164 */
-		iSubscriptionIdType = 1; /* END_USER_IMSI */
-	}
-
-	/* исправляем косяк циски */
-	if (2 == p_soSessInfo.m_uiPeerProto /* Gx Cisco SCE */
-			&& iSubscriptionIdType == 1) { /* END_USER_IMSI */
-		if (strSubscriptionIdData.length() > 15) {
-			size_t stPos;
-			stPos = strSubscriptionIdData.find("_");
-			if (stPos != std::string::npos)
-				strSubscriptionIdData.resize(stPos);
-		}
-	}
 
 	if (strSubscriptionIdData.length()) {
 		switch (iSubscriptionIdType) {
