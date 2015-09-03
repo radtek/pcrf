@@ -25,19 +25,19 @@
 #include "otlv4.h"
 
 #ifdef __cplusplus
-extern "C" {	/* функции, реализованные на C++ */
+extern "C" {	/* С„СѓРЅРєС†РёРё, СЂРµР°Р»РёР·РѕРІР°РЅРЅС‹Рµ РЅР° C++ */
 #endif
 
-/* функции сервера */
-/* кешированные данные из запроса */
+/* С„СѓРЅРєС†РёРё СЃРµСЂРІРµСЂР° */
+/* РєРµС€РёСЂРѕРІР°РЅРЅС‹Рµ РґР°РЅРЅС‹Рµ РёР· Р·Р°РїСЂРѕСЃР° */
 struct SSessionPolicyInfo {
 	otl_value<std::string> m_coChargingRuleName;
 	otl_value<std::string> m_coPCCRuleStatus;
 	otl_value<std::string> m_coRuleFailureCode;
 };
-/* структура для получения информации о мониторинге */
+/* СЃС‚СЂСѓРєС‚СѓСЂР° РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ РёРЅС„РѕСЂРјР°С†РёРё Рѕ РјРѕРЅРёС‚РѕСЂРёРЅРіРµ */
 struct SDBMonitoringInfo {
-	/*otl_value<std::string> m_coKeyName; */ /* в качестве имени ключа используется ключ std::map */
+	/*otl_value<std::string> m_coKeyName; */ /* РІ РєР°С‡РµСЃС‚РІРµ РёРјРµРЅРё РєР»СЋС‡Р° РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РєР»СЋС‡ std::map */
 	bool m_bDataLoaded;
 	otl_value<uint64_t> m_coDosageTotalOctets;
 	otl_value<uint64_t> m_coDosageOutputOctets;
@@ -129,7 +129,7 @@ struct SPeerInfo {
 	int m_iIsConnected;
 	SPeerInfo () { m_iIsConnected = 0; }
 };
-/* структура для получения правил абонента из БД */
+/* СЃС‚СЂСѓРєС‚СѓСЂР° РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ РїСЂР°РІРёР» Р°Р±РѕРЅРµРЅС‚Р° РёР· Р‘Р” */
 struct SDBAbonRule {
 	bool m_bIsActivated;
 	bool m_bIsRelevant;
@@ -155,12 +155,12 @@ struct SDBAbonRule {
 	otl_value<uint32_t> m_coSCE_UpVirtualLink;
 	otl_value<uint32_t> m_coSCE_DownVirtualLink;
 	otl_value<std::string> m_coMonitKey;
-	/* конструктор структуры */
+	/* РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ СЃС‚СЂСѓРєС‚СѓСЂС‹ */
 	SDBAbonRule() { m_bIsActivated = false; m_bIsRelevant = false; }
 };
-/* выборка данных из пакета */
+/* РІС‹Р±РѕСЂРєР° РґР°РЅРЅС‹С… РёР· РїР°РєРµС‚Р° */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
-/* сохранение запроса в БД */
+/* СЃРѕС…СЂР°РЅРµРЅРёРµ Р·Р°РїСЂРѕСЃР° РІ Р‘Р” */
 void fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm &p_soTime);
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
 int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo);
@@ -168,18 +168,18 @@ int pcrf_server_policy_db_store (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB *p_psoMsgInfo);
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
-/* закрываем запись в таблице выданных политик */
+/* Р·Р°РєСЂС‹РІР°РµРј Р·Р°РїРёСЃСЊ РІ С‚Р°Р±Р»РёС†Рµ РІС‹РґР°РЅРЅС‹С… РїРѕР»РёС‚РёРє */
 int pcrf_db_close_session_policy (
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo,
 	std::string &p_strRuleName);
-/* добавление записи в таблицу выданых политик */
+/* РґРѕР±Р°РІР»РµРЅРёРµ Р·Р°РїРёСЃРё РІ С‚Р°Р±Р»РёС†Сѓ РІС‹РґР°РЅС‹С… РїРѕР»РёС‚РёРє */
 int pcrf_db_insert_policy (
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo,
 	SDBAbonRule &p_soRule);
 
-/* очередь элементов обновления политик */
+/* РѕС‡РµСЂРµРґСЊ СЌР»РµРјРµРЅС‚РѕРІ РѕР±РЅРѕРІР»РµРЅРёСЏ РїРѕР»РёС‚РёРє */
 struct SRefQueue {
 	std::string m_strRowId;
 	std::string m_strIdentifier;
@@ -188,93 +188,93 @@ struct SRefQueue {
 	otl_datetime m_coRefreshDate;
 };
 
-/* операции клиента с БД */
-/* формирование очереди изменения политик */
+/* РѕРїРµСЂР°С†РёРё РєР»РёРµРЅС‚Р° СЃ Р‘Р” */
+/* С„РѕСЂРјРёСЂРѕРІР°РЅРёРµ РѕС‡РµСЂРµРґРё РёР·РјРµРЅРµРЅРёСЏ РїРѕР»РёС‚РёРє */
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue);
-/* завершение зависшей сессии */
+/* Р·Р°РІРµСЂС€РµРЅРёРµ Р·Р°РІРёСЃС€РµР№ СЃРµСЃСЃРёРё */
 int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId);
-/* формирование списка сессий абонента */
+/* С„РѕСЂРјРёСЂРѕРІР°РЅРёРµ СЃРїРёСЃРєР° СЃРµСЃСЃРёР№ Р°Р±РѕРЅРµРЅС‚Р° */
 int pcrf_client_db_load_session_list (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soReqQueue,
 	std::vector<std::string> &p_vectSessionList);
 
-/* запрос свободного подключения к БД */
+/* Р·Р°РїСЂРѕСЃ СЃРІРѕР±РѕРґРЅРѕРіРѕ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Р‘Р” */
 int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient);
-/* возврат подключения к БД */
+/* РІРѕР·РІСЂР°С‚ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Р‘Р” */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 
-/* функции работы с AVP */
-/* функция получения значения перечислимого типа */
+/* С„СѓРЅРєС†РёРё СЂР°Р±РѕС‚С‹ СЃ AVP */
+/* С„СѓРЅРєС†РёСЏ РїРѕР»СѓС‡РµРЅРёСЏ Р·РЅР°С‡РµРЅРёСЏ РїРµСЂРµС‡РёСЃР»РёРјРѕРіРѕ С‚РёРїР° */
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize);
 
-/* загрузка идентификатора абонента из БД */
+/* Р·Р°РіСЂСѓР·РєР° РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂР° Р°Р±РѕРЅРµРЅС‚Р° РёР· Р‘Р” */
 int pcrf_server_db_load_abon_id (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfo);
-/* проверка зависших сессий */
+/* РїСЂРѕРІРµСЂРєР° Р·Р°РІРёСЃС€РёС… СЃРµСЃСЃРёР№ */
 int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo);
-/* загрузка списка активных правил абонента */
+/* Р·Р°РіСЂСѓР·РєР° СЃРїРёСЃРєР° Р°РєС‚РёРІРЅС‹С… РїСЂР°РІРёР» Р°Р±РѕРЅРµРЅС‚Р° */
 int pcrf_server_db_load_active_rules (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectActive);
-/* загрузка описания правила */
+/* Р·Р°РіСЂСѓР·РєР° РѕРїРёСЃР°РЅРёСЏ РїСЂР°РІРёР»Р° */
 int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
-/* поиск сессии UGW для загрузки данных для SCE */
+/* РїРѕРёСЃРє СЃРµСЃСЃРёРё UGW РґР»СЏ Р·Р°РіСЂСѓР·РєРё РґР°РЅРЅС‹С… РґР»СЏ SCE */
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId);
-/* загрузка идентификатора абонента по Session-Id */
+/* Р·Р°РіСЂСѓР·РєР° РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂР° Р°Р±РѕРЅРµРЅС‚Р° РїРѕ Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strSessionId);
-/* загрузка списка правил абонента из БД */
+/* Р·Р°РіСЂСѓР·РєР° СЃРїРёСЃРєР° РїСЂР°РІРёР» Р°Р±РѕРЅРµРЅС‚Р° РёР· Р‘Р” */
 int pcrf_server_db_abon_rule (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
-/* загрузка Monitoring Key из БД */
+/* Р·Р°РіСЂСѓР·РєР° Monitoring Key РёР· Р‘Р” */
 int pcrf_server_db_monit_key(
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo);
-/* функция сохраняет в БД данные о локации абонента */
+/* С„СѓРЅРєС†РёСЏ СЃРѕС…СЂР°РЅСЏРµС‚ РІ Р‘Р” РґР°РЅРЅС‹Рµ Рѕ Р»РѕРєР°С†РёРё Р°Р±РѕРЅРµРЅС‚Р° */
 int pcrf_server_db_user_location(
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo);
 
-/* функция формирования списка неактуальных правил */
+/* С„СѓРЅРєС†РёСЏ С„РѕСЂРјРёСЂРѕРІР°РЅРёСЏ СЃРїРёСЃРєР° РЅРµР°РєС‚СѓР°Р»СЊРЅС‹С… РїСЂР°РІРёР» */
 int pcrf_server_select_notrelevant_active (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	std::vector<SDBAbonRule> &p_vectActive);
 
-/* функция заполнения avp Charging-Rule-Remove */
+/* С„СѓРЅРєС†РёСЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectActive);
-/* функция заполнения avp Charging-Rule-Install */
+/* С„СѓРЅРєС†РёСЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	msg *p_soAns);
-/* функция заполнения avp Usage-Monitoring-Information */
+/* С„СѓРЅРєС†РёСЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ avp Usage-Monitoring-Information */
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SSessionInfo &p_soSessInfo,
 	bool p_bFull = true);
-/* задает значение Event-Trigger */
+/* Р·Р°РґР°РµС‚ Р·РЅР°С‡РµРЅРёРµ Event-Trigger */
 int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
 
-/* функция добавляет запись в очередь обновления политик */
+/* С„СѓРЅРєС†РёСЏ РґРѕР±Р°РІР»СЏРµС‚ Р·Р°РїРёСЃСЊ РІ РѕС‡РµСЂРµРґСЊ РѕР±РЅРѕРІР»РµРЅРёСЏ РїРѕР»РёС‚РёРє */
 int pcrf_server_db_insert_refqueue (
 	otl_connect &p_coDBConn,
 	const char *p_pszIdentifierType,
@@ -282,18 +282,18 @@ int pcrf_server_db_insert_refqueue (
 	otl_datetime *p_pcoDateTime,
 	const char *p_pszAction);
 
-/* функция определяет vlink_id для Cisco SCE */
+/* С„СѓРЅРєС†РёСЏ РѕРїСЂРµРґРµР»СЏРµС‚ vlink_id РґР»СЏ Cisco SCE */
 int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAbonRule &p_soAbonRule);
 
-/* функция удаляет запись из очереди обновления политик */
+/* С„СѓРЅРєС†РёСЏ СѓРґР°Р»СЏРµС‚ Р·Р°РїРёСЃСЊ РёР· РѕС‡РµСЂРµРґРё РѕР±РЅРѕРІР»РµРЅРёСЏ РїРѕР»РёС‚РёРє */
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soRefQueue);
-/* функция определяет протокол пира */
+/* С„СѓРЅРєС†РёСЏ РѕРїСЂРµРґРµР»СЏРµС‚ РїСЂРѕС‚РѕРєРѕР» РїРёСЂР° */
 int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
-/* определяет подключен ли пер */
+/* РѕРїСЂРµРґРµР»СЏРµС‚ РїРѕРґРєР»СЋС‡РµРЅ Р»Рё РїРµСЂ */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 
 #ifdef __cplusplus
-}				/* функции, реализованные на C++ */
+}				/* С„СѓРЅРєС†РёРё, СЂРµР°Р»РёР·РѕРІР°РЅРЅС‹Рµ РЅР° C++ */
 #endif

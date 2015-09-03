@@ -143,21 +143,21 @@ int app_pcrf_dict_init (void)
 	vitVendId = 10415;
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_VENDOR, VENDOR_BY_ID, &vitVendId, &g_psoDictVend, ENOENT));
 
-	/* çàïðàøèâàåì â ñëîâàðå îáúåêòû Credit-Contorl message */
+	/* Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ¸Ð²Ð°ÐµÐ¼ Ð² ÑÐ»Ð¾Ð²Ð°Ñ€Ðµ Ð¾Ð±ÑŠÐµÐºÑ‚Ñ‹ Credit-Contorl message */
 	cctCmdCode = 272;
 	/* load CCR */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_CODE_R, &cctCmdCode, &g_psoDictCCR, ENOENT));
 	/* load CCA */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_CODE_A, &cctCmdCode, &g_psoDictCCA, ENOENT));
 
-	/* çàïðàøèâàåì â ñëîâàðå îáúåêòû Re-Auth message */
+	/* Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ¸Ð²Ð°ÐµÐ¼ Ð² ÑÐ»Ð¾Ð²Ð°Ñ€Ðµ Ð¾Ð±ÑŠÐµÐºÑ‚Ñ‹ Re-Auth message */
 	cctCmdCode = 258;
 	/* load RAR */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_CODE_R, &cctCmdCode, &g_psoDictRAR, ENOENT));
 	/* load RAA */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_CODE_A, &cctCmdCode, &g_psoDictRAA, ENOENT));
 
-	/* çàïðàøèâàåì â ñëîâàðå îáúåêòû Abort-Session-message */
+	/* Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ¸Ð²Ð°ÐµÐ¼ Ð² ÑÐ»Ð¾Ð²Ð°Ñ€Ðµ Ð¾Ð±ÑŠÐµÐºÑ‚Ñ‹ Abort-Session-message */
 	cctCmdCode = 274;
 	/* load ASR */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_CODE_R, &cctCmdCode, &g_psoDictASR, ENOENT));
@@ -454,7 +454,7 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAPNAggregateMaxBitrateDL, ENOENT));
 	}
 
-	/* äîïîëíÿåì ñëîâàðü ïåðå÷èñëèìûìè çíà÷åíèÿìè */
+	/* Ð´Ð¾Ð¿Ð¾Ð»Ð½ÑÐµÐ¼ ÑÐ»Ð¾Ð²Ð°Ñ€ÑŒ Ð¿ÐµÑ€ÐµÑ‡Ð¸ÑÐ»Ð¸Ð¼Ñ‹Ð¼Ð¸ Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸ÑÐ¼Ð¸ */
 	/* Online */
 	{
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictOnline, &psoDictType, ENOENT));
@@ -605,7 +605,7 @@ int app_pcrf_dict_init (void)
 		dict_enumval_data        t_7 = { (char *) "UNKNOWN_BEARER_ID",            { (uint8_t *) 7 }};
 		dict_enumval_data        t_8 = { (char *) "MISSING_BEARER_ID",            { (uint8_t *) 8 }};
 		dict_enumval_data        t_9 = { (char *) "MISSING_FLOW_DESCRIPTION",     { (uint8_t *) 9 }};
-/*		dict_enumval_data        t_10 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *) 9 }}; äóáëèðîâàíèå ÷èñëîâîãî çíà÷åíèÿ */
+/*		dict_enumval_data        t_10 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *) 9 }}; Ð´ÑƒÐ±Ð»Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ Ñ‡Ð¸ÑÐ»Ð¾Ð²Ð¾Ð³Ð¾ Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸Ñ */
 		dict_enumval_data        t_11 = { (char *) "RESOURCE_ALLOCATION_FAILURE", { (uint8_t *) 10 }};
 		dict_enumval_data        t_12 = { (char *) "UNSUCCESSFUL_QOS_VALIDATION", { (uint8_t *) 11 }};
 		dict_enumval_data        t_13 = { (char *) "INCORRECT_FLOW_INFORMATION",  { (uint8_t *) 12 }};
@@ -614,7 +614,7 @@ int app_pcrf_dict_init (void)
 		dict_enumval_data        t_16 = { (char *) "FILTER_RESTRICTIONS",         { (uint8_t *) 1002 }};
 		dict_enumval_data        t_17 = { (char *) "TIME_CONTROL_ERROR",          { (uint8_t *) 1004 }};
 		dict_enumval_data        t_18 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1005 }};
-/*		dict_enumval_data        t_19 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1004 }}; äóáëèðîâàíèå ÷èñëîâîãî çíà÷åíèÿ */
+/*		dict_enumval_data        t_19 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1004 }}; Ð´ÑƒÐ±Ð»Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Ðµ Ñ‡Ð¸ÑÐ»Ð¾Ð²Ð¾Ð³Ð¾ Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸Ñ */
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));

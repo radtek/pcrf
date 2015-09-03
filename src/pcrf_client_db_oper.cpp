@@ -12,12 +12,12 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 
 	otl_nocommit_stream coStream;
 	try {
-		/* создаем объект класса потока ДБ */
+		/* СЃРѕР·РґР°РµРј РѕР±СЉРµРєС‚ РєР»Р°СЃСЃР° РїРѕС‚РѕРєР° Р”Р‘ */
 		coStream.open(
 			1000,
 			"select rowid, identifier, identifier_type, refresh_date, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
 			p_coDBConn);
-		/* делаем выборку из БД */
+		/* РґРµР»Р°РµРј РІС‹Р±РѕСЂРєСѓ РёР· Р‘Р” */
 		while (! coStream.eof ()) {
 			coStream
 				>> soQueueElem.m_strRowId
@@ -45,14 +45,14 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	otl_connect *pcoDBConn;
 	otl_datetime coDateTime;
 
-	/* запрашиваем указатель на объект подключения к БД */
+	/* Р·Р°РїСЂР°С€РёРІР°РµРј СѓРєР°Р·Р°С‚РµР»СЊ РЅР° РѕР±СЉРµРєС‚ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Р‘Р” */
 	if (pcrf_db_pool_get((void**)&pcoDBConn, __func__))
 		return -1;
 
 	otl_nocommit_stream coStream;
 	try {
-		/* создаем объект класса потока ДБ */
-		/* закрываем зависшую сессию */
+		/* СЃРѕР·РґР°РµРј РѕР±СЉРµРєС‚ РєР»Р°СЃСЃР° РїРѕС‚РѕРєР° Р”Р‘ */
+		/* Р·Р°РєСЂС‹РІР°РµРј Р·Р°РІРёСЃС€СѓСЋ СЃРµСЃСЃРёСЋ */
 		coStream.open (
 			1,
 			"update ps.SessionList "
@@ -60,14 +60,14 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 				"where session_id = :1/*char[255],in*/ "
 				"returning time_last_req into :2/*timestamp,out*/",
 			*pcoDBConn);
-		/* делаем выборку из БД */
+		/* РґРµР»Р°РµРј РІС‹Р±РѕСЂРєСѓ РёР· Р‘Р” */
 		coStream
 			<< p_pcszSessionId;
 		coStream
 			>> coDateTime;
 		if(coStream.good())
 			coStream.close ();
-		/* фиксируем правила зависшей сессиии */
+		/* С„РёРєСЃРёСЂСѓРµРј РїСЂР°РІРёР»Р° Р·Р°РІРёСЃС€РµР№ СЃРµСЃСЃРёРёРё */
 		coStream.open (
 			1,
 			"update ps.sessionRule "
@@ -79,7 +79,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 			<< p_pcszSessionId;
 		if (coStream.good())
 			coStream.close();
-		/* фиксируем локации зависшей сессиии */
+		/* С„РёРєСЃРёСЂСѓРµРј Р»РѕРєР°С†РёРё Р·Р°РІРёСЃС€РµР№ СЃРµСЃСЃРёРёРё */
 		coStream.open (
 			1,
 			"update ps.sessionLocation "
@@ -100,7 +100,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 		}
 	}
 
-	/* возвращаем подключение к БД, если оно было получено */
+	/* РІРѕР·РІСЂР°С‰Р°РµРј РїРѕРґРєР»СЋС‡РµРЅРёРµ Рє Р‘Р”, РµСЃР»Рё РѕРЅРѕ Р±С‹Р»Рѕ РїРѕР»СѓС‡РµРЅРѕ */
 	if (pcoDBConn) {
 		pcrf_db_pool_rel(pcoDBConn, __func__);
 	}
@@ -115,7 +115,7 @@ int pcrf_client_db_load_session_list (
 {
 	int iRetVal = 0;
 
-	/* очищаем список перед выполнением */
+	/* РѕС‡РёС‰Р°РµРј СЃРїРёСЃРѕРє РїРµСЂРµРґ РІС‹РїРѕР»РЅРµРЅРёРµРј */
 	p_vectSessionList.clear ();
 
 	otl_nocommit_stream coStream;

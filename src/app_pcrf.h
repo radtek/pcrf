@@ -16,12 +16,12 @@ struct SAppPCRFConf {
 
 extern struct SAppPCRFConf *g_psoConf;
 
-/* объекты словаря */
+/* РѕР±СЉРµРєС‚С‹ СЃР»РѕРІР°СЂСЏ */
 extern struct dict_object *g_psoDictApp;
 extern struct dict_object *g_psoDictVend;
 
 #ifdef __cplusplus
-extern "C" {	/* функции, реализованные на C++ */
+extern "C" {	/* С„СѓРЅРєС†РёРё, СЂРµР°Р»РёР·РѕРІР°РЅРЅС‹Рµ РЅР° C++ */
 #endif
 
 /* Parse the configuration file */
@@ -30,32 +30,32 @@ int app_pcrf_conf_handle (char * conffile);
 /* Initialize dictionary definitions */
 int app_pcrf_dict_init (void);
 
-/* инициализация пула подключений к БД */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїСѓР»Р° РїРѕРґРєР»СЋС‡РµРЅРёР№ Рє Р‘Р” */
 int pcrf_db_pool_init (void);
-/* деинициализация пула подключений к БД */
+/* РґРµРёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїСѓР»Р° РїРѕРґРєР»СЋС‡РµРЅРёР№ Рє Р‘Р” */
 void pcrf_db_pool_fin (void);
 
-/* инициализация трейсера */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ С‚СЂРµР№СЃРµСЂР° */
 int pcrf_tracer_init(void);
-/* деинициализация трейсера */
+/* РґРµРёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ С‚СЂРµР№СЃРµСЂР° */
 void pcrf_tracer_fini(void);
 
-/* инициализация сервера */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ СЃРµСЂРІРµСЂР° */
 int app_pcrf_serv_init (void);
-/* деинициализация сервера */
+/* РґРµРёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ СЃРµСЂРІРµСЂР° */
 void app_pcrf_serv_fini (void);
 
-/* инициализация клиента */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РєР»РёРµРЅС‚Р° */
 int pcrf_cli_init (void);
-/* деинициализация клиента */
+/* РґРµРёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РєР»РёРµРЅС‚Р° */
 void pcrf_cli_fini (void);
 
-/* инициализация логгера */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ Р»РѕРіРіРµСЂР° */
 int pcrf_logger_init (void);
-/* деинициализаци логгера */
+/* РґРµРёРЅРёС†РёР°Р»РёР·Р°С†Рё Р»РѕРіРіРµСЂР° */
 void pcrf_logger_fini(void);
 
-/* инициализация списока клиентов и регистрация функции-валидатора клиента */
+/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ СЃРїРёСЃРѕРєР° РєР»РёРµРЅС‚РѕРІ Рё СЂРµРіРёСЃС‚СЂР°С†РёСЏ С„СѓРЅРєС†РёРё-РІР°Р»РёРґР°С‚РѕСЂР° РєР»РёРµРЅС‚Р° */
 int app_pcrf_load_peer (void);
 
 /* Some global variables for dictionary */
@@ -146,5 +146,5 @@ extern struct dict_object *g_psoDictAPNAggregateMaxBitrateDL;
 
 
 #ifdef __cplusplus
-}				/* функции, реализованные на C++ */
+}				/* С„СѓРЅРєС†РёРё, СЂРµР°Р»РёР·РѕРІР°РЅРЅС‹Рµ РЅР° C++ */
 #endif

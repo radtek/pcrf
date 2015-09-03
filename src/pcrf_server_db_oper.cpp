@@ -3,19 +3,19 @@
 
 extern CLog *g_pcoLog;
 
-/* добавление записи в список сессий */
+/* РґРѕР±Р°РІР»РµРЅРёРµ Р·Р°РїРёСЃРё РІ СЃРїРёСЃРѕРє СЃРµСЃСЃРёР№ */
 int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo);
-/* обновление записи в таблице сессий */
+/* РѕР±РЅРѕРІР»РµРЅРёРµ Р·Р°РїРёСЃРё РІ С‚Р°Р±Р»РёС†Рµ СЃРµСЃСЃРёР№ */
 int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo);
-/* добавление записи в таблицу потребления трафика */
+/* РґРѕР±Р°РІР»РµРЅРёРµ Р·Р°РїРёСЃРё РІ С‚Р°Р±Р»РёС†Сѓ РїРѕС‚СЂРµР±Р»РµРЅРёСЏ С‚СЂР°С„РёРєР° */
 int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo);
 
-/* обновление записи в таблице выданых политик */
+/* РѕР±РЅРѕРІР»РµРЅРёРµ Р·Р°РїРёСЃРё РІ С‚Р°Р±Р»РёС†Рµ РІС‹РґР°РЅС‹С… РїРѕР»РёС‚РёРє */
 int pcrf_db_update_policy (
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo,
 	SSessionPolicyInfo &p_soPoliciInfo);
-/* закрываем записи в таблице выданных политик */
+/* Р·Р°РєСЂС‹РІР°РµРј Р·Р°РїРёСЃРё РІ С‚Р°Р±Р»РёС†Рµ РІС‹РґР°РЅРЅС‹С… РїРѕР»РёС‚РёРє */
 int pcrf_db_close_session_policy (
 	otl_connect &p_coDBConn,
 	SSessionInfo &p_soSessInfo);
@@ -24,10 +24,10 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 {
 	int iRetVal = 0;
 
-	/* инициализируем структуру */
+	/* РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ */
 	memset (p_psoMsgToDB, 0, sizeof (*p_psoMsgToDB));
 
-	/* виделяем память для хранения данных запроса */
+	/* РІРёРґРµР»СЏРµРј РїР°РјСЏС‚СЊ РґР»СЏ С…СЂР°РЅРµРЅРёСЏ РґР°РЅРЅС‹С… Р·Р°РїСЂРѕСЃР° */
 	try {
 		p_psoMsgToDB->m_psoSessInfo = new SSessionInfo;
 		p_psoMsgToDB->m_psoReqInfo = new SRequestInfo;
@@ -45,7 +45,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 	int iFnRes = 0;
 
 	do {
-		/* проверка параметров */
+		/* РїСЂРѕРІРµСЂРєР° РїР°СЂР°РјРµС‚СЂРѕРІ */
 		if (NULL == p_psoMsgInfo->m_psoSessInfo
 				|| NULL == p_psoMsgInfo->m_psoReqInfo) {
 			iRetVal = EINVAL;
@@ -62,7 +62,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 				iRetVal = iFnRes;
 				break;
 			}
-			/* сохраняем в БД данные о локации абонента */
+			/* СЃРѕС…СЂР°РЅСЏРµРј РІ Р‘Р” РґР°РЅРЅС‹Рµ Рѕ Р»РѕРєР°С†РёРё Р°Р±РѕРЅРµРЅС‚Р° */
 			iFnRes = pcrf_server_db_user_location(p_coDBConn, (*p_psoMsgInfo));
 			if (iFnRes) {
 				iRetVal = iFnRes;
@@ -70,7 +70,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			}
 			break;
 		case 3: /* TERMINATION_REQUEST */
-			/* закрываем открытые записи о локациях */
+			/* Р·Р°РєСЂС‹РІР°РµРј РѕС‚РєСЂС‹С‚С‹Рµ Р·Р°РїРёСЃРё Рѕ Р»РѕРєР°С†РёСЏС… */
 			{
 				otl_nocommit_stream coStream;
 				try {
@@ -89,22 +89,22 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			}
 		case 2: /* UPDATE_REQUEST */
 		case 4: /* EVENT_REQUEST */
-			/* для TERMINATION_REQUEST информацию о локациях не сохраняем */
+			/* РґР»СЏ TERMINATION_REQUEST РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ Р»РѕРєР°С†РёСЏС… РЅРµ СЃРѕС…СЂР°РЅСЏРµРј */
 			if (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType != 3) {
-				/* сохраняем в БД данные о локации абонента */
+				/* СЃРѕС…СЂР°РЅСЏРµРј РІ Р‘Р” РґР°РЅРЅС‹Рµ Рѕ Р»РѕРєР°С†РёРё Р°Р±РѕРЅРµРЅС‚Р° */
 				iFnRes = pcrf_server_db_user_location(p_coDBConn, (*p_psoMsgInfo));
 				if (iFnRes) {
 					iRetVal = iFnRes;
 					break;
 				}
 			}
-			/* выполянем запрос на обновление записи */
+			/* РІС‹РїРѕР»СЏРЅРµРј Р·Р°РїСЂРѕСЃ РЅР° РѕР±РЅРѕРІР»РµРЅРёРµ Р·Р°РїРёСЃРё */
 			iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 			if (iFnRes) {
 				iRetVal = iFnRes;
 				break;
 			}
-			/* обрабатываем информацию о выданных политиках */
+			/* РѕР±СЂР°Р±Р°С‚С‹РІР°РµРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РІС‹РґР°РЅРЅС‹С… РїРѕР»РёС‚РёРєР°С… */
 			iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo);
 			if (iFnRes) {
 				iRetVal = iFnRes;
@@ -119,7 +119,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			break;
 		}
 
-		/* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
+		/* СЃРѕС…СЂР°РЅСЏРµРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РїРѕС‚СЂРµР±Р»РµРЅРёРё С‚СЂР°С„РёРєР°, Р·Р°РіСЂСѓР¶Р°РµРј РёРЅС„РѕСЂРјР°С†РёРё РѕР± РѕСЃС‚Р°РІС€РёС…СЃСЏ РєРІРѕС‚Р°С… */
 		iFnRes = pcrf_db_session_usage(p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *(p_psoMsgInfo->m_psoReqInfo));
 		if (iFnRes) {
 			iRetVal = iFnRes;
@@ -137,7 +137,7 @@ int pcrf_server_policy_db_store (
 	int iRetVal = 0;
 	int iFnRes;
 
-	/* проверка параметров */
+	/* РїСЂРѕРІРµСЂРєР° РїР°СЂР°РјРµС‚СЂРѕРІ */
 	if (NULL == p_psoMsgInfo->m_psoSessInfo
 			|| NULL == p_psoMsgInfo->m_psoReqInfo) {
 		return EINVAL;
@@ -145,7 +145,7 @@ int pcrf_server_policy_db_store (
 
 	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
 	case 3: /* TERMINATION_REQUEST */
-		/* сначала фиксируем информацию, полученную в запросе */
+		/* СЃРЅР°С‡Р°Р»Р° С„РёРєСЃРёСЂСѓРµРј РёРЅС„РѕСЂРјР°С†РёСЋ, РїРѕР»СѓС‡РµРЅРЅСѓСЋ РІ Р·Р°РїСЂРѕСЃРµ */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
 			iFnRes = pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
 			if (iFnRes) {
@@ -156,7 +156,7 @@ int pcrf_server_policy_db_store (
 		if (iRetVal) {
 			break;
 		}
-		/* потом закрываем оставшиеся сессии */
+		/* РїРѕС‚РѕРј Р·Р°РєСЂС‹РІР°РµРј РѕСЃС‚Р°РІС€РёРµСЃСЏ СЃРµСЃСЃРёРё */
 		iFnRes = pcrf_db_close_session_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 		if (iFnRes) {
 			iRetVal = iFnRes;
@@ -186,7 +186,7 @@ int pcrf_server_policy_db_store (
 
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo)
 {
-	/* освобождаем занятую память */
+	/* РѕСЃРІРѕР±РѕР¶РґР°РµРј Р·Р°РЅСЏС‚СѓСЋ РїР°РјСЏС‚СЊ */
 	if (p_psoMsgInfo->m_psoSessInfo) {
 		p_psoMsgInfo->m_psoSessInfo->m_vectCRR.clear ();
 		delete p_psoMsgInfo->m_psoSessInfo;
@@ -214,7 +214,7 @@ int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 
 	otl_nocommit_stream coStream;
 	try {
-		/* выполняем запрос на добавление записи о сессии */
+		/* РІС‹РїРѕР»РЅСЏРµРј Р·Р°РїСЂРѕСЃ РЅР° РґРѕР±Р°РІР»РµРЅРёРµ Р·Р°РїРёСЃРё Рѕ СЃРµСЃСЃРёРё */
 		coStream.open (
 			1,
 			"insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
@@ -250,7 +250,7 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 
 	otl_nocommit_stream coStream;
 	try {
-		/* запрос на обновление записи о сессии */
+		/* Р·Р°РїСЂРѕСЃ РЅР° РѕР±РЅРѕРІР»РµРЅРёРµ Р·Р°РїРёСЃРё Рѕ СЃРµСЃСЃРёРё */
 		coStream.open (
 			1,
 			"update ps.SessionList"
@@ -277,7 +277,7 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 {
 	int iRetVal = 0;
 
-	/* если вектор пустой просто выходим из функции */
+	/* РµСЃР»Рё РІРµРєС‚РѕСЂ РїСѓСЃС‚РѕР№ РїСЂРѕСЃС‚Рѕ РІС‹С…РѕРґРёРј РёР· С„СѓРЅРєС†РёРё */
 	if (0 == p_soReqInfo.m_vectUsageInfo.size())
 		return 0;
 
@@ -316,7 +316,7 @@ int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, S
 				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
 				iter->m_coCCOutputOctets.is_null() ? -1: iter->m_coCCOutputOctets.v,
 				iter->m_coCCTotalOctets.is_null() ? -1: iter->m_coCCTotalOctets.v);
-			/* запоминаем полученную информацию чтобы не повторять запросы к БД по этому ключу мониторинга */
+			/* Р·Р°РїРѕРјРёРЅР°РµРј РїРѕР»СѓС‡РµРЅРЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ С‡С‚РѕР±С‹ РЅРµ РїРѕРІС‚РѕСЂСЏС‚СЊ Р·Р°РїСЂРѕСЃС‹ Рє Р‘Р” РїРѕ СЌС‚РѕРјСѓ РєР»СЋС‡Сѓ РјРѕРЅРёС‚РѕСЂРёРЅРіР° */
 			{
 				SDBMonitoringInfo soMonitInfo;
 				if (!iter->m_coCCInputOctets.is_null())
@@ -483,7 +483,7 @@ int pcrf_db_close_session_policy (
 	return iRetVal;
 }
 
-/* загружает идентификатор абонента (subscriber_id) из БД */
+/* Р·Р°РіСЂСѓР¶Р°РµС‚ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ Р°Р±РѕРЅРµРЅС‚Р° (subscriber_id) РёР· Р‘Р” */
 int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo)
 {
 	if (NULL == p_pcoDBConn)
@@ -493,7 +493,7 @@ int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMs
 
 	otl_nocommit_stream coStream;
 	try {
-		/* выполняем запрос к БД */
+		/* РІС‹РїРѕР»РЅСЏРµРј Р·Р°РїСЂРѕСЃ Рє Р‘Р” */
 		coStream.open (
 			1,
 			"select "
@@ -538,7 +538,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 	std::map<std::string,int> mapSessList;
 
 	try {
-		/* ищем сессии по IMSI */
+		/* РёС‰РµРј СЃРµСЃСЃРёРё РїРѕ IMSI */
 		//if (!p_psoSessInfo->m_coEndUserIMSI.is_null()) {
 		//	coStream.open(
 		//		100,
@@ -565,7 +565,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		//	if (coStream.good())
 		//		coStream.close();
 		//}
-		/* ищем сессии по ip-адресу */
+		/* РёС‰РµРј СЃРµСЃСЃРёРё РїРѕ ip-Р°РґСЂРµСЃСѓ */
 		if (!p_psoSessInfo->m_coFramedIPAddress.is_null()) {
 			coStream.open(
 				100,
@@ -592,7 +592,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 			if (coStream.good())
 				coStream.close();
 		}
-		/* записываем сессии в очередь команд для проверки */
+		/* Р·Р°РїРёСЃС‹РІР°РµРј СЃРµСЃСЃРёРё РІ РѕС‡РµСЂРµРґСЊ РєРѕРјР°РЅРґ РґР»СЏ РїСЂРѕРІРµСЂРєРё */
 		for (std::map<std::string,int>::iterator iterList = mapSessList.begin(); iterList != mapSessList.end(); ++iterList) {
 			pcrf_server_db_insert_refqueue(*p_pcoDBConn, "session_id", iterList->first, NULL, "abort_session");
 		}
@@ -618,7 +618,7 @@ int pcrf_server_db_load_active_rules (
 
 	otl_nocommit_stream coStream;
 	try {
-		/* загружаем активные политики сессии */
+		/* Р·Р°РіСЂСѓР¶Р°РµРј Р°РєС‚РёРІРЅС‹Рµ РїРѕР»РёС‚РёРєРё СЃРµСЃСЃРёРё */
 		SDBAbonRule soRule;
 		coStream.open (
 			10,
@@ -649,7 +649,7 @@ int pcrf_server_db_load_active_rules (
 	return iRetVal;
 }
 
-/* загружает список идентификаторов правил абонента из БД */
+/* Р·Р°РіСЂСѓР¶Р°РµС‚ СЃРїРёСЃРѕРє РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂРѕРІ РїСЂР°РІРёР» Р°Р±РѕРЅРµРЅС‚Р° РёР· Р‘Р” */
 int load_abon_rule_list (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
@@ -692,7 +692,7 @@ int load_abon_rule_list (
 					>> strRuleName
 					>> coRefreshTime;
 				p_vectRuleList.push_back (strRuleName);
-				/* если известна дата действия политик */
+				/* РµСЃР»Рё РёР·РІРµСЃС‚РЅР° РґР°С‚Р° РґРµР№СЃС‚РІРёСЏ РїРѕР»РёС‚РёРє */
 				if (! coRefreshTime.is_null ()) {
 					pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coRefreshTime.v), NULL);
 				}
@@ -710,7 +710,7 @@ int load_abon_rule_list (
 	return iRetVal;
 }
 
-/* загрузжает список идентификаторов правил по умолчанию */
+/* Р·Р°РіСЂСѓР·Р¶Р°РµС‚ СЃРїРёСЃРѕРє РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂРѕРІ РїСЂР°РІРёР» РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ */
 int load_def_rule_list (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
@@ -723,7 +723,7 @@ int load_def_rule_list (
 
 	otl_nocommit_stream coStream;
 	try {
-		/* загружаем правила по умолчанию */
+		/* Р·Р°РіСЂСѓР¶Р°РµРј РїСЂР°РІРёР»Р° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ */
 		switch (p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
 		case 1: /* Gx */
 			coStream.open (
@@ -758,7 +758,7 @@ int load_def_rule_list (
 				"order by "
 					"precedence_level",
 					p_coDBConn);
-			/* выбираем из БД только одну, самую первую, запись. выборка упорядочена по precedence_level */
+			/* РІС‹Р±РёСЂР°РµРј РёР· Р‘Р” С‚РѕР»СЊРєРѕ РѕРґРЅСѓ, СЃР°РјСѓСЋ РїРµСЂРІСѓСЋ, Р·Р°РїРёСЃСЊ. РІС‹Р±РѕСЂРєР° СѓРїРѕСЂСЏРґРѕС‡РµРЅР° РїРѕ precedence_level */
 			if (! coStream.eof ()) {
 				coStream
 					>> coRuleName;
@@ -783,7 +783,7 @@ int load_def_rule_list (
 	return iRetVal;
 }
 
-/* загружает список потоков правила */
+/* Р·Р°РіСЂСѓР¶Р°РµС‚ СЃРїРёСЃРѕРє РїРѕС‚РѕРєРѕРІ РїСЂР°РІРёР»Р° */
 int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsigned int p_uiRuleId, std::vector<std::string> &p_vectRuleFlows)
 {
 	int iRetVal = 0;
@@ -818,7 +818,7 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 	return iRetVal;
 }
 
-/* загружает описание правила */
+/* Р·Р°РіСЂСѓР¶Р°РµС‚ РѕРїРёСЃР°РЅРёРµ РїСЂР°РІРёР»Р° */
 int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
@@ -885,16 +885,16 @@ int load_rule_info (
 				>> soAbonRule.m_coRedirectServerAddress;
 			CHECK_FCT (iFnRes = load_rule_flows (p_coDBConn, p_soMsgInfo, uiRuleId, soAbonRule.m_vectFlowDescr));
 			if (0 == iFnRes) {
-				/* запоминаем имя правила */
+				/* Р·Р°РїРѕРјРёРЅР°РµРј РёРјСЏ РїСЂР°РІРёР»Р° */
 				soAbonRule.m_coRuleName = p_strRuleName;
-				/* сохраняем в списке описание правила */
+				/* СЃРѕС…СЂР°РЅСЏРµРј РІ СЃРїРёСЃРєРµ РѕРїРёСЃР°РЅРёРµ РїСЂР°РІРёР»Р° */
 				soAbonRule.m_bIsRelevant = true;
 				p_vectAbonRules.push_back(soAbonRule);
-				/* если задан ключ мониторинга */
+				/* РµСЃР»Рё Р·Р°РґР°РЅ РєР»СЋС‡ РјРѕРЅРёС‚РѕСЂРёРЅРіР° */
 				if (!soAbonRule.m_coMonitKey.is_null()) {
-					/* проверяем, нет ли уже в списке этого ключа мониторинга */
+					/* РїСЂРѕРІРµСЂСЏРµРј, РЅРµС‚ Р»Рё СѓР¶Рµ РІ СЃРїРёСЃРєРµ СЌС‚РѕРіРѕ РєР»СЋС‡Р° РјРѕРЅРёС‚РѕСЂРёРЅРіР° */
 					std::map<std::string, SDBMonitoringInfo>::iterator iterMK = p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.find(soAbonRule.m_coMonitKey.v);
-					/* если в списке такой ключ не найден */
+					/* РµСЃР»Рё РІ СЃРїРёСЃРєРµ С‚Р°РєРѕР№ РєР»СЋС‡ РЅРµ РЅР°Р№РґРµРЅ */
 					if (iterMK == p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.end())
 						p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.insert(std::make_pair(soAbonRule.m_coMonitKey.v, SDBMonitoringInfo()));
 				}
@@ -964,7 +964,7 @@ int load_rule_info (
 	return iRetVal;
 }
 
-/* загружает описание правил */
+/* Р·Р°РіСЂСѓР¶Р°РµС‚ РѕРїРёСЃР°РЅРёРµ РїСЂР°РІРёР» */
 int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
@@ -1043,7 +1043,7 @@ int pcrf_server_db_load_session_info (
 		otl_value<std::string> coCGI;
 		otl_value<std::string> coECGI;
 
-		/* загружаем данные по сессии из БД */
+		/* Р·Р°РіСЂСѓР¶Р°РµРј РґР°РЅРЅС‹Рµ РїРѕ СЃРµСЃСЃРёРё РёР· Р‘Р” */
 		coStream.open (
 			1,
 			"select "
@@ -1078,9 +1078,9 @@ int pcrf_server_db_load_session_info (
 				>> coOriginReal
 				>> coCGI
 				>> coECGI;
-			/* если из БД получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
+			/* РµСЃР»Рё РёР· Р‘Р” РїРѕР»СѓС‡РµРЅРѕ Р·РЅР°С‡РµРЅРёРµ IP-CAN-Type Рё СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РµРіРѕ Р°С‚СЂРёР±СѓС‚Р° РЅРµ Р±С‹Р»Рѕ РІ Р·Р°РїСЂРѕСЃРµ */
 			if (!coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null ()) {
-				/* копируем значение, полученное из БД */
+				/* РєРѕРїРёСЂСѓРµРј Р·РЅР°С‡РµРЅРёРµ, РїРѕР»СѓС‡РµРЅРЅРѕРµ РёР· Р‘Р” */
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = coIPCANType;
 				/* Find the enum value corresponding to the rescode string, this will give the class of error */
 				struct dict_object * enum_obj = NULL;
@@ -1100,28 +1100,28 @@ int pcrf_server_db_load_session_info (
 				/* copy the found value, we're done */
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = req.search.enum_value.i32;
 			}
-			/* если из БД получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
+			/* РµСЃР»Рё РёР· Р‘Р” РїРѕР»СѓС‡РµРЅРѕ Р·РЅР°С‡РµРЅРёРµ 3GPP-SGSN-Address Рё СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РµРіРѕ Р°С‚СЂРёР±СѓС‚Р° РЅРµ Р±С‹Р»Рѕ РІ Р·Р°РїСЂРѕСЃРµ */
 			if (!coSGSNAddress.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null()) {
-				/* копируем значение, полученное из БД */
+				/* РєРѕРїРёСЂСѓРµРј Р·РЅР°С‡РµРЅРёРµ, РїРѕР»СѓС‡РµРЅРЅРѕРµ РёР· Р‘Р” */
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = coSGSNAddress;
 			}
-			/* то же самое с RAT Type */
+			/* С‚Рѕ Р¶Рµ СЃР°РјРѕРµ СЃ RAT Type */
 			if (!coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()) {
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
 			}
-			/* то же самое с Origin-Host */
+			/* С‚Рѕ Р¶Рµ СЃР°РјРѕРµ СЃ Origin-Host */
 			if (!coOriginHost.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginHost.is_null()) {
 				p_soMsgInfo.m_psoSessInfo->m_coOriginHost = coOriginHost;
 			}
-			/* то же самое с Origin-Realm */
+			/* С‚Рѕ Р¶Рµ СЃР°РјРѕРµ СЃ Origin-Realm */
 			if (!coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null()) {
 				p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
 			}
-			/* то же самое с CGI */
+			/* С‚Рѕ Р¶Рµ СЃР°РјРѕРµ СЃ CGI */
 			if (!coCGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null()) {
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI = coCGI;
 			}
-			/* то же самое с ECGI */
+			/* С‚Рѕ Р¶Рµ СЃР°РјРѕРµ СЃ ECGI */
 			if (!coECGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null()) {
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI = coECGI;
 			}
@@ -1146,7 +1146,7 @@ int pcrf_server_db_user_location(
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo)
 {
-	/* если нечего сохранять в БД */
+	/* РµСЃР»Рё РЅРµС‡РµРіРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ РІ Р‘Р” */
 	if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_bLoaded)
 		return 0;
 
@@ -1199,27 +1199,27 @@ int pcrf_server_db_abon_rule (
 {
 	int iRetVal = 0;
 
-	/* очищаем список перед выполнением */
+	/* РѕС‡РёС‰Р°РµРј СЃРїРёСЃРѕРє РїРµСЂРµРґ РІС‹РїРѕР»РЅРµРЅРёРµРј */
 	p_vectAbonRules.clear ();
 
 	do {
-		/* список идентификаторов правил абонент */
+		/* СЃРїРёСЃРѕРє РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂРѕРІ РїСЂР°РІРёР» Р°Р±РѕРЅРµРЅС‚ */
 		std::vector<std::string> vectRuleList;
-		/* если идентификатора подписчика определен */
+		/* РµСЃР»Рё РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂР° РїРѕРґРїРёСЃС‡РёРєР° РѕРїСЂРµРґРµР»РµРЅ */
 		if (p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.length ()) {
-			/* если абонент определен */
-			/* загружаем правила абонента */
+			/* РµСЃР»Рё Р°Р±РѕРЅРµРЅС‚ РѕРїСЂРµРґРµР»РµРЅ */
+			/* Р·Р°РіСЂСѓР¶Р°РµРј РїСЂР°РІРёР»Р° Р°Р±РѕРЅРµРЅС‚Р° */
 			load_abon_rule_list (p_coDBConn, p_soMsgInfo, vectRuleList);
 		}
 		if (0 == vectRuleList.size()) {
-			/* если у абонента нет никаких политик */
-			/* загружаем правила по умолчанию */
+			/* РµСЃР»Рё Сѓ Р°Р±РѕРЅРµРЅС‚Р° РЅРµС‚ РЅРёРєР°РєРёС… РїРѕР»РёС‚РёРє */
+			/* Р·Р°РіСЂСѓР¶Р°РµРј РїСЂР°РІРёР»Р° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ */
 			load_def_rule_list (p_coDBConn, p_soMsgInfo, vectRuleList);
 		}
-		/* если список идентификаторов правил не пустой */
+		/* РµСЃР»Рё СЃРїРёСЃРѕРє РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂРѕРІ РїСЂР°РІРёР» РЅРµ РїСѓСЃС‚РѕР№ */
 		if (vectRuleList.size ()) {
 			load_rule_info (p_coDBConn, p_soMsgInfo, vectRuleList, p_vectAbonRules);
-			/* в случае с SCE нам надо оставить одно правило с наивысшим приоритетом */
+			/* РІ СЃР»СѓС‡Р°Рµ СЃ SCE РЅР°Рј РЅР°РґРѕ РѕСЃС‚Р°РІРёС‚СЊ РѕРґРЅРѕ РїСЂР°РІРёР»Рѕ СЃ РЅР°РёРІС‹СЃС€РёРј РїСЂРёРѕСЂРёС‚РµС‚РѕРј */
 			if (p_vectAbonRules.size() && 2 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
 				SDBAbonRule soAbonRule;
 				std::vector<SDBAbonRule>::iterator iterList = p_vectAbonRules.begin();
@@ -1260,7 +1260,7 @@ int pcrf_server_db_monit_key(
 			p_coDBConn);
 		std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList = p_soSessInfo.m_mapMonitInfo.begin();
 		while (iterMonitList != p_soSessInfo.m_mapMonitInfo.end()) {
-			/* если данные из БД еще не загружены */
+			/* РµСЃР»Рё РґР°РЅРЅС‹Рµ РёР· Р‘Р” РµС‰Рµ РЅРµ Р·Р°РіСЂСѓР¶РµРЅС‹ */
 			if (!iterMonitList->second.m_bDataLoaded) {
 				coStream
 					<< p_soSessInfo.m_strSubscriberId
@@ -1351,7 +1351,7 @@ int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAb
 
 	/* TODO */
 	do {
-		/* только для тестовой точки доступа */
+		/* С‚РѕР»СЊРєРѕ РґР»СЏ С‚РµСЃС‚РѕРІРѕР№ С‚РѕС‡РєРё РґРѕСЃС‚СѓРїР° */
 		if (!p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.is_null () && 0 == p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru")) {
 			UTL_LOG_D(*g_pcoLog, "vlink_id determination started");
 			otl_nocommit_stream coStream;

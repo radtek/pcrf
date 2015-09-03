@@ -5,13 +5,13 @@
 extern CLog *g_pcoLog;
 std::vector<SPeerInfo> g_vectPeerList;
 
-/* функция загружает список клиентов */
+/* С„СѓРЅРєС†РёСЏ Р·Р°РіСЂСѓР¶Р°РµС‚ СЃРїРёСЃРѕРє РєР»РёРµРЅС‚РѕРІ */
 int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn);
 
-/* функция проводит валидации клиента */
+/* С„СѓРЅРєС†РёСЏ РїСЂРѕРІРѕРґРёС‚ РІР°Р»РёРґР°С†РёРё РєР»РёРµРЅС‚Р° */
 int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)(struct peer_info *));
 
-/* функция формирует список клиентов */
+/* С„СѓРЅРєС†РёСЏ С„РѕСЂРјРёСЂСѓРµС‚ СЃРїРёСЃРѕРє РєР»РёРµРЅС‚РѕРІ */
 int app_pcrf_load_peer ()
 {
 	int iRetVal = 0;
@@ -98,22 +98,22 @@ int app_pcrf_peer_compare(peer_info &p_soLeft, SPeerInfo &p_soRight)
 {
 	int iRetVal;
 
-	/* сравниваем длины имен */
+	/* СЃСЂР°РІРЅРёРІР°РµРј РґР»РёРЅС‹ РёРјРµРЅ */
 	iRetVal = p_soLeft.pi_diamidlen - p_soRight.m_coHostName.v.length();
 	if (iRetVal) {
 		return iRetVal;
 	}
-	/* сравниваем содержимое имен */
+	/* СЃСЂР°РІРЅРёРІР°РµРј СЃРѕРґРµСЂР¶РёРјРѕРµ РёРјРµРЅ */
 	iRetVal = memcmp (p_soLeft.pi_diamid, p_soRight.m_coHostName.v.data(), p_soLeft.pi_diamidlen);
 	if (iRetVal) {
 		return iRetVal;
 	}
-	/* сравниваем длины реалмов */
+	/* СЃСЂР°РІРЅРёРІР°РµРј РґР»РёРЅС‹ СЂРµР°Р»РјРѕРІ */
 	iRetVal = p_soLeft.runtime.pir_realmlen - p_soRight.m_coHostReal.v.length();
 	if (iRetVal) {
 		return iRetVal;
 	}
-	/* сравниваем соответствие доменов */
+	/* СЃСЂР°РІРЅРёРІР°РµРј СЃРѕРѕС‚РІРµС‚СЃС‚РІРёРµ РґРѕРјРµРЅРѕРІ */
 	iRetVal = memcmp (p_soLeft.runtime.pir_realm, p_soRight.m_coHostReal.v.data(), p_soLeft.runtime.pir_realmlen);
 	if (iRetVal) {
 		return iRetVal;

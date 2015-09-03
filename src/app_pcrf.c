@@ -27,28 +27,28 @@ static int pcrf_entry (char * conffile)
 		CHECK_FCT (app_pcrf_conf_handle (conffile));
 	}
 
-	/* инищиализация логгера */
+	/* РёРЅРёС‰РёР°Р»РёР·Р°С†РёСЏ Р»РѕРіРіРµСЂР° */
 	CHECK_FCT(pcrf_logger_init());
 
 	/* Install objects definitions for this app_pcrf application */
 	CHECK_FCT (app_pcrf_dict_init ());
 
-	/* инициализация пула подключений к БД */
+	/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїСѓР»Р° РїРѕРґРєР»СЋС‡РµРЅРёР№ Рє Р‘Р” */
 	CHECK_FCT (pcrf_db_pool_init ());
 
-	/* инициализация трейсера */
+	/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ С‚СЂРµР№СЃРµСЂР° */
 	CHECK_FCT (pcrf_tracer_init ());
 
 	/* Install the handlers for incoming messages */
 	CHECK_FCT (app_pcrf_serv_init ());
 
-	/* инициализация клиента (client) */
+	/* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РєР»РёРµРЅС‚Р° (client) */
 	CHECK_FCT (pcrf_cli_init ());
 
 	/* Advertise the support for the Gx application in the peer */
 	CHECK_FCT (fd_disp_app_support (g_psoDictApp, g_psoDictVend, 1, 0));
 
-	/* формирование списка клиентов и регистрация функции валидации клиента */
+	/* С„РѕСЂРјРёСЂРѕРІР°РЅРёРµ СЃРїРёСЃРєР° РєР»РёРµРЅС‚РѕРІ Рё СЂРµРіРёСЃС‚СЂР°С†РёСЏ С„СѓРЅРєС†РёРё РІР°Р»РёРґР°С†РёРё РєР»РёРµРЅС‚Р° */
 	CHECK_FCT (app_pcrf_load_peer ());
 
 	return 0;

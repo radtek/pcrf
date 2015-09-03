@@ -45,8 +45,8 @@ static void pcrf_tracer (
 	std::string strDestinReal;
 	std::string strResultCode;
 
-	/* формируем Request Type */
-	/* тип команды */
+	/* С„РѕСЂРјРёСЂСѓРµРј Request Type */
+	/* С‚РёРї РєРѕРјР°РЅРґС‹ */
 	switch (psoMsgHdr->msg_code) {
 	case 257: /* Capabilities-Exchange */
 		strRequestType += "CE";
@@ -88,13 +88,13 @@ static void pcrf_tracer (
 	}
 	break;
 	}
-	/* тип запроса */
+	/* С‚РёРї Р·Р°РїСЂРѕСЃР° */
 	if (psoMsgHdr->msg_flags & CMD_FLAG_REQUEST) {
 		strRequestType += 'R';
 	} else {
 		strRequestType += 'A';
 	}
-	/* добываем необходимые значения из запроса */
+	/* РґРѕР±С‹РІР°РµРј РЅРµРѕР±С…РѕРґРёРјС‹Рµ Р·РЅР°С‡РµРЅРёВ¤ РёР· Р·Р°РїСЂРѕСЃР° */
 	msg_or_avp *psoMsgOrAVP;
 	avp_hdr *psoAVPHdr;
 	avp *psoAVP;
@@ -103,13 +103,13 @@ static void pcrf_tracer (
 		goto free_and_exit;
 	do {
 		psoAVP = (avp*)psoMsgOrAVP;
-		/* получаем заголовок AVP */
+		/* РїРѕР»СѓС‡Р°РµРј Р·Р°РіРѕР»РѕРІРѕРє AVP */
 		if (NULL == psoMsgOrAVP)
 			break;
 		if (fd_msg_avp_hdr ((avp*)psoMsgOrAVP, &psoAVPHdr)) {
 			continue;
 		}
-		/* нас интересуют лишь вендор Diameter */
+		/* РЅР°СЃ РёРЅС‚РµСЂРµСЃСѓСЋС‚ Р»РёС€СЊ РІРµРЅРґРѕСЂ Diameter */
 		if (psoAVPHdr->avp_vendor != 0 && psoAVPHdr->avp_vendor != (vendor_id_t)-1) {
 			continue;
 		}
@@ -145,12 +145,12 @@ static void pcrf_tracer (
 		break;
 		}
 	} while (0 == fd_msg_browse_internal (psoAVP, MSG_BRW_NEXT, &psoMsgOrAVP, NULL));
-	/* опционально для CC определяем тип СС-запроса */
+	/* РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ РґР»В¤ CC РѕРїСЂРµРґРµР»В¤РµРј С‚РёРї вЂ”вЂ”-Р·Р°РїСЂРѕСЃР° */
 	if (psoMsgHdr->msg_code == 272 && strCCReqType.length ()) {
 		strRequestType += '-';
 		strRequestType += strCCReqType[0];
 	}
-	/* проверяем наличие обязательных атрибутов */
+	/* РїСЂРѕРІРµСЂВ¤РµРј РЅР°Р»РёС‡РёРµ РѕР±В¤Р·Р°С‚РµР»СЊРЅС‹С… Р°С‚СЂРёР±СѓС‚РѕРІ */
 	if (0 == strOriginHost.length ()) {
 		switch (p_eHookType)
 		{
@@ -177,7 +177,7 @@ static void pcrf_tracer (
 			break;
 		}
 	}
-	/* проверяем возможность заполнения опциональных атрибутов */
+	/* РїСЂРѕРІРµСЂВ¤РµРј РІРѕР·РјРѕР¶РЅРѕСЃС‚СЊ Р·Р°РїРѕР»РЅРµРЅРёВ¤ РѕРїС†РёРѕРЅР°Р»СЊРЅС‹С… Р°С‚СЂРёР±СѓС‚РѕРІ */
 	if (0 == strOriginReal.length ()) {
 		switch (p_eHookType)
 		{
@@ -198,7 +198,7 @@ static void pcrf_tracer (
 		}
 	}
 
-	/* пытаемся сохранить данные в БД */
+	/* РїС‹С‚Р°РµРјСЃВ¤ СЃРѕС…СЂР°РЅРёС‚СЊ РґР°РЅРЅС‹Рµ РІ Р…Ж’ */
 	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __func__);
 	if (iFnRes)
 		goto free_and_exit;

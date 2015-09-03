@@ -10,7 +10,7 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 	int iRetVal = 0;
 	int iFnRes;
 
-	/* çàïðàøèâàåì â ñëîâàðå èäåíòèôèêàòîð */
+	/* Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ¸Ð²Ð°ÐµÐ¼ Ð² ÑÐ»Ð¾Ð²Ð°Ñ€Ðµ Ð¸Ð´ÐµÐ½Ñ‚Ð¸Ñ„Ð¸ÐºÐ°Ñ‚Ð¾Ñ€ */
 	struct dict_object *psoDictObj;
 	struct dict_avp_request_ex soAVPIdent;
 	memset (&soAVPIdent, 0, sizeof (soAVPIdent));
@@ -24,14 +24,14 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, &psoDictObj, ENOENT));
 	}
 
-	/* çàïðàøèâàåì â ñëîâàðå èíôîðìàöèþ îá AVP */
+	/* Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ¸Ð²Ð°ÐµÐ¼ Ð² ÑÐ»Ð¾Ð²Ð°Ñ€Ðµ Ð¸Ð½Ñ„Ð¾Ñ€Ð¼Ð°Ñ†Ð¸ÑŽ Ð¾Ð± AVP */
 	struct dict_avp_data soAVPInfo;
 	CHECK_POSIX (fd_dict_getval (psoDictObj, &soAVPInfo));
 
-	/* ñòðóêòóðà äëÿ ôîðìèðîâàíèÿ çàïðîñà ê ñëîâàðþ è âûáîðêè èç íåãî çíà÷åíèÿ */
+	/* ÑÑ‚Ñ€ÑƒÐºÑ‚ÑƒÑ€Ð° Ð´Ð»Â¤ Ñ„Ð¾Ñ€Ð¼Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¸Â¤ Ð·Ð°Ð¿Ñ€Ð¾ÑÐ° Ðº ÑÐ»Ð¾Ð²Ð°Ñ€ÑŽ Ð¸ Ð²Ñ‹Ð±Ð¾Ñ€ÐºÐ¸ Ð¸Ð· Ð½ÐµÐ³Ð¾ Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸Â¤ */
 	struct dict_enumval_request soEnumReq;
 	memset (&soEnumReq, 0, sizeof (soEnumReq));
-	/* êîïèðóåì çàïðàøàâàåìîå çíà÷åíèå */
+	/* ÐºÐ¾Ð¿Ð¸Ñ€ÑƒÐµÐ¼ Ð·Ð°Ð¿Ñ€Ð°ÑˆÐ°Ð²Ð°ÐµÐ¼Ð¾Ðµ Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸Ðµ */
 	switch (soAVPInfo.avp_basetype) {
 	case AVP_TYPE_INTEGER32:
 		soEnumReq.search.enum_value.i32 = p_psoAVPHdr->avp_value->i32;
