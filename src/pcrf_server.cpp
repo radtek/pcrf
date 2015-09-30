@@ -398,12 +398,7 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 		/* QoS-Class-Identifier */
 		if (! p_soAbonRule.m_coQoSClassIdentifier.is_null ()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictQoSClassIdentifier, 0, &psoAVPChild), return NULL);
-			if (!p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.is_null()
-					&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_coQoSClassIdentifier.is_null()) {
-				soAVPVal.i32 = p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_coQoSClassIdentifier.v;
-			} else {
-				soAVPVal.i32 = p_soAbonRule.m_coQoSClassIdentifier.v;
-			}
+			soAVPVal.i32 = p_soAbonRule.m_coQoSClassIdentifier.v;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
@@ -478,7 +473,7 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 				&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.is_null()) {
 			soAVPVal.u32 = p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.v;
 		} else {
-			soAVPVal.u32 = p_soAbonRule.m_coQoSClassIdentifier.v;
+			soAVPVal.u32 = 2;
 		}
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 		CHECK_FCT_DO (fd_msg_avp_add (psoAVPParent, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
@@ -1569,7 +1564,11 @@ int pcrf_extract_CRR (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 		}
 	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, NULL));
 
-	p_soSessInfo.m_vectCRR.push_back(soPolicy);
+	/* добавляем в список если найдено что-то полезное */
+	if (! soPolicy.m_coChargingRuleName.is_null() && !soPolicy.m_coRuleFailureCode.is_null()) {
+		p_soSessInfo.m_vectCRR.push_back(soPolicy);
+		UTL_LOG_D (*g_pcoLog, "session id: '%s'; rule name: '%s'; failury code: '%s'", p_soSessInfo.m_coSessionId.v.c_str(), soPolicy.m_coChargingRuleName.v.c_str(), soPolicy.m_coRuleFailureCode.v.c_str());
+	}
 
 	return iRetVal;
 }
