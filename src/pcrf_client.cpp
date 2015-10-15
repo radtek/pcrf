@@ -152,6 +152,9 @@ static int pcrf_client_RAR (
 	}
 
 	/* Event-Trigger */
+	/* RAT_CHANGE */
+	CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+	/* USER_LOCATION_CHANGE */
 	CHECK_FCT_DO(set_ULCh_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
 
 	/* Usage-Monitoring-Information */

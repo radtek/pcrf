@@ -269,7 +269,11 @@ int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SSessionInfo &p_soSessInfo,
 	bool p_bFull = true);
-/* задает значение Event-Trigger */
+/* задает значение Event-Trigger RAT_CHANGE */
+int set_RAT_CHANGE_event_trigger (
+	SSessionInfo &p_soSessInfo,
+	msg_or_avp *p_psoMsgOrAVP);
+/* задает значение Event-Trigger USER_LOCATION_CHANGE */
 int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
