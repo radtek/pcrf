@@ -278,6 +278,7 @@ static int app_pcrf_ccr_cb (
 				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
 					/* Default-EPS-Bearer-QoS */
 					pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
+					pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo);
 					break;
 				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
 					if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
