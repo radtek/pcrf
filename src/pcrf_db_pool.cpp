@@ -187,6 +187,8 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 		/* проверяем работоспособность подключения */
 		if (0 > pcrf_db_pool_restore(psoTmp)) {
 			/* соединение неработоспособно и восстановить его не удалось */
+			UTL_LOG_F(*g_pcoLog, "DB conection '%u' is irreparable", psoTmp->m_uiNumber);
+			iRetVal = -1111;
 		} else {
 			/* помечаем подключение как занятое */
 			psoTmp->m_iIsBusy = 1;

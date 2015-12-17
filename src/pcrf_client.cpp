@@ -363,7 +363,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* проверяем, подключен ли пир к freeDiameterd */
 			if (!pcrf_peer_is_connected (*soSessInfo.m_psoSessInfo)) {
 				iRetVal = ENOTCONN;
-				UTL_LOG_F (*g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str (), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str());
+				UTL_LOG_E (*g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str (), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str());
 				goto clear_and_continue;
 			}
 			/* если в поле action задано значение abort_session */

@@ -272,8 +272,8 @@ static int app_pcrf_ccr_cb (
 					/* Event-Trigger USER_LOCATION_CHANGE */
 					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 					/* просим обновить vlink_id для SCE */
-					if (0 == soMsgInfoCache.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru"))
-						pcrf_server_db_insert_refqueue (*(pcoDBConn), "subscriber_id", soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, NULL, "update_vlink_id");
+//					if (0 == soMsgInfoCache.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru"))
+//						pcrf_server_db_insert_refqueue (*(pcoDBConn), "subscriber_id", soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, NULL, "update_vlink_id");
 					break;
 				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
 					/* Default-EPS-Bearer-QoS */
@@ -396,6 +396,7 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 	avp *psoAVPParent = NULL;
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
+	int32_t i32Value;
 	uint32_t ui32Value;
 
 	do {
@@ -404,8 +405,18 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 
 		/* QoS-Class-Identifier */
 		if (! p_soAbonRule.m_coQoSClassIdentifier.is_null ()) {
+			// /* TODO #1 */
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
+			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
+			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
+			// 	i32Value = 8;
+			// } else
+			// /* TODO #1*/
+			i32Value = p_soAbonRule.m_coQoSClassIdentifier.v;
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictQoSClassIdentifier, 0, &psoAVPChild), return NULL);
-			soAVPVal.i32 = p_soAbonRule.m_coQoSClassIdentifier.v;
+			soAVPVal.i32 = i32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPQoSI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
@@ -419,6 +430,15 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.is_null()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v : ui32Value;
 			}
+			// /* TODO #1 */
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
+			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
+			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
+			// 		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAPNAggregateMaxBitrateUL, 0, &psoAVPChild), return NULL);
+			// } else
+			// /* TODO #1*/
 			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictMaxRequestedBandwidthUL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
@@ -434,6 +454,15 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.is_null()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v : ui32Value;
 			}
+			// /* TODO #1 */
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
+			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
+			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
+			// 		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAPNAggregateMaxBitrateDL, 0, &psoAVPChild), return NULL);
+			// } else
+			// /* TODO #1*/
 			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictMaxRequestedBandwidthDL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
@@ -449,6 +478,13 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.is_null()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v : ui32Value;
 			}
+			// /* TODO #1*/
+			// if (!p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
+			// 		&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
+			// 			|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
+			// 	ui32Value = 0;
+			// }
+			// /* TODO #1*/
 			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictGuaranteedBitrateUL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
@@ -464,6 +500,13 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 			if (!p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.is_null()) {
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v : ui32Value;
 			}
+			// /* TODO #1*/
+			// if (!p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
+			// 		&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
+			// 			|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
+			// 	ui32Value = 0;
+			// }
+			// /* TODO #1*/
 			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictGuaranteedBitrateDL, 0, &psoAVPChild), return NULL);
 			soAVPVal.u32 = ui32Value;
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);

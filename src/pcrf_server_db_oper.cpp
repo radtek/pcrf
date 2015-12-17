@@ -562,7 +562,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		//		coStream.close();
 		//}
 		/* ищем сессии по ip-адресу */
-		if (!p_psoSessInfo->m_coFramedIPAddress.is_null()) {
+		if (!p_psoSessInfo->m_coFramedIPAddress.is_null() && p_psoSessInfo->m_uiPeerProto == 1) {
 			coStream.open(
 				100,
 				"select "
@@ -981,7 +981,8 @@ int pcrf_server_db_load_session_info (
 				"sl.origin_realm,"
 				"sloc.cgi,"
 				"sloc.ecgi, "
-				"sl.IMEISV "
+				"sl.IMEISV,"
+				"sl.end_user_imsi "
 			"from "
 				"ps.sessionList sl "
 				"left join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
@@ -1003,7 +1004,8 @@ int pcrf_server_db_load_session_info (
 				>> coOriginReal
 				>> coCGI
 				>> coECGI
-				>> coIMEI;
+				>> coIMEI
+				>> p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI;
 			/* если из БД получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
 			if (!coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null ()) {
 				/* копируем значение, полученное из БД */
@@ -1270,48 +1272,48 @@ int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAb
 {
 	int iRetVal = 0;
 
-	/* TODO */
-	do {
-		/* только для тестовой точки доступа */
-		if (!p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.is_null () && 0 == p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru")) {
-			UTL_LOG_D(*g_pcoLog, "vlink_id determination started");
-			otl_nocommit_stream coStream;
-			try {
-				if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null ()) {
-					coStream.open(1, "select VLINKID from ps.SCE_VLINK where CGI = :location_id/*char[20]*/", p_coDBConn);
-					coStream
-						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI;
-					UTL_LOG_D(*g_pcoLog, "vlink_id - search by CGI");
-				} else if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null ()) {
-					coStream.open (1, "select VLINKID from ps.SCE_VLINK where ECGI = :location_id/*char[20]*/", p_coDBConn);
-					coStream
-						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI;
-					UTL_LOG_D(*g_pcoLog, "vlink_id - search by ECGI");
-				} else {
-					UTL_LOG_D(*g_pcoLog, "vlink_id - not enough data");
-					break;
-				}
-				if(!coStream.eof()) {
-					coStream
-						>> p_soAbonRule.m_coSCE_DownVirtualLink;
-					UTL_LOG_D(*g_pcoLog, "vlink_id is '%u'", p_soAbonRule.m_coSCE_DownVirtualLink.v);
-				} else {
-					p_soAbonRule.m_coSCE_DownVirtualLink.v = 0;
-					p_soAbonRule.m_coSCE_DownVirtualLink.set_non_null();
-					UTL_LOG_D(*g_pcoLog, "vlink_id wos not found");
-				}
-//				p_soAbonRule.m_coSCE_UpVirtualLink = p_soAbonRule.m_coSCE_DownVirtualLink;
-				coStream.close();
-			} catch (otl_exception &coExcept) {
-				iRetVal = coExcept.code;
-				UTL_LOG_E(*g_pcoLog, "vlink_id: code: '%u'; message: '%s'", coExcept.code, coExcept.msg);
-				if (coStream.good())
-					coStream.close();
-			}
-			UTL_LOG_D(*g_pcoLog, "vlink_id determination finished");
-		}
-	} while (0);
-	/* TODO */
+//	/* TODO */
+//	do {
+//		/* только для тестовой точки доступа */
+//		if (!p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.is_null () && 0 == p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.compare("test.lte.ru")) {
+//			UTL_LOG_D(*g_pcoLog, "vlink_id determination started");
+//			otl_nocommit_stream coStream;
+//			try {
+//				if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null ()) {
+//					coStream.open(1, "select VLINKID from ps.SCE_VLINK where CGI = :location_id/*char[20]*/", p_coDBConn);
+//					coStream
+//						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI;
+//					UTL_LOG_D(*g_pcoLog, "vlink_id - search by CGI");
+//				} else if (!p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null ()) {
+//					coStream.open (1, "select VLINKID from ps.SCE_VLINK where ECGI = :location_id/*char[20]*/", p_coDBConn);
+//					coStream
+//						<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI;
+//					UTL_LOG_D(*g_pcoLog, "vlink_id - search by ECGI");
+//				} else {
+//					UTL_LOG_D(*g_pcoLog, "vlink_id - not enough data");
+//					break;
+//				}
+//				if(!coStream.eof()) {
+//					coStream
+//						>> p_soAbonRule.m_coSCE_DownVirtualLink;
+//					UTL_LOG_D(*g_pcoLog, "vlink_id is '%u'", p_soAbonRule.m_coSCE_DownVirtualLink.v);
+//				} else {
+//					p_soAbonRule.m_coSCE_DownVirtualLink.v = 0;
+//					p_soAbonRule.m_coSCE_DownVirtualLink.set_non_null();
+//					UTL_LOG_D(*g_pcoLog, "vlink_id wos not found");
+//				}
+////				p_soAbonRule.m_coSCE_UpVirtualLink = p_soAbonRule.m_coSCE_DownVirtualLink;
+//				coStream.close();
+//			} catch (otl_exception &coExcept) {
+//				iRetVal = coExcept.code;
+//				UTL_LOG_E(*g_pcoLog, "vlink_id: code: '%u'; message: '%s'", coExcept.code, coExcept.msg);
+//				if (coStream.good())
+//					coStream.close();
+//			}
+//			UTL_LOG_D(*g_pcoLog, "vlink_id determination finished");
+//		}
+//	} while (0);
+//	/* TODO */
 
 	return iRetVal;
 }
