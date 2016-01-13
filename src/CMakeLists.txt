@@ -28,6 +28,7 @@ SET( PCRF_APP_SRC
 	log.cpp
 	pcrf_tracer.cpp
 	pcrf_ULI.cpp
+	stat.cpp
 )
 
 # Compile as a module

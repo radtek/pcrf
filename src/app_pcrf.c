@@ -1,4 +1,5 @@
 #include "app_pcrf.h"
+#include "stat.h"
 
 #include <freeDiameter/libfdproto.h>
 
@@ -29,6 +30,9 @@ static int pcrf_entry (char * conffile)
 
 	/* инищиализация логгера */
 	CHECK_FCT(pcrf_logger_init());
+
+	/* инициализация модуля статистики */
+	CHECK_FCT(stat_init());
 
 	/* Install objects definitions for this app_pcrf application */
 	CHECK_FCT (app_pcrf_dict_init ());
@@ -61,6 +65,7 @@ void fd_ext_fini(void)
 	pcrf_cli_fini ();
 	pcrf_tr();
 	pcrf_db_pool_fin ();
+	stat_fin();
 	pcrf_logger_fini();
 }
 

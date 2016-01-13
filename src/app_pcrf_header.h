@@ -3,10 +3,12 @@
 
 #include <string.h>
 #include <time.h>
+#include <string.h>
 #include <vector>
 #include <map>
 
 #include "log.h"
+#include "timemeasurer.h"
 
 #define DEBUG
 

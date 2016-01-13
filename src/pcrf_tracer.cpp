@@ -1,5 +1,6 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
+#include "stat.h"
 
 #include <vector>
 #include <stdio.h>
@@ -15,6 +16,8 @@ static void pcrf_tracer (
 	void * p_pRegData)
 {
 	int iFnRes;
+	CTimeMeasurer coTM;
+	SStat *psoStat = stat_get_branch(__FUNCTION__);
 	const char *pszPeerName = p_psoPeer ? p_psoPeer->info.pi_diamid : "<unknown peer>";
 	char *pmcBuf = NULL;
 	size_t stLen;
@@ -244,6 +247,8 @@ free_and_exit:
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);
 	}
+
+	stat_measure(psoStat, __FUNCTION__, &coTM);
 }
 
 fd_hook_hdl *psoHookHandle = NULL;

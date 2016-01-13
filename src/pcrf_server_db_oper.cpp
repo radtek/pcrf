@@ -89,6 +89,12 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			}
 		case 2: /* UPDATE_REQUEST */
 		case 4: /* EVENT_REQUEST */
+			/* выполянем запрос на обновление записи */
+			iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
+			if (iFnRes) {
+				iRetVal = iFnRes;
+				break;
+			}
 			/* для TERMINATION_REQUEST информацию о локациях не сохраняем */
 			if (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType != 3) {
 				/* сохраняем в БД данные о локации абонента */
@@ -97,12 +103,6 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 					iRetVal = iFnRes;
 					break;
 				}
-			}
-			/* выполянем запрос на обновление записи */
-			iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
-			if (iFnRes) {
-				iRetVal = iFnRes;
-				break;
 			}
 			/* обрабатываем информацию о выданных политиках */
 			iFnRes = pcrf_server_policy_db_store (p_coDBConn, p_psoMsgInfo);
@@ -254,6 +254,9 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 			<< p_soSessInfo.m_coTermCause
 			<< p_soSessInfo.m_coSessionId;
 		p_coDBConn.commit ();
+		/* если ни одна строка не обновлена, то это ошибка */
+		if (0 == coStream.get_rpc())
+			iRetVal = 0;
 		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
@@ -263,6 +266,8 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 			coStream.close();
 		}
 	}
+
+	return iRetVal;
 }
 
 int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo)
