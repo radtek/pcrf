@@ -202,7 +202,7 @@ static void pcrf_tracer (
 	}
 
 	/* пытаемс¤ сохранить данные в Ѕƒ */
-	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __func__);
+	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__);
 	if (iFnRes)
 		goto free_and_exit;
 	try {
@@ -241,7 +241,7 @@ static void pcrf_tracer (
 
 free_and_exit:
 	if (pcoDBConn) {
-		pcrf_db_pool_rel (pcoDBConn, __func__);
+		pcrf_db_pool_rel (pcoDBConn, __FUNCTION__);
 	}
 
 	if (pmcBuf) {

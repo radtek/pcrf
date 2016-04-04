@@ -57,6 +57,8 @@ static int app_pcrf_ccr_cb (
 	void * opaque,
 	enum disp_action * p_pAct)
 {
+	CTimeMeasurer coTM;
+	SStat *psoStat = stat_get_branch(__FUNCTION__);
 	int iFnRes;
 	msg *ans = NULL;
 	avp *psoParentAVP = NULL;
@@ -105,7 +107,7 @@ static int app_pcrf_ccr_cb (
 	}
 
 	/* запрашиваем объект класса для работы с БД */
-	if (pcrf_db_pool_get ((void **)&pcoDBConn, __func__)) {
+	if (pcrf_db_pool_get ((void **)&pcoDBConn, __FUNCTION__, psoStat)) {
 		pszResultCode = "DIAMETER_TOO_BUSY";
 		goto dummy_answer;
 	}
@@ -114,16 +116,16 @@ static int app_pcrf_ccr_cb (
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	case 1: /* INITIAL_REQUEST */
 		/* загружаем идентификтор абонента из профиля абонента */
-		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache), /*continue*/);
+		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache, psoStat), /*continue*/);
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
-			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
-				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
+			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
+				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
 			}
 		}
 		/* проверка наличия зависших сессий */
 		if (g_psoConf->m_iLook4StalledSession)
-			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo), /*continue*/);
+			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStat), /*continue*/);
 		break;/* INITIAL_REQUEST */
 	case 3: /* TERMINATION_REQUEST */
 		{
@@ -139,24 +141,24 @@ static int app_pcrf_ccr_cb (
 		break;	/* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем идентификатор абонента из списка активных сессий абонента */
-		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
+		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStat);
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
-			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
-				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId);
+			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
+				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
 			}
 		}
 		break; /* DEFAULT */
 	}
 
 	/* сохраняем в БД запрос */
-	pcrf_server_req_db_store(*(pcoDBConn), &soMsgInfoCache);
+	pcrf_server_req_db_store(*(pcoDBConn), &soMsgInfoCache, psoStat);
 
 	/* загружаем правила из БД */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	default: /* DEFAULT */
 		/* загружаем из БД правила абонента */
-		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules), /* continue */);
+		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules, psoStat), /* continue */);
 		break; /* INITIAL_REQUEST */ /* DEFAULT */
 	case 3: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
@@ -168,15 +170,15 @@ static int app_pcrf_ccr_cb (
 		break; /* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем список активных правил */
-		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive), );
+		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), );
 	case 1: /* INITIAL_REQUEST */
 		/* определяем vlink_id для Cisco SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto && vectAbonRules.size())
 			pcrf_get_vlink_id(*(pcoDBConn), soMsgInfoCache, vectAbonRules[0]);
 		/* формируем список неактуальных правил */
-		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(*(pcoDBConn), soMsgInfoCache, vectAbonRules, vectActive), );
+		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(soMsgInfoCache, vectAbonRules, vectActive), );
 		/* загружаем информацию о мониторинге */
-		CHECK_POSIX_DO(pcrf_server_db_monit_key(*(pcoDBConn), *(soMsgInfoCache.m_psoSessInfo)), /* continue */);
+		CHECK_POSIX_DO(pcrf_server_db_monit_key(*(pcoDBConn), *(soMsgInfoCache.m_psoSessInfo), psoStat), /* continue */);
 		break; /* DEFAULT */ /* INITIAL_REQUEST */
 	}
 
@@ -252,7 +254,7 @@ static int app_pcrf_ccr_cb (
 		/* Usage-Monitoring-Information */
 		CHECK_FCT_DO (pcrf_make_UMI (ans, *(soMsgInfoCache.m_psoSessInfo)), /* continue */ );
 		/* Charging-Rule-Install */
-		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans);
+		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans, psoStat);
 		/* put 'Charging-Rule-Install' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
@@ -296,13 +298,13 @@ static int app_pcrf_ccr_cb (
 			}
 		}
 		/* Charging-Rule-Remove */
-		psoChildAVP = pcrf_make_CRR (pcoDBConn, &soMsgInfoCache, vectActive);
+		psoChildAVP = pcrf_make_CRR (pcoDBConn, &soMsgInfoCache, vectActive, psoStat);
 		/* put 'Charging-Rule-Remove' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
 		}
 		/* Charging-Rule-Install */
-		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans);
+		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans, psoStat);
 		/* put 'Charging-Rule-Install' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
@@ -310,16 +312,20 @@ static int app_pcrf_ccr_cb (
 		break; /* UPDATE_REQUEST */
 	}
 
-	cleanup_and_exit:
+cleanup_and_exit:
+	/* фиксируем статистику */
+	stat_measure (psoStat, soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.c_str(), &coTM);
 	pcrf_server_DBStruct_cleanup (&soMsgInfoCache);
 
 	/* освобождаем объект класса взаимодействия с БД */
 	if (pcoDBConn)
-		CHECK_POSIX_DO(pcrf_db_pool_rel((void *)pcoDBConn, __func__), /*continue*/);
+		CHECK_POSIX_DO(pcrf_db_pool_rel((void *)pcoDBConn, __FUNCTION__), /*continue*/);
 
 	/* если ответ сформирован отправляем его */
 	if (ans)
 		CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
+
+	stat_measure(psoStat, __FUNCTION__, &coTM);
 
 	return 0;
 }
@@ -364,7 +370,6 @@ void pcrf_logger_fini(void)
 }
 
 int pcrf_server_select_notrelevant_active (
-	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	std::vector<SDBAbonRule> &p_vectActive)
@@ -552,13 +557,15 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 avp * pcrf_make_CRR (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
-	std::vector<SDBAbonRule> &p_vectActive)
+	std::vector<SDBAbonRule> &p_vectActive,
+	SStat *p_psoStat)
 {
 	/* если список пустой выходим ничего не делая */
 	if (0 == p_vectActive.size()) {
 		return NULL;
 	}
 
+	CTimeMeasurer coTM;
 	avp *psoAVPCRR = NULL; /* Charging-Rule-Remove */
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
@@ -605,6 +612,8 @@ avp * pcrf_make_CRR (
 		}
 	}
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return psoAVPCRR;
 }
 
@@ -612,13 +621,15 @@ avp * pcrf_make_CRI (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
-	msg *p_soAns)
+	msg *p_soAns,
+	SStat *p_psoStat)
 {
 	/* если в списке нет ни одного правила */
 	if (0 == p_vectAbonRules.size ()) {
 		return NULL;
 	}
 
+	CTimeMeasurer coTM;
 	avp *psoAVPCRI = NULL; /* Charging-Rule-Install */
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
@@ -696,6 +707,8 @@ avp * pcrf_make_CRI (
 			break; /* Gx Cisco SCE */
 		}
 	}
+
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRI;
 }

@@ -19,7 +19,7 @@ int app_pcrf_load_peer ()
 	otl_connect *pcoDBConn = NULL;
 
 	do {
-		iFnRes = pcrf_db_pool_get((void **)&pcoDBConn, __func__);
+		iFnRes = pcrf_db_pool_get((void **)&pcoDBConn, __FUNCTION__);
 		if (iFnRes) {
 			iRetVal = iFnRes;
 			break;
@@ -37,7 +37,7 @@ int app_pcrf_load_peer ()
 	} while (0);
 
 	if (pcoDBConn) {
-		pcrf_db_pool_rel(pcoDBConn, __func__);
+		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
 		pcoDBConn = NULL;
 	}
 

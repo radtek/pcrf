@@ -77,6 +77,8 @@ static int pcrf_client_RAR (
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
+	SStat *psoStat = stat_get_branch (__FUNCTION__);
 	struct msg * psoReq = NULL;
 	struct avp * psoAVP;
 	union avp_value soAVPValue;
@@ -161,14 +163,14 @@ static int pcrf_client_RAR (
 	CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *(p_soReqInfo.m_psoSessInfo), false), /* continue */);
 
 	/* Charging-Rule-Remove */
-	psoAVP = pcrf_make_CRR(p_pcoDBConn, &p_soReqInfo, p_vectActiveRules);
+	psoAVP = pcrf_make_CRR(p_pcoDBConn, &p_soReqInfo, p_vectActiveRules, psoStat);
 	if (psoAVP) {
 		/* put 'Charging-Rule-Remove' into request */
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
 	}
 
 	/* Charging-Rule-Install */
-	psoAVP = pcrf_make_CRI (p_pcoDBConn, &p_soReqInfo, p_vectAbonRules, psoReq);
+	psoAVP = pcrf_make_CRI (p_pcoDBConn, &p_soReqInfo, p_vectAbonRules, psoReq, psoStat);
 	if (psoAVP) {
 		/* put 'Charging-Rule-Install' into request */
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
@@ -187,6 +189,7 @@ static int pcrf_client_RAR (
 	CHECK_FCT_DO (iRetVal = fd_msg_send (&psoReq, pcrf_client_XXA, svg), goto out);
 
 out:
+	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -324,6 +327,8 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
+	SStat *psoStat = stat_get_branch(__FUNCTION__);
 	std::vector<std::string> vectSessionList;
 
 	/* загружаем из БД список сессий абонента */
@@ -348,15 +353,15 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			{
 				std::string strSessionId;
 				/* получаем из БД информацию о сессии */
-				if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v))
+				if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v, psoStat))
 					goto clear_and_continue;
 				/* необходимо определить диалект хоста */
 				CHECK_POSIX_DO (pcrf_peer_proto(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
 				/* для сессии SCE находим сессию UGW */
 				if (2 == soSessInfo.m_psoSessInfo->m_uiPeerProto) {
-					if (0 == pcrf_server_find_ugw_session(*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId)) {
+					if (0 == pcrf_server_find_ugw_session(*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
 						/* и получаем дополнительные сведения */
-						pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strSessionId);
+						pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strSessionId, psoStat);
 					}
 				}
 			}
@@ -372,7 +377,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				goto clear_and_continue;
 			}
 			/* загружаем из БД правила абонента */
-			CHECK_POSIX_DO(pcrf_server_db_abon_rule(*p_pcoDBConn, soSessInfo, vectAbonRules), );
+			CHECK_POSIX_DO(pcrf_server_db_abon_rule(*p_pcoDBConn, soSessInfo, vectAbonRules, psoStat), );
 			/* если у абонента нет активных политик завершаем его сессию */
 			if (0 == vectAbonRules.size()) {
 				CHECK_POSIX_DO(pcrf_ASR(*(soSessInfo.m_psoSessInfo)), );
@@ -393,11 +398,11 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				}
 			}
 			/* загружаем список активных правил */
-			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*p_pcoDBConn, soSessInfo, vectActive), );
+			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*p_pcoDBConn, soSessInfo, vectActive, psoStat), );
 			/* формируем список неактуальных правил */
-			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(*p_pcoDBConn, soSessInfo, vectAbonRules, vectActive), );
+			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(soSessInfo, vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */
-			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
+			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo), psoStat), /* continue */);
 			/* проверяем наличие изменений в политиках */
 			if (!pcrf_client_is_any_changes(vectActive, vectAbonRules)) {
 				UTL_LOG_N (*g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str (), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
@@ -412,6 +417,8 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				break;
 		}
 	}
+
+	stat_measure(psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -455,7 +462,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		soWaitTime.tv_nsec = 0;
 
 		/* запрашиваем подключение к БД */
-		if (pcrf_db_pool_get((void**)&(pcoDBConn), __func__))
+		if (pcrf_db_pool_get((void**)&(pcoDBConn), __FUNCTION__))
 			continue;
 		/* создаем список обновления политик */
 		CHECK_POSIX_DO(pcrf_client_db_refqueue((*pcoDBConn), vectQueue), goto clear_and_continue);
@@ -470,7 +477,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		vectQueue.clear();
 		/* если мы получили в распоряжение подключение к БД его надо освободить */
 		if (pcoDBConn) {
-			pcrf_db_pool_rel(pcoDBConn, __func__);
+			pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
 			pcoDBConn = NULL;
 		}
 	}

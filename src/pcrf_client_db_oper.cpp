@@ -46,7 +46,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	otl_datetime coDateTime;
 
 	/* запрашиваем указатель на объект подключения к БД */
-	if (pcrf_db_pool_get((void**)&pcoDBConn, __func__))
+	if (pcrf_db_pool_get((void**)&pcoDBConn, __FUNCTION__))
 		return -1;
 
 	otl_nocommit_stream coStream;
@@ -102,7 +102,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 
 	/* возвращаем подключение к БД, если оно было получено */
 	if (pcoDBConn) {
-		pcrf_db_pool_rel(pcoDBConn, __func__);
+		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
 	}
 
 	return iRetVal;

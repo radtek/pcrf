@@ -1,3 +1,7 @@
+#include "log.h"
+#include "timemeasurer.h"
+#include "stat.h"
+
 #include <freeDiameter/extension.h>
 #include <stdint.h>
 
@@ -6,9 +10,6 @@
 #include <string.h>
 #include <vector>
 #include <map>
-
-#include "log.h"
-#include "timemeasurer.h"
 
 #define DEBUG
 
@@ -165,7 +166,7 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 /* сохранение запроса в БД */
 void fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm &p_soTime);
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
-int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo);
+int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo, SStat *p_psoStat);
 int pcrf_server_policy_db_store (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB *p_psoMsgInfo);
@@ -202,7 +203,7 @@ int pcrf_client_db_load_session_list (
 	std::vector<std::string> &p_vectSessionList);
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient);
+int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat = NULL);
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 
@@ -213,14 +214,16 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 /* загрузка идентификатора абонента из БД */
 int pcrf_server_db_load_abon_id (
 	otl_connect *p_pcoDBConn,
-	SMsgDataForDB &p_soMsgInfo);
+	SMsgDataForDB &p_soMsgInfo,
+	SStat *p_psoStat);
 /* проверка зависших сессий */
-int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo);
+int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo, SStat *p_psoStat);
 /* загрузка списка активных правил абонента */
 int pcrf_server_db_load_active_rules (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
-	std::vector<SDBAbonRule> &p_vectActive);
+	std::vector<SDBAbonRule> &p_vectActive,
+	SStat *p_psoStat);
 /* загрузка описания правила */
 int load_rule_info (
 	otl_connect &p_coDBConn,
@@ -228,21 +231,24 @@ int load_rule_info (
 	std::string &p_strRuleName,
 	std::vector<SDBAbonRule> &p_vectAbonRules);
 /* поиск сессии UGW для загрузки данных для SCE */
-int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId);
+int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::string &p_strSessionId);
+	std::string &p_strSessionId,
+	SStat *p_psoStat);
 /* загрузка списка правил абонента из БД */
 int pcrf_server_db_abon_rule (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::vector<SDBAbonRule> &p_vectAbonRules);
+	std::vector<SDBAbonRule> &p_vectAbonRules,
+	SStat *p_psoStat);
 /* загрузка Monitoring Key из БД */
 int pcrf_server_db_monit_key(
 	otl_connect &p_coDBConn,
-	SSessionInfo &p_soSessInfo);
+	SSessionInfo &p_soSessInfo,
+	SStat *p_psoStat);
 /* функция сохраняет в БД данные о локации абонента */
 int pcrf_server_db_user_location(
 	otl_connect &p_coDBConn,
@@ -250,7 +256,6 @@ int pcrf_server_db_user_location(
 
 /* функция формирования списка неактуальных правил */
 int pcrf_server_select_notrelevant_active (
-	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	std::vector<SDBAbonRule> &p_vectActive);
@@ -259,13 +264,15 @@ int pcrf_server_select_notrelevant_active (
 struct avp * pcrf_make_CRR (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
-	std::vector<SDBAbonRule> &p_vectActive);
+	std::vector<SDBAbonRule> &p_vectActive,
+	SStat *p_psoStat);
 /* функция заполнения avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
-	msg *p_soAns);
+	msg *p_soAns,
+	SStat *p_psoStat);
 /* функция заполнения avp Usage-Monitoring-Information */
 int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,

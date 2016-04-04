@@ -39,10 +39,11 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 	return iRetVal;
 }
 
-int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo)
+int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo, SStat *p_psoStat)
 {
 	int iRetVal = 0;
 	int iFnRes = 0;
+	CTimeMeasurer coTM;
 
 	do {
 		/* проверка параметров */
@@ -126,6 +127,8 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 			break;
 		}
 	} while (0);
+
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -482,12 +485,13 @@ int pcrf_db_close_session_policy (
 }
 
 /* загружает идентификатор абонента (subscriber_id) из БД */
-int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo)
+int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, SStat *p_psoStat)
 {
 	if (NULL == p_pcoDBConn)
 		return EINVAL;
 
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -525,15 +529,18 @@ int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMs
 		}
 	}
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
-int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo)
+int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo, SStat *p_psoStat)
 {
 	if (NULL == p_pcoDBConn || NULL == p_psoSessInfo)
 		return EINVAL;
 
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 	otl_nocommit_stream coStream;
 	std::string strSessionId;
 	std::map<std::string,int> mapSessList;
@@ -607,15 +614,19 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		p_pcoDBConn->rollback();
 	}
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
 int pcrf_server_db_load_active_rules (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
-	std::vector<SDBAbonRule> &p_vectActive)
+	std::vector<SDBAbonRule> &p_vectActive,
+	SStat *p_psoStat)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -647,6 +658,9 @@ int pcrf_server_db_load_active_rules (
 			coStream.close();
 		}
 	}
+
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
@@ -910,9 +924,10 @@ int load_rule_info (
 	return iRetVal;
 }
 
-int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId)
+int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -951,15 +966,19 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 		}
 	}
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::string &p_strSessionId)
+	std::string &p_strSessionId,
+	SStat *p_psoStat)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -1076,6 +1095,8 @@ int pcrf_server_db_load_session_info (
 		}
 	}
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
@@ -1132,9 +1153,11 @@ int pcrf_server_db_user_location(
 int pcrf_server_db_abon_rule (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::vector<SDBAbonRule> &p_vectAbonRules)
+	std::vector<SDBAbonRule> &p_vectAbonRules,
+	SStat *p_psoStat)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	/* очищаем список перед выполнением */
 	p_vectAbonRules.clear ();
@@ -1166,14 +1189,18 @@ int pcrf_server_db_abon_rule (
 		}
 	} while (0);
 
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
 int pcrf_server_db_monit_key(
 	otl_connect &p_coDBConn,
-	SSessionInfo &p_soSessInfo)
+	SSessionInfo &p_soSessInfo,
+	SStat *p_psoStat)
 {
 	int iRetVal = 0;
+	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 
@@ -1215,6 +1242,8 @@ int pcrf_server_db_monit_key(
 		}
 		p_coDBConn.rollback();
 	}
+
+	stat_measure (p_psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }

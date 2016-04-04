@@ -138,8 +138,9 @@ void pcrf_db_pool_fin (void)
 	}
 }
 
-int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
+int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat)
 {
+	CTimeMeasurer coTM;
 	int iRetVal = 0;
 	int iFnRes;
 
@@ -203,6 +204,8 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient)
 	iFnRes = pthread_mutex_unlock (&g_tMutex);
 	if (iFnRes)
 		UTL_LOG_F (*g_pcoLog, "can not enter into critical section: error code: '%u'", iFnRes);
+
+	stat_measure(p_psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
