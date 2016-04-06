@@ -201,8 +201,8 @@ static void pcrf_tracer (
 		}
 	}
 
-	/* пытаемс¤ сохранить данные в Ѕƒ */
-	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__);
+	/* пытаемся сохранить данные в БД */
+	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__, psoStat, 0);
 	if (iFnRes)
 		goto free_and_exit;
 	try {
@@ -248,7 +248,8 @@ free_and_exit:
 		fd_cleanup_buffer (pmcBuf);
 	}
 
-	stat_measure(psoStat, __FUNCTION__, &coTM);
+	stat_measure (psoStat, strRequestType.c_str (), &coTM);
+	stat_measure (psoStat, __FUNCTION__, &coTM);
 }
 
 fd_hook_hdl *psoHookHandle = NULL;

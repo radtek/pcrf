@@ -203,7 +203,7 @@ int pcrf_client_db_load_session_list (
 	std::vector<std::string> &p_vectSessionList);
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat = NULL);
+int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat = NULL, int p_iSecWait = -1);
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 

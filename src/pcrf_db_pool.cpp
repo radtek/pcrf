@@ -35,6 +35,7 @@ static SDBPoolInfo *g_psoDBPoolHead = NULL;
 /* семафор для организации очереди на получение сободного подключения к БД */
 static sem_t g_tDBPoolSem;
 /* мьютекс для безопасного поиска свободного подключения */
+static pthread_mutex_t g_tMutexMinor;
 static pthread_mutex_t g_tMutex;
 static int g_iMutexInitialized = 0;
 
@@ -62,6 +63,7 @@ int pcrf_db_pool_init (void)
 	CHECK_POSIX_DO (sem_init (&g_tDBPoolSem, 0, iPoolSize), goto fn_error);
 
 	/* инициализация мьютекса поиска свободного подключения */
+	CHECK_POSIX_DO (pthread_mutex_init (&g_tMutexMinor, NULL), goto fn_error);
 	CHECK_POSIX_DO (pthread_mutex_init (&g_tMutex, NULL), goto fn_error);
 
 	g_iMutexInitialized = 1;
@@ -134,15 +136,17 @@ void pcrf_db_pool_fin (void)
 	/* освобождаем ресурсы, занятые мьютексом */
 	if (g_iMutexInitialized) {
 		pthread_mutex_destroy (&g_tMutex);
+		pthread_mutex_destroy (&g_tMutexMinor);
 		g_iMutexInitialized = 0;
 	}
 }
 
-int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat)
+int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat, int p_iSecWait)
 {
 	CTimeMeasurer coTM;
 	int iRetVal = 0;
 	int iFnRes;
+	int iWait;
 
 	/* инициализация значения */
 	*p_ppcoDBConn = NULL;
@@ -153,7 +157,12 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoS
 	/* запрашиваем текущее время */
 	gettimeofday (&soCurTime, NULL);
 	/* задаем время завершения ожидания семафора */
-	soWaitTime.tv_sec = soCurTime.tv_sec + (g_psoConf->m_iDBPoolWait ? g_psoConf->m_iDBPoolWait : DB_POOL_WAIT_DEF);
+	if (-1 == p_iSecWait) {
+		iWait = g_psoConf->m_iDBPoolWait ? g_psoConf->m_iDBPoolWait : DB_POOL_WAIT_DEF;
+	} else {
+		iWait = p_iSecWait;
+	}
+	soWaitTime.tv_sec = soCurTime.tv_sec + iWait;
 	soWaitTime.tv_nsec = soCurTime.tv_usec * 1000;
 
 	/* ждем когда освободится семафор или истечет таймаут */
@@ -165,10 +174,16 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoS
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
 	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
+	iRetVal = pthread_mutex_lock (&g_tMutexMinor);
+	if (iRetVal) {
+		sem_post (&g_tDBPoolSem);
+		UTL_LOG_F (*g_pcoLog, "can not lock minor mutex: error code: '%u'", iRetVal);
+		return iRetVal;
+	}
 	iRetVal = pthread_mutex_lock (&g_tMutex);
 	if (iRetVal) {
 		sem_post (&g_tDBPoolSem);
-		UTL_LOG_F (*g_pcoLog, "can not enter into critical section: error code: '%u'", iRetVal);
+		UTL_LOG_F (*g_pcoLog, "can not lock mutex: error code: '%u'", iRetVal);
 		return iRetVal;
 	}
 
@@ -203,7 +218,10 @@ int pcrf_db_pool_get(void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoS
 	}
 	iFnRes = pthread_mutex_unlock (&g_tMutex);
 	if (iFnRes)
-		UTL_LOG_F (*g_pcoLog, "can not enter into critical section: error code: '%u'", iFnRes);
+		UTL_LOG_F (*g_pcoLog, "can not unlock mutex: error code: '%u'", iFnRes);
+	iFnRes = pthread_mutex_unlock (&g_tMutexMinor);
+	if (iFnRes)
+		UTL_LOG_F (*g_pcoLog, "can not unlock minor mutex: error code: '%u'", iFnRes);
 
 	stat_measure(p_psoStat, __FUNCTION__, &coTM);
 

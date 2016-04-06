@@ -498,23 +498,26 @@ int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMs
 		/* выполняем запрос к БД */
 		coStream.open (
 			1,
-			"select "
-			  "Subscriber_id "
-			"from "
-			  "ps.Subscription_Data "
-			"where "
-			  "(end_user_e164 is null or end_user_e164 = :end_user_e164 /* char[64] */) "
-			  "and (end_user_imsi is null or end_user_imsi = :end_user_imsi /* char[100] */) "
-			  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
-			  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
-			  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
+/* тестирование быстродействия СУБД ----------------------------------------------------------------------------*/
+			"select Subscriber_id from ps.Subscription_Data where end_user_imsi = :end_user_imsi /* char[100] */",
+			//"select "
+			//  "Subscriber_id "
+			//"from "
+			//  "ps.Subscription_Data "
+			//"where "
+			//  "(end_user_e164 is null or end_user_e164 = :end_user_e164 /* char[64] */) "
+			//  "and (end_user_imsi is null or end_user_imsi = :end_user_imsi /* char[100] */) "
+			//  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
+			//  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
+			//  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
 			*p_pcoDBConn);
 		coStream
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164
+/*			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164 */
 			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserSIPURI
+/*			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserSIPURI
 			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserNAI
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserPrivate;
+			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserPrivate*/;
+/*--------------------------------------------------------------------------------------------------------------*/
 		if (coStream.eof())
 			p_soMsgInfo.m_psoSessInfo->m_strSubscriberId = "";
 		else
