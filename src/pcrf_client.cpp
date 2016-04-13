@@ -357,13 +357,6 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 					goto clear_and_continue;
 				/* необходимо определить диалект хоста */
 				CHECK_POSIX_DO (pcrf_peer_proto(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
-				/* для сессии SCE находим сессию UGW */
-				if (2 == soSessInfo.m_psoSessInfo->m_uiPeerProto) {
-					if (0 == pcrf_server_find_ugw_session(*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
-						/* и получаем дополнительные сведения */
-						pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strSessionId, psoStat);
-					}
-				}
 			}
 			/* проверяем, подключен ли пир к freeDiameterd */
 			if (!pcrf_peer_is_connected (*soSessInfo.m_psoSessInfo)) {
