@@ -524,7 +524,9 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 
 		/* Priority-Level */
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictPriorityLevel, 0, &psoAVPChild), return NULL);
-		if (!p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.is_null()
+		if (!p_soAbonRule.m_soARP.m_coPriorityLevel.is_null()) {
+			soAVPVal.u32 = p_soAbonRule.m_soARP.m_coPriorityLevel.v;
+		} else if (!p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.is_null ()
 				&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.is_null()
 				&& !p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.is_null()) {
 			soAVPVal.u32 = p_psoReqInfo->m_psoReqInfo->m_coDEPSBQoS.v.m_soARP.v.m_coPriorityLevel.v;
@@ -536,13 +538,21 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 
 		/* Pre-emption-Capability */
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictPreemptionCapability, 0, &psoAVPChild), return NULL);
-		soAVPVal.i32 = 1;
+		if (!p_soAbonRule.m_soARP.m_coPreemptionCapability.is_null ()) {
+			soAVPVal.i32 = p_soAbonRule.m_soARP.m_coPreemptionCapability.v;
+		} else {
+			soAVPVal.i32 = 1; /* по умолчанию задаем 1 */
+		}
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 		CHECK_FCT_DO (fd_msg_avp_add (psoAVPParent, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 
 		/* Pre-emption-Vulnerability */
 		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictPreemptionVulnerability, 0, &psoAVPChild), return NULL);
-		soAVPVal.i32 = 0;
+		if (!p_soAbonRule.m_soARP.m_coPreemptionVulnerability.is_null ()) {
+			soAVPVal.i32 = p_soAbonRule.m_soARP.m_coPreemptionVulnerability.v;
+		} else {
+			soAVPVal.i32 = 0; /* по умолчанию задаем 0 */
+		}
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 		CHECK_FCT_DO (fd_msg_avp_add (psoAVPParent, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 

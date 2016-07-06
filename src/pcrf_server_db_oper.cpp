@@ -793,6 +793,9 @@ int load_rule_info (
 					"r.online_charging,"
 					"r.offline_charging,"
 					"qt.qos_class_identifier,"
+/*					"NULL PriorityLevel,"
+					"NULL PreemptionCapability,"
+					"NULL PreemptionVulnarability," */
 					"qt.max_requested_bandwidth_ul,"
 					"qt.max_requested_bandwidth_dl,"
 					"qt.guaranteed_bitrate_ul,"
@@ -821,6 +824,9 @@ int load_rule_info (
 				>> soAbonRule.m_coOnlineCharging
 				>> soAbonRule.m_coOfflineCharging
 				>> soAbonRule.m_coQoSClassIdentifier
+/*				>> soAbonRule.m_soARP.m_coPriorityLevel
+				>> soAbonRule.m_soARP.m_coPreemptionCapability
+				>> soAbonRule.m_soARP.m_coPreemptionVulnerability */
 				>> soAbonRule.m_coMaxRequestedBandwidthUl
 				>> soAbonRule.m_coMaxRequestedBandwidthDl
 				>> soAbonRule.m_coGuaranteedBitrateUl
@@ -899,7 +905,7 @@ int load_rule_info (
 			coStream.close();
 		}
 	} catch (otl_exception coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+		UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'; var info: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text, coExcept.var_info);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
 			coStream.close();

@@ -12,6 +12,7 @@ struct SAppPCRFConf {
 	int m_iOperateRefreshQueue;
 	int m_iLook4StalledSession;
 	char *m_pszLogFileMask;
+	int m_iTraceReq;
 };
 
 extern struct SAppPCRFConf *g_psoConf;

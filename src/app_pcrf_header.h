@@ -146,6 +146,7 @@ struct SDBAbonRule {
 	otl_value<int32_t> m_coOnlineCharging;
 	otl_value<int32_t> m_coOfflineCharging;
 	otl_value<int32_t> m_coQoSClassIdentifier;
+	SAllocationRetentionPriority m_soARP;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;

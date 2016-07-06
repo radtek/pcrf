@@ -141,6 +141,10 @@
 				return LOG_FILE_MASK;
 			}
 
+(?i:"trace_req")		{
+				return TRACE_REQ;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

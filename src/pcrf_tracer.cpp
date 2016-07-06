@@ -15,6 +15,11 @@ static void pcrf_tracer (
 	fd_hook_permsgdata *p_psoPMD,
 	void * p_pRegData)
 {
+	if (0 == g_psoConf->m_iTraceReq) {
+		/* если нет необходимости трассировки */
+		return;
+	}
+
 	int iFnRes;
 	CTimeMeasurer coTM;
 	SStat *psoStat = stat_get_branch(__FUNCTION__);

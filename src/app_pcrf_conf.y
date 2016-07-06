@@ -126,6 +126,7 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		OPERATE_REFRESH_QUEUE
 %token 		LOOK4STALLEDSESSION
 %token 		LOG_FILE_MASK
+%token 		TRACE_REQ
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -150,6 +151,7 @@ conffile:		/* empty grammar is OK */
 			| conffile operate_refresh_queue
 			| conffile look4stalledsession
 			| conffile log_file_mask
+			| conffile trace_req
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -214,5 +216,11 @@ log_file_mask:		LOG_FILE_MASK '=' QSTRING ';'
 			{
 				free (g_psoConf->m_pszLogFileMask);
 				g_psoConf->m_pszLogFileMask = $3;
+			}
+			;
+
+trace_req:		TRACE_REQ '=' INTEGER ';'
+			{
+				g_psoConf->m_iTraceReq = $3;
 			}
 			;
