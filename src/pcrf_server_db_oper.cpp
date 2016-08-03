@@ -980,6 +980,52 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 	return iRetVal;
 }
 
+int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat)
+{
+  int iRetVal = 0;
+  CTimeMeasurer coTM;
+
+  otl_nocommit_stream coStream;
+  try {
+    coStream.open (
+      1,
+      "select "
+        "sl.session_id "
+      "from "
+        "ps.sessionList sl "
+        "inner join ps.peer p on sl.origin_host = p.host_name "
+      "where "
+        "sl.framed_ip_address = :framed_ip_address /*char[16]*/ "
+        "and p.protocol_id = 1 "
+      "order by sl.time_start desc",
+      p_coDBConn);
+    coStream
+      << p_strFramedIPAddress;
+    if (!coStream.eof ()) {
+      coStream
+        >> p_strUGWSessionId;
+    } else {
+      UTL_LOG_E (
+        *g_pcoLog,
+        "subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
+        p_strSubscriberId.c_str (),
+        p_strFramedIPAddress.c_str ());
+      iRetVal = -1403;
+    }
+    coStream.close ();
+  } catch (otl_exception &coExcept) {
+    UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    iRetVal = coExcept.code;
+    if (coStream.good ()) {
+      coStream.close ();
+    }
+  }
+
+  stat_measure (p_psoStat, __FUNCTION__, &coTM);
+
+  return iRetVal;
+}
+
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,

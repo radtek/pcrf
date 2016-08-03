@@ -123,7 +123,13 @@ static int app_pcrf_ccr_cb (
 				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
 			}
 		}
-		/* проверка наличия зависших сессий */
+    /* загрузка данных сессии UGW для обслуживания запроса Procera */
+    if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+      if (0 == pcrf_server_find_ugw_session_byframedif (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
+        pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
+      }
+    }
+    /* проверка наличия зависших сессий */
 		if (g_psoConf->m_iLook4StalledSession)
 			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStat), /*continue*/);
 		break;/* INITIAL_REQUEST */
@@ -148,7 +154,13 @@ static int app_pcrf_ccr_cb (
 				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
 			}
 		}
-		break; /* DEFAULT */
+    /* загрузка данных сессии UGW для обслуживания запроса Procera */
+    if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+      if (0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
+        pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
+      }
+    }
+    break; /* DEFAULT */
 	}
 
 	/* сохраняем в БД запрос */
@@ -595,23 +607,19 @@ avp * pcrf_make_CRR (
 			/* если это динамическое правило */
 			if (! iter->m_coDynamicRuleFlag.is_null () && iter->m_coDynamicRuleFlag.v) {
 				/* Charging-Rule-Name */
-				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleName, 0, &psoAVPChild), continue);
+        CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
 			}
 			/* если это предопределенное правило */
 			else {
 				/* если это групповое правило */
 				if (! iter->m_coRuleGroupFlag.is_null () && iter->m_coRuleGroupFlag.v) {
 					/* Charging-Rule-Base-Name */
-					CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleBaseName, 0, &psoAVPChild), continue);
+          CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleBaseName, iter->m_coRuleName.v), continue);
 				} else {
 					/* Charging-Rule-Name */
-					CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleName, 0, &psoAVPChild), continue);
-				}
+          CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
+        }
 			}
-			soAVPVal.os.data = (uint8_t *) iter->m_coRuleName.v.c_str ();
-			soAVPVal.os.len  = (size_t) iter->m_coRuleName.v.length ();
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), continue);
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRR, MSG_BRW_LAST_CHILD, psoAVPChild), continue);
 			if (p_pcoDBConn)
 				CHECK_FCT_DO (pcrf_db_close_session_policy (*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), iter->m_coRuleName.v), );
 			break; /* Gx */
@@ -625,6 +633,20 @@ avp * pcrf_make_CRR (
 	stat_measure (p_psoStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRR;
+}
+
+int pcrf_set_CRN (avp *p_pParent, dict_object *p_psoDictObj, std::string &p_strName)
+{
+  avp *psoAVPCRN = NULL;
+  avp_value soAVPVal;
+
+  CHECK_FCT_DO (fd_msg_avp_new (p_psoDictObj, 0, &psoAVPCRN), return EINVAL);
+  soAVPVal.os.data = p_strName.c_str();
+  soAVPVal.os.len = p_strName.length();
+  CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPCRN, &soAVPVal), return EINVAL);
+  CHECK_FCT_DO (fd_msg_avp_add (p_pParent, MSG_BRW_LAST_CHILD, psoAVPCRN), return EINVAL);
+
+  return 0;
 }
 
 avp * pcrf_make_CRI (
@@ -643,7 +665,31 @@ avp * pcrf_make_CRI (
 	avp *psoAVPCRI = NULL; /* Charging-Rule-Install */
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
+  std::string strValue;
 
+  /* дополнительная информация для Procera */
+  if (3 == p_psoReqInfo->m_psoSessInfo->m_uiPeerProto) {
+    /* добавляем MSISDN */
+    if (!p_psoReqInfo->m_psoSessInfo->m_coEndUserE164.is_null ()) {
+      if (NLL == psoAVPCRI)
+        CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleInstall, 0, &psoAVPCRI), return NULL);
+      strValue = "/MSISDN/" = p_psoReqInfo->m_psoSessInfo->m_coEndUserE164.v;
+      pcrf_set_CRN (psoAVPCRI, strValue);
+    /* добавляем IMEISV */
+    if (!p_psoReqInfo->m_psoSessInfo->m_coIMEI.is_null ()) {
+      if (NLL == psoAVPCRI)
+        CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleInstall, 0, &psoAVPCRI), return NULL);
+      strValue = "/IMEISV/" + p_psoReqInfo->m_psoSessInfo->m_coIMEI.v;
+      pcrf_set_CRN (psoAVPCRI, strValue);
+    }
+    /* добавляем APN */
+    if (!p_psoReqInfo->m_psoSessInfo->m_coCalledStationId.is_null ()) {
+      if (NLL == psoAVPCRI)
+        CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleInstall, 0, &psoAVPCRI), return NULL);
+      strValue = "/APN/" + p_psoReqInfo->m_psoSessInfo->m_coCalledStationId.v;
+      pcrf_set_CRN (psoAVPCRI, strValue);
+    }
+  }
 	std::vector<SDBAbonRule>::iterator iter = p_vectAbonRules.begin ();
 	/* обходим все правила */
 	for (; iter != p_vectAbonRules.end (); ++ iter) {
@@ -715,6 +761,12 @@ avp * pcrf_make_CRI (
 			if (p_pcoDBConn && !iter->m_bIsActivated)
 				CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
 			break; /* Gx Cisco SCE */
+    case 3: /* Gx Procera */
+      /* если политика уже активна */
+      if (iter->m_bIsActivated) {
+        continue;
+      }
+      break;
 		}
 	}
 
@@ -746,14 +798,7 @@ avp * pcrf_make_CRD (
 	/* если это динамическое правило */
 	if (! p_soAbonRule.m_coDynamicRuleFlag.is_null () && p_soAbonRule.m_coDynamicRuleFlag.v) {
 		/* Charging-Rule-Name */
-		{
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleName, 0, &psoAVPChild), return NULL);
-			pcszRuleName = p_soAbonRule.m_coRuleName.v.c_str ();
-			soAVPVal.os.data = (uint8_t *) pcszRuleName;
-			soAVPVal.os.len  = (size_t) p_soAbonRule.m_coRuleName.v.length ();
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRD, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		}
+    CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRD, g_psoDictChargingRuleName, p_soAbonRule.m_coRuleName.v), return NULL);
 		/* Service-Identifier */
 		if (! p_soAbonRule.m_coServiceId.is_null ()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictServiceIdentifier, 0, &psoAVPChild), return NULL);

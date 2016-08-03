@@ -233,6 +233,8 @@ int load_rule_info (
 	std::vector<SDBAbonRule> &p_vectAbonRules);
 /* поиск сессии UGW для загрузки данных для SCE */
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat);
+/* поиск сессии UGW для загрузки данных для Procera */
+int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
