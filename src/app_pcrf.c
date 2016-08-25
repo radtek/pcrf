@@ -63,7 +63,7 @@ void fd_ext_fini(void)
 {
 	app_pcrf_serv_fini ();
 	pcrf_cli_fini ();
-	pcrf_tr();
+	pcrf_tracer_fini();
 	pcrf_db_pool_fin ();
 	stat_fin();
 	pcrf_logger_fini();

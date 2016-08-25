@@ -74,9 +74,9 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 			if (! coRealm.is_null ())
 				soPeerInfo.m_coHostReal = coRealm;
 			if (!coProto.is_null())
-				soPeerInfo.m_uiPeerProto = coProto.v;
+				soPeerInfo.m_uiPeerDialect = coProto.v;
 			else
-				soPeerInfo.m_uiPeerProto = 0;
+				soPeerInfo.m_uiPeerDialect = 0;
 			p_vectPeerList.push_back (soPeerInfo);
 		}
 		coStream.close ();
@@ -142,7 +142,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 	return iRetVal;
 }
 
-int pcrf_peer_proto (SSessionInfo &p_soSessInfo)
+int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = -1403;
 
@@ -150,8 +150,8 @@ int pcrf_peer_proto (SSessionInfo &p_soSessInfo)
 
 	while (iterPeerList != g_vectPeerList.end ()) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
-			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
-			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+      && iterPeerList->m_coHostReal.v == p_soSessInfo.m_coOriginRealm.v) {
+			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
 			iRetVal = 0;
 			break;
 		}
@@ -169,8 +169,8 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 
 	while (iterPeerList != g_vectPeerList.end ()) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
-			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
-			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+      && iterPeerList->m_coHostReal.v == p_soSessInfo.m_coOriginRealm.v) {
+			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
 			iRetVal = iterPeerList->m_iIsConnected;
 			break;
 		}
@@ -178,4 +178,21 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 	}
 
 	return iRetVal;
+}
+
+int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect)
+{
+  int iRetVal = 0;
+
+  std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
+
+  while (iterPeerList != g_vectPeerList.end ()) {
+    if (iterPeerList->m_uiPeerDialect == p_uiPeerDialect && iterPeerList->m_iIsConnected) {
+      iRetVal = 1;
+      break;
+    }
+    ++iterPeerList;
+  }
+
+  return iRetVal;
 }

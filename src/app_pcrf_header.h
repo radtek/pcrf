@@ -48,7 +48,7 @@ struct SDBMonitoringInfo {
 	SDBMonitoringInfo() { m_bDataLoaded = false; }
 };
 struct SSessionInfo {
-	unsigned int m_uiPeerProto;
+	unsigned int m_uiPeerDialect;
 	otl_value<std::string> m_coSessionId;
 	std::string m_strSubscriberId;
 	otl_value<std::string> m_coOriginHost;
@@ -68,7 +68,7 @@ struct SSessionInfo {
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
-	SSessionInfo () { m_uiPeerProto = 0; };
+	SSessionInfo () { m_uiPeerDialect = 0; };
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;
@@ -120,6 +120,7 @@ struct SRequestInfo {
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
+  SRequestInfo() { m_iCCRequestType = 0; }
 };
 struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
@@ -128,7 +129,7 @@ struct SMsgDataForDB {
 struct SPeerInfo {
 	otl_value<std::string> m_coHostName;
 	otl_value<std::string> m_coHostReal;
-	unsigned int m_uiPeerProto;
+	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
 	SPeerInfo () { m_iIsConnected = 0; }
 };
@@ -192,6 +193,13 @@ struct SRefQueue {
 	otl_datetime m_coRefreshDate;
 };
 
+/* формирование полного списка правил */
+int pcrf_server_create_abon_rule_list (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<SDBAbonRule> &p_vectAbonRules,
+	SStat *p_psoStat);
+
 /* операции клиента с БД */
 /* формирование очереди изменения политик */
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue);
@@ -242,11 +250,10 @@ int pcrf_server_db_load_session_info (
 	std::string &p_strSessionId,
 	SStat *p_psoStat);
 /* загрузка списка правил абонента из БД */
-int pcrf_server_db_abon_rule (
+int pcrf_load_abon_rule_list (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
-	std::vector<SDBAbonRule> &p_vectAbonRules,
-	SStat *p_psoStat);
+	std::vector<std::string> &p_vectRuleList);
 /* загрузка Monitoring Key из БД */
 int pcrf_server_db_monit_key(
 	otl_connect &p_coDBConn,
@@ -266,7 +273,7 @@ int pcrf_server_select_notrelevant_active (
 /* функция заполнения avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR (
 	otl_connect *p_pcoDBConn,
-	SMsgDataForDB *p_psoReqInfo,
+	SSessionInfo &p_soSessInfo,
 	std::vector<SDBAbonRule> &p_vectActive,
 	SStat *p_psoStat);
 /* функция заполнения avp Charging-Rule-Install */
@@ -298,17 +305,34 @@ int pcrf_server_db_insert_refqueue (
 	otl_datetime *p_pcoDateTime,
 	const char *p_pszAction);
 
-/* функция определяет vlink_id для Cisco SCE */
-int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAbonRule &p_soAbonRule);
-
 /* функция удаляет запись из очереди обновления политик */
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soRefQueue);
 /* функция определяет протокол пира */
-int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
+int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
 /* определяет подключен ли пер */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
+/* определяет есть ли подключенные пиры заданного диалекта */
+int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
+
+/* функция для посылки команды на завершение сессии */
+int pcrf_client_ASR (SSessionInfo &p_soSessInfo);
+
+/* функция для посылки RAR */
+int pcrf_client_RAR (otl_connect *p_pcoDBConn,
+	SMsgDataForDB p_soReqInfo,
+	std::vector<SDBAbonRule> &p_vectActiveRules,
+	std::vector<SDBAbonRule> &p_vectAbonRules);
+
+/* функция для Procera - формирование значения правила о локации пользователя */
+int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
+
+/* загрузка активных сессий Procera по ip-адресу */
+int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList);
+
+/* функция для закрытия всех правил локации сессии Procera */
+int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */
