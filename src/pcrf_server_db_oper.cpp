@@ -763,6 +763,7 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 }
 
 /* загружает описание правила */
+int pcrf_db_load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,
