@@ -234,7 +234,7 @@ int pcrf_server_db_load_active_rules (
 	std::vector<SDBAbonRule> &p_vectActive,
 	SStat *p_psoStat);
 /* загрузка описания правила */
-int load_rule_info (
+int pcrf_db_load_rule_info(
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,

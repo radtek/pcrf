@@ -2030,6 +2030,25 @@ int pcrf_procera_terminate_session (otl_connect &p_coDBConn, otl_value<std::stri
   return iRetVal;
 }
 
+/* загружает описание правил */
+int load_rule_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<std::string> &p_vectRuleList,
+	std::vector<SDBAbonRule> &p_vectAbonRules)
+{
+	int iRetVal = 0;
+	int iFnRes;
+	std::vector<std::string>::iterator iter = p_vectRuleList.begin ();
+  SDBAbonRule soAbonRule;
+
+  for (; iter != p_vectRuleList.end (); ++iter) {
+		pcrf_db_load_rule_info (p_coDBConn, p_soMsgInfo, *iter, p_vectAbonRules);
+	}
+
+	return iRetVal;
+}
+
 int pcrf_server_create_abon_rule_list (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,

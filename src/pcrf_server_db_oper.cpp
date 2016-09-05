@@ -763,7 +763,6 @@ int load_rule_flows (otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, unsign
 }
 
 /* загружает описание правила */
-int load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,
@@ -910,25 +909,6 @@ int load_rule_info (
 		if (coStream.good()) {
 			coStream.close();
 		}
-	}
-
-	return iRetVal;
-}
-
-/* загружает описание правил */
-int load_rule_info (
-	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo,
-	std::vector<std::string> &p_vectRuleList,
-	std::vector<SDBAbonRule> &p_vectAbonRules)
-{
-	int iRetVal = 0;
-	int iFnRes;
-	std::vector<std::string>::iterator iter = p_vectRuleList.begin ();
-  SDBAbonRule soAbonRule;
-
-  for (; iter != p_vectRuleList.end (); ++iter) {
-		load_rule_info (p_coDBConn, p_soMsgInfo, *iter, p_vectAbonRules);
 	}
 
 	return iRetVal;
