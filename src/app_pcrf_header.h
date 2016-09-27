@@ -266,7 +266,6 @@ int pcrf_server_db_user_location(
 
 /* функция формирования списка неактуальных правил */
 int pcrf_server_select_notrelevant_active (
-	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
 	std::vector<SDBAbonRule> &p_vectActive);
 

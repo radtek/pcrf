@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include <freeDiameter/extension.h>
 
 /* module configuration */

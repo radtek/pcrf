@@ -31,6 +31,9 @@ static void pcrf_tracer (
 	char mcEnumValue[256];
 	otl_connect *pcoDBConn = NULL;
 
+  /* suppress compiler warning */
+  p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
+
 	if (NULL == p_psoMsg) {
 		UTL_LOG_E (*g_pcoLog, "NULL pointer to message structure");
 		return;
@@ -88,8 +91,10 @@ static void pcrf_tracer (
 		char mcCode[256];
 		iFnRes = snprintf (mcCode, sizeof (mcCode), "%u", psoMsgHdr->msg_code);
 		if (iFnRes > 0) {
-			if (iFnRes >= sizeof (mcCode))
+			if (static_cast<size_t>(iFnRes) < sizeof (mcCode)) {
+      } else {
 				iFnRes = sizeof (mcCode) - 1;
+      }
 			mcCode[iFnRes] = '\0';
 			strRequestType += mcCode;
 		}
@@ -238,7 +243,7 @@ static void pcrf_tracer (
 			<< pmcBuf;
 		pcoDBConn->commit ();
 		coStream.close ();
-	} catch (otl_exception coExcept) {
+	} catch (otl_exception &coExcept) {
 		UTL_LOG_E (*g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		if (coStream.good ())
 			coStream.close ();

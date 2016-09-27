@@ -72,7 +72,7 @@ int pcrf_db_pool_init (void)
 	SDBPoolInfo *psoLast;
 
 	try {
-		for (unsigned int iInd = 0; iInd < iPoolSize; ++iInd) {
+		for (int iInd = 0; iInd < iPoolSize; ++iInd) {
 			psoTmp = new SDBPoolInfo;
 			/* инициализация струтуры */
 			memset (psoTmp, 0, sizeof (*psoTmp));
@@ -94,7 +94,7 @@ int pcrf_db_pool_init (void)
 		}
 	} catch (std::bad_alloc &coBadAlloc) {
 		UTL_LOG_F(*g_pcoLog, "memory allocftion error: '%s';", coBadAlloc.what());
-		int iRetVal = ENOMEM;
+		iRetVal = ENOMEM;
 		goto fn_error;
 	}
 
@@ -233,6 +233,9 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 	int iRetVal = 0;
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 
+  /* suppress compiler warining */
+  p_pszClient = p_pszClient;
+
 	/* устанавливаем блокировку на участок кода */
 	iRetVal = pthread_mutex_lock (&g_tMutex);
 	/* если возникла ошибка ожидания мьютекса */
@@ -323,12 +326,13 @@ int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo)
 		int iStrLen;
 
 		iStrLen = snprintf (mcConnString, sizeof (mcConnString) - 1, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer);
-		if (iStrLen < 0) {
-			iRetVal = errno;
-			return iRetVal;
-		}
-		if (iStrLen >= sizeof (mcConnString)) {
-			return -20;
+		if (iStrLen > 0) {
+      if (static_cast<size_t>(iStrLen) < sizeof (mcConnString)) {
+      } else {
+        return -20;
+      }
+    } else {
+			return -30;
 		}
 		mcConnString[iStrLen] = '\0';
 		p_psoDBConnInfo->m_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);

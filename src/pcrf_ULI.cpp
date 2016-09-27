@@ -86,7 +86,6 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 {
 	int iRetVal = 0;
 	int iFnRes;
-	char mcDigit[32];
 
 	SCGI soCGI;
 	SSAI soSAI;
@@ -100,7 +99,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 
 	switch (p_soAVPValue.os.data[0]) {
 	case eCGI:
-		if (p_soAVPValue.os.len < sizeof(soCGI)) {
+		if (p_soAVPValue.os.len >= sizeof(soCGI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SCGI struct");
 			iRetVal = -1;
 			break;
@@ -109,7 +109,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		psoMCCMNC = &(soCGI.m_soMCCMNC);
 		break;
 	case eSAI:
-		if (p_soAVPValue.os.len < sizeof(soSAI)) {
+		if (p_soAVPValue.os.len >= sizeof(soSAI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SSAI struct");
 			iRetVal = -1;
 			break;
@@ -118,7 +119,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		psoMCCMNC = &(soSAI.m_soMCCMNC);
 		break;
 	case eRAI:
-		if (p_soAVPValue.os.len < sizeof(soRAI)) {
+		if (p_soAVPValue.os.len >= sizeof(soRAI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SRAI struct");
 			iRetVal = -1;
 			break;
@@ -127,7 +129,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		psoMCCMNC = &(soRAI.m_soMCCMNC);
 		break;
 	case eTAI:
-		if (p_soAVPValue.os.len < sizeof(soTAI)) {
+		if (p_soAVPValue.os.len >= sizeof(soTAI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of STAI struct");
 			iRetVal = -1;
 			break;
@@ -136,7 +139,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		psoMCCMNC = &(soTAI.m_soMCCMNC);
 		break;
 	case eECGI:
-		if (p_soAVPValue.os.len < sizeof(soECGI)) {
+		if (p_soAVPValue.os.len >= sizeof(soECGI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SECGI struct");
 			iRetVal = -1;
 			break;
@@ -145,7 +149,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		psoMCCMNC = &(soECGI.m_soMCCMNC);
 		break;
 	case eTAI_ECGI:
-		if (p_soAVPValue.os.len < sizeof(soTAI_ECGI)) {
+		if (p_soAVPValue.os.len >= sizeof(soTAI_ECGI)) {
+    } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of soTAI_ECGI struct");
 			iRetVal = -1;
 			break;
@@ -155,9 +160,13 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		break;
 	}
 
-	if (iRetVal)
+	if (0 == iRetVal) {
+  } else {
 		return iRetVal;
-	if (NULL == psoMCCMNC) {
+  }
+
+  if (NULL != psoMCCMNC) {
+  } else {
 		UTL_LOG_E(*g_pcoLog, "unexpected error: NULL pointer to MCCMNC");
 		return -2;
 	}
@@ -168,13 +177,16 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		"%u%u%u-%u%u",
 		psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
 		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
-	if (iFnRes < 0) {
-		iRetVal = errno;
-		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", iRetVal);
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcMCCMNC)) {
+    } else {
+      mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
+    }
+  } else {
+		iRetVal = -1;
+		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", errno);
 		mcMCCMNC[0] = '\0';
 	}
-	if (iFnRes > sizeof(mcMCCMNC))
-		mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
 	p_soUserLocationInfo.m_coSGSNMCCMNC = mcMCCMNC;
 
 	/* что-то полезное уже имеем, ставим метку, что данные получены */
@@ -221,18 +233,21 @@ void format_CGI(SCGI &p_soCGI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soCGI.m_soLAC.m_uiLAC1 << 8) + (p_soCGI.m_soLAC.m_uiLAC2),
 		(p_soCGI.m_soCI.m_uiCI1 << 8 ) + (p_soCGI.m_soCI.m_uiCI2));
-	if (iFnRes < 0)
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+      /* выбираем сектор - последняя цифра CI */
+      strSector = mcValue[iFnRes - 1];
+    } else {
+      mcValue[sizeof(mcValue) - 1] = '\0';
+    }
+  } else {
 		return;
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
-	else
-		/* выбираем сектор - последняя цифра CI */
-		strSector = mcValue[iFnRes - 1];
+  }
 
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 	/* формируем сектор */
-	if (strSector.length()) {
+	if (0 < strSector.length()) {
 		p_coValue.v[p_coValue.v.length() - 1] = '-';
 		p_coValue.v += strSector;
 	}
@@ -250,10 +265,14 @@ void format_SAI(SSAI &p_soSAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soSAI.m_soLAC.m_uiLAC1 << 8) + (p_soSAI.m_soLAC.m_uiLAC2),
 		(p_soSAI.m_soSAS.m_uiSAS1 << 8) + (p_soSAI.m_soSAS.m_uiSAS2));
-	if (iFnRes < 0)
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+    } else {
+      mcValue[sizeof(mcValue) - 1] = '\0';
+    }
+  } else {
 		return;
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
+  }
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -270,10 +289,14 @@ void format_RAI(SRAI &p_soRAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soRAI.m_soLAC.m_uiLAC1 << 8) + (p_soRAI.m_soLAC.m_uiLAC2),
 		p_soRAI.m_soRAC.m_uiRAC);
-	if (iFnRes < 0)
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+    } else {
+      mcValue[sizeof(mcValue) - 1] = '\0';
+    }
+  } else {
 		return;
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
+  }
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -289,10 +312,14 @@ void format_TAI(STAI &p_soTAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		mcValue, sizeof(mcValue),
 		"%u",
 		(p_soTAI.m_soTAC.m_uiTAC1 << 8) + (p_soTAI.m_soTAC.m_uiTAC2));
-	if (iFnRes < 0)
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+    } else {
+      mcValue[sizeof(mcValue) - 1] = '\0';
+    }
+  } else {
 		return;
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
+  }
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -309,10 +336,14 @@ void format_ECGI(SECGI &p_soECGI, const char *p_pszMCCMNC, otl_value<std::string
 		"%u-%u",
 		(p_soECGI.m_soECI.m_uiECI1 << 16) + (p_soECGI.m_soECI.m_uiECI2 << 8) + (p_soECGI.m_soECI.m_uiECI3),
 		p_soECGI.m_soECI.m_uiECI4);
-	if (iFnRes < 0)
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+    } else {
+      mcValue[sizeof(mcValue) - 1] = '\0';
+    }
+  } else {
 		return;
-	if (iFnRes > sizeof(mcValue))
-		mcValue[sizeof(mcValue) - 1] = '\0';
+  }
 	p_coValue.v += '-';
 	p_coValue.v += mcValue;
 }
@@ -325,18 +356,24 @@ int pcrf_parse_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue)
 	SRAI soRAI;
 
 	/* проверяем размер данных */
-	if (p_soAVPValue.os.len < 5 + sizeof(soRAI.m_soLAC) + sizeof(soRAI.m_soRAC))
+	if (p_soAVPValue.os.len >= 5 + sizeof(soRAI.m_soLAC) + sizeof(soRAI.m_soRAC)) {
+  } else {
 		return EINVAL;
+  }
 
 	iFnRes = snprintf(
 		mcMCCMNC, sizeof(mcMCCMNC),
 		"%c%c%c-%c%c",
 		p_soAVPValue.os.data[0], p_soAVPValue.os.data[1], p_soAVPValue.os.data[2],
 		p_soAVPValue.os.data[3], p_soAVPValue.os.data[4]);
-	if (iFnRes < 0)
-		return errno;
-	if (iFnRes > sizeof(mcMCCMNC))
-		mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
+	if (iFnRes > 0) {
+    if (static_cast<size_t>(iFnRes) < sizeof(mcMCCMNC)) {
+    } else {
+      mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
+    }
+  } else {
+		return -1;
+  }
 
 	memcpy(((char*)(&soRAI)) + sizeof(soRAI.m_soMCCMNC), &(p_soAVPValue.os.data[5]), sizeof(soRAI.m_soLAC) + sizeof(soRAI.m_soRAC));
 

@@ -148,7 +148,6 @@ int pcrf_client_RAR (
 	{
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictRARType, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 0; /* AUTHORIZE_ONLY */
-/*		soAVPValue.u32 = 1; /* AUTHORIZE_AUTHENTICATE */
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -385,7 +384,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* загружаем список активных правил */
 			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*p_pcoDBConn, soSessInfo, vectActive, psoStat), );
 			/* формируем список неактуальных правил */
-			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(soSessInfo, vectAbonRules, vectActive), );
+			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */
 			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo), psoStat), /* continue */);
 			/* проверяем наличие изменений в политиках */
@@ -415,6 +414,9 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 	struct timeval soCurTime;
 	struct timespec soWaitTime;
 	otl_connect *pcoDBConn = NULL;
+
+  /* suppress compiler warning */
+  p_pvArg = p_pvArg;
 
 	/* запрашиваем текущее время */
 	CHECK_POSIX_DO (gettimeofday (&soCurTime, NULL), return NULL);
@@ -518,6 +520,9 @@ extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
 {
 	UTL_LOG_D(*g_pcoLog, "%p:%p:%p", state, sid, opaque);
+
+  /* suppress compiler warning */
+  sid = sid; opaque = opaque;
 
 	if (state->m_pszSessionId) {
 		free (state->m_pszSessionId);
