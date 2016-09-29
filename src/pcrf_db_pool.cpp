@@ -326,8 +326,8 @@ int pcrf_db_pool_connect(SDBPoolInfo *p_psoDBConnInfo)
 		int iStrLen;
 
 		iStrLen = snprintf (mcConnString, sizeof (mcConnString) - 1, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer);
-		if (iStrLen > 0) {
-      if (static_cast<size_t>(iStrLen) < sizeof (mcConnString)) {
+		if (0 < iStrLen) {
+      if (sizeof (mcConnString) > static_cast<size_t>(iStrLen)) {
       } else {
         return -20;
       }

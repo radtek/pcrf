@@ -177,8 +177,8 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		"%u%u%u-%u%u",
 		psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
 		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcMCCMNC)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcMCCMNC) > static_cast<size_t>(iFnRes)) {
     } else {
       mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
     }
@@ -233,8 +233,8 @@ void format_CGI(SCGI &p_soCGI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soCGI.m_soLAC.m_uiLAC1 << 8) + (p_soCGI.m_soLAC.m_uiLAC2),
 		(p_soCGI.m_soCI.m_uiCI1 << 8 ) + (p_soCGI.m_soCI.m_uiCI2));
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcValue) > static_cast<size_t>(iFnRes)) {
       /* выбираем сектор - последняя цифра CI */
       strSector = mcValue[iFnRes - 1];
     } else {
@@ -265,8 +265,8 @@ void format_SAI(SSAI &p_soSAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soSAI.m_soLAC.m_uiLAC1 << 8) + (p_soSAI.m_soLAC.m_uiLAC2),
 		(p_soSAI.m_soSAS.m_uiSAS1 << 8) + (p_soSAI.m_soSAS.m_uiSAS2));
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcValue) > static_cast<size_t>(iFnRes)) {
     } else {
       mcValue[sizeof(mcValue) - 1] = '\0';
     }
@@ -289,8 +289,8 @@ void format_RAI(SRAI &p_soRAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		"%u-%u",
 		(p_soRAI.m_soLAC.m_uiLAC1 << 8) + (p_soRAI.m_soLAC.m_uiLAC2),
 		p_soRAI.m_soRAC.m_uiRAC);
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcValue) > static_cast<size_t>(iFnRes)) {
     } else {
       mcValue[sizeof(mcValue) - 1] = '\0';
     }
@@ -312,8 +312,8 @@ void format_TAI(STAI &p_soTAI, const char *p_pszMCCMNC, otl_value<std::string> &
 		mcValue, sizeof(mcValue),
 		"%u",
 		(p_soTAI.m_soTAC.m_uiTAC1 << 8) + (p_soTAI.m_soTAC.m_uiTAC2));
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcValue) > static_cast<size_t>(iFnRes)) {
     } else {
       mcValue[sizeof(mcValue) - 1] = '\0';
     }
@@ -336,8 +336,8 @@ void format_ECGI(SECGI &p_soECGI, const char *p_pszMCCMNC, otl_value<std::string
 		"%u-%u",
 		(p_soECGI.m_soECI.m_uiECI1 << 16) + (p_soECGI.m_soECI.m_uiECI2 << 8) + (p_soECGI.m_soECI.m_uiECI3),
 		p_soECGI.m_soECI.m_uiECI4);
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcValue)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcValue) > static_cast<size_t>(iFnRes)) {
     } else {
       mcValue[sizeof(mcValue) - 1] = '\0';
     }
@@ -366,8 +366,8 @@ int pcrf_parse_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue)
 		"%c%c%c-%c%c",
 		p_soAVPValue.os.data[0], p_soAVPValue.os.data[1], p_soAVPValue.os.data[2],
 		p_soAVPValue.os.data[3], p_soAVPValue.os.data[4]);
-	if (iFnRes > 0) {
-    if (static_cast<size_t>(iFnRes) < sizeof(mcMCCMNC)) {
+	if (0 < iFnRes) {
+    if (sizeof(mcMCCMNC) > static_cast<size_t>(iFnRes)) {
     } else {
       mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
     }

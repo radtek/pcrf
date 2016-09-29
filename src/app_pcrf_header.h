@@ -11,8 +11,6 @@
 #include <vector>
 #include <map>
 
-#define DEBUG
-
 #ifdef WIN32
 	typedef char uint8_t;
 	typedef __int32 int32_t;

@@ -566,37 +566,10 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
   SSessionInfo soSessInfo;
 
 	try {
-		/* ищем сессии по IMSI */
-		//if (! p_psoSessInfo->m_coEndUserIMSI.is_null()) {
-		//	coStream.open(
-		//		100,
-		//		"select "
-		//			"session_id "
-		//		"from "
-		//			"ps.sessionList ps "
-		//		"where "
-		//			"ps.end_user_imsi = :end_user_imsi/*char[16]*/ "
-		//			"and ps.origin_host = :origin_host/*char[255]*/ "
-		//			"and ps.session_id <> :session_id/*char[255]*/ "
-		//			"and ps.time_end is null",
-		//		*p_pcoDBConn);
-		//	coStream
-		//		<< p_psoSessInfo->m_coEndUserIMSI
-		//		<< p_psoSessInfo->m_coOriginHost
-		//		<< p_psoSessInfo->m_coSessionId;
-		//	while (!coStream.eof()) {
-		//		coStream
-		//			>> strSessionId;
-		//		UTL_LOG_N(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; end_user_imsi: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coEndUserIMSI.v.c_str());
-		//		mapSessList.insert(std::make_pair(strSessionId,0));
-		//	}
-		//	if (coStream.good())
-		//		coStream.close();
-		//}
 		/* ищем сессии по ip-адресу */
-		if (! p_psoSessInfo->m_coFramedIPAddress.is_null() && 1 == p_psoSessInfo->m_uiPeerDialect) {
+		if (! p_psoSessInfo->m_coFramedIPAddress.is_null() && ! p_psoSessInfo->m_coOriginHost.is_null()) {
 			coStream.open(
-				100,
+				10,
 				"select "
 					"session_id "
 				"from "
@@ -620,8 +593,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
         soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
         pcrf_client_ASR (soSessInfo);
 			}
-			if (coStream.good())
-				coStream.close();
+			coStream.close();
 		}
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
@@ -781,6 +753,7 @@ int load_rule_flows (otl_connect &p_coDBConn, unsigned int p_uiRuleId, std::vect
 }
 
 /* загружает описание правила */
+int pcrf_db_load_rule_info (
 	otl_connect &p_coDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	std::string &p_strRuleName,

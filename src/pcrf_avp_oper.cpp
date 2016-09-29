@@ -68,42 +68,42 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 	} else {
 		switch (soAVPInfo.avp_basetype) {
 		case AVP_TYPE_INTEGER32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#08x", (int) p_psoAVPHdr->avp_value->i32);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#08x", (int) p_psoAVPHdr->avp_value->i32);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
       }
 			break;
 		case AVP_TYPE_UNSIGNED32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#08x", (unsigned int) p_psoAVPHdr->avp_value->u32);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#08x", (unsigned int) p_psoAVPHdr->avp_value->u32);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
       }
 			break;
 		case AVP_TYPE_INTEGER64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", (long long) p_psoAVPHdr->avp_value->i64);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#016Lx", (long long) p_psoAVPHdr->avp_value->i64);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
       }
 			break;
 		case AVP_TYPE_UNSIGNED64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", (unsigned long long) p_psoAVPHdr->avp_value->u64);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#016Lx", (unsigned long long) p_psoAVPHdr->avp_value->u64);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
       }
 			break;
 		case AVP_TYPE_FLOAT32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%f", p_psoAVPHdr->avp_value->f32);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%f", p_psoAVPHdr->avp_value->f32);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
       }
 			break;
 		case AVP_TYPE_FLOAT64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%f", p_psoAVPHdr->avp_value->f64);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%f", p_psoAVPHdr->avp_value->f64);
       if (0 < iFnRes) {
       } else {
         iRetVal = -1;
@@ -114,7 +114,7 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 			break;
 		}
     if (0 == iRetVal) {
-      if (iFnRes < p_iBufSize) {
+      if (p_iBufSize > iFnRes) {
       } else {
         p_pszBuf[p_iBufSize - 1] = '\0';
       }
