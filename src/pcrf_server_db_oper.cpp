@@ -304,8 +304,7 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 				":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
 			"end; ",
 			p_coDBConn);
-		iter = p_soReqInfo.m_vectUsageInfo.begin();
-		while (iter != p_soReqInfo.m_vectUsageInfo.end()) {
+		for (iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter) {
 			coStream
 				<< p_soSessInfo.m_strSubscriberId
 				<< iter->m_coMonitoringKey
@@ -315,9 +314,9 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 			UTL_LOG_D(*g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
-				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
-				iter->m_coCCOutputOctets.is_null() ? -1: iter->m_coCCOutputOctets.v,
-				iter->m_coCCTotalOctets.is_null() ? -1: iter->m_coCCTotalOctets.v);
+				iter->m_coCCInputOctets.is_null()   ? -1: iter->m_coCCInputOctets.v,
+				iter->m_coCCOutputOctets.is_null()  ? -1: iter->m_coCCOutputOctets.v,
+				iter->m_coCCTotalOctets.is_null()   ? -1: iter->m_coCCTotalOctets.v);
 			coStream
 				>> iter->m_coCCInputOctets
 				>> iter->m_coCCOutputOctets
@@ -325,22 +324,18 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 			UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
-				iter->m_coCCInputOctets.is_null() ? -1: iter->m_coCCInputOctets.v,
-				iter->m_coCCOutputOctets.is_null() ? -1: iter->m_coCCOutputOctets.v,
-				iter->m_coCCTotalOctets.is_null() ? -1: iter->m_coCCTotalOctets.v);
+				iter->m_coCCInputOctets.is_null()   ? -1 : iter->m_coCCInputOctets.v,
+				iter->m_coCCOutputOctets.is_null()  ? -1 : iter->m_coCCOutputOctets.v,
+				iter->m_coCCTotalOctets.is_null()   ? -1 : iter->m_coCCTotalOctets.v);
 			/* запоминаем полученную информацию чтобы не повторять запросы к БД по этому ключу мониторинга */
 			{
 				SDBMonitoringInfo soMonitInfo;
-				if (! iter->m_coCCInputOctets.is_null())
-					soMonitInfo.m_coDosageInputOctets = iter->m_coCCInputOctets.v;
-				if (! iter->m_coCCOutputOctets.is_null())
-					soMonitInfo.m_coDosageOutputOctets = iter->m_coCCOutputOctets.v;
-				if (! iter->m_coCCTotalOctets.is_null())
-					soMonitInfo.m_coDosageTotalOctets = iter->m_coCCTotalOctets.v;
+				soMonitInfo.m_coDosageInputOctets = iter->m_coCCInputOctets;
+				soMonitInfo.m_coDosageOutputOctets = iter->m_coCCOutputOctets;
+				soMonitInfo.m_coDosageTotalOctets = iter->m_coCCTotalOctets;
 				soMonitInfo.m_bDataLoaded = true;
-				p_soSessInfo.m_mapMonitInfo.insert(std::make_pair(iter->m_coMonitoringKey.v, soMonitInfo));
+				p_soSessInfo.m_mapMonitInfo.insert (std::make_pair(iter->m_coMonitoringKey.v, soMonitInfo));
 			}
-			++iter;
 		}
 		p_coDBConn.commit();
 		coStream.close();
@@ -1199,8 +1194,8 @@ int pcrf_server_db_monit_key(
 				":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
 			"end;",
 			p_coDBConn);
-		std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList = p_soSessInfo.m_mapMonitInfo.begin();
-		while (iterMonitList != p_soSessInfo.m_mapMonitInfo.end()) {
+		std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList;
+		for (iterMonitList = p_soSessInfo.m_mapMonitInfo.begin(); iterMonitList != p_soSessInfo.m_mapMonitInfo.end(); ++iterMonitList) {
 			/* если данные из БД еще не загружены */
 			if (! iterMonitList->second.m_bDataLoaded) {
 				coStream
@@ -1213,11 +1208,10 @@ int pcrf_server_db_monit_key(
 				UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 					p_soSessInfo.m_strSubscriberId.c_str(),
 					iterMonitList->first.c_str(),
-					iterMonitList->second.m_coDosageInputOctets.is_null() ? -1:  iterMonitList->second.m_coDosageInputOctets.v,
-					iterMonitList->second.m_coDosageOutputOctets.is_null() ? -1: iterMonitList->second.m_coDosageOutputOctets.v,
-					iterMonitList->second.m_coDosageTotalOctets.is_null() ? -1: iterMonitList->second.m_coDosageTotalOctets.v);
+					iterMonitList->second.m_coDosageInputOctets.is_null()   ? -1:  iterMonitList->second.m_coDosageInputOctets.v,
+					iterMonitList->second.m_coDosageOutputOctets.is_null()  ? -1: iterMonitList->second.m_coDosageOutputOctets.v,
+					iterMonitList->second.m_coDosageTotalOctets.is_null()   ? -1: iterMonitList->second.m_coDosageTotalOctets.v);
 			}
-			++iterMonitList;
 		}
 		p_coDBConn.commit();
 	} catch (otl_exception &coExcept) {

@@ -250,24 +250,6 @@ static int app_pcrf_ccr_cb (
     break;
   }
 
-	/* Destination-Realm */
-	do {
-		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictDestRealm, 0, &psoChildAVP), break);
-		soAVPVal.os.data = (uint8_t *)soMsgInfoCache.m_psoSessInfo->m_coOriginRealm.v.data();
-		soAVPVal.os.len = soMsgInfoCache.m_psoSessInfo->m_coOriginRealm.v.length();
-		CHECK_FCT_DO(fd_msg_avp_setvalue(psoChildAVP, &soAVPVal), break);
-		CHECK_FCT_DO(fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, psoChildAVP), break);
-	} while (0);
-
-	/* Destination-Host */
-	do {
-		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictDestHost, 0, &psoChildAVP), break);
-		soAVPVal.os.data = (uint8_t *) soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.data();
-		soAVPVal.os.len = soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.length ();
-		CHECK_FCT_DO(fd_msg_avp_setvalue(psoChildAVP, &soAVPVal), break);
-		CHECK_FCT_DO(fd_msg_avp_add(ans, MSG_BRW_LAST_CHILD, psoChildAVP), break);
-	} while (0);
-
 	/* put 'CC-Request-Type' into answer */
 	do {
 		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictCCRequestType, 0, &psoChildAVP), break);
@@ -305,8 +287,10 @@ static int app_pcrf_ccr_cb (
 		CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
     /* дополняем ответ на CCR-I для Procera информацией о пользователе */
     /* Subscription-Id */
-    if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect)
+    if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+  		CHECK_FCT_DO(set_777_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
       CHECK_FCT_DO (pcrf_make_subscription_id (ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164), /* continue */);
+    }
 		/* Usage-Monitoring-Information */
 		CHECK_FCT_DO (pcrf_make_UMI (ans, *(soMsgInfoCache.m_psoSessInfo)), /* continue */ );
 		/* Charging-Rule-Install */
@@ -333,25 +317,38 @@ static int app_pcrf_ccr_cb (
           //if (pcrf_peer_is_dialect_used (3)) {
             CHECK_FCT_DO (pcrf_procera_change_uli (pcoDBConn, soMsgInfoCache), /* continue */);
           //}
-					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+					CHECK_FCT_DO(set_ULCh_event_trigger (*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 					break;
 				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
 					/* Default-EPS-Bearer-QoS */
-					pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
+					pcrf_make_DefaultEPSBearerQoS (ans, *soMsgInfoCache.m_psoReqInfo);
 					pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo);
 					break;
 				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
 					if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
 						/* Usage-Monitoring-Information */
-						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
+						CHECK_FCT_DO (pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
 					}
 					break;
-				case 33: /* USAGE_REPORT */ /* 3GPP notation */
-					if (1 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-						/* Usage-Monitoring-Information */
-						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
-					}
+				case 33: /* USAGE_REPORT */
+          switch (soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+          case 1: /* Gx */
+          case 3: /* Gx Procera */
+						CHECK_FCT_DO (pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
+            break;
+          }
 					break;
+        case 777:
+          if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+            SDBAbonRule soAbonRule;
+            soAbonRule.m_bIsActivated = false;
+            soAbonRule.m_bIsRelevant = true;
+            soAbonRule.m_coDynamicRuleFlag = 0;
+            soAbonRule.m_coRuleGroupFlag = 0;
+            soAbonRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
+            vectAbonRules.push_back(soAbonRule);
+          }
+          break;
 				}
 			}
 		}
@@ -1190,23 +1187,18 @@ int pcrf_make_UMI (
 		if (p_bFull) {
 			/* Usage-Monitoring-Level */
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return __LINE__);
-      switch (p_soSessInfo.m_uiPeerDialect) {
-      case 3: /* Gx Procera */
-			  soAVPVal.i32 = 0;  /* SESSION_LEVEL */
-        break;
-      default:
-			  soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-        break;
-      }
+			soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
 			/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
 			/* Usage-Monitoring-Report */
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return __LINE__);
-			soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-			/* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
+      if (3 != p_soSessInfo.m_uiPeerDialect) {
+			  CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return __LINE__);
+			  soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
+			  CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
+			  /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
+			  CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
+      }
 		}
 		if (psoAVPUMI) {
 			/* Event-Trigger */
@@ -1324,6 +1316,27 @@ int set_RAT_CHANGE_event_trigger (
 	case 1: /* Gx */
 		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
 		soAVPValue.i32 = 2;		/* RAT_CHANGE */
+		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
+		CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
+		break; /* Gx */
+	}
+
+	return iRetVal;
+}
+
+int set_777_event_trigger (
+	SSessionInfo &p_soSessInfo,
+	msg_or_avp *p_psoMsgOrAVP)
+{
+	int iRetVal = 0;
+	avp *psoAVP;
+	avp_value soAVPValue;
+
+	/* Event-Trigger */
+	switch (p_soSessInfo.m_uiPeerDialect) {
+	case 3: /* Gx Procera */
+		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
+		soAVPValue.i32 = 777;		/* 777 */
 		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
 		CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
 		break; /* Gx */
