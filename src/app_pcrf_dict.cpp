@@ -752,8 +752,8 @@ int app_pcrf_dict_init (void)
 
 	/* Cisco */
 	{
-        dict_vendor_data vendor_data = { 9, (char *) "Cisco" };
-        CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
+    dict_vendor_data vendor_data = { 9, (char *) "Cisco" };
+    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
 	}
 
 	/* Cisco-SCA BB-Package-Install */
@@ -842,6 +842,28 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 9;
 		soAVPIdent.avp_data.avp_code = 1003;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
+	}
+
+  /* Procera */
+	{
+    dict_vendor_data vendor_data = { 15397, (char *) "Procera" };
+    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
+	}
+
+	/* Procera-Tetering-Flag */
+	{
+		/* 
+			Unsigned32. 
+		*/
+		dict_avp_data data = { 
+		777,									                /* Code */
+		15397,								                /* Vendor */
+		(char *) "Procera-Tetering-Flag",     /* Name */
+		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY, /* Fixed flags */
+		AVP_FLAG_VENDOR,						          /* Fixed flag values */
+		AVP_TYPE_UNSIGNED32						        /* base type of data */
+		};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
 	}
 
 	return 0;

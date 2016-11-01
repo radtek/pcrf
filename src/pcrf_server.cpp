@@ -56,6 +56,8 @@ int pcrf_make_subscription_id (msg *p_soAns, otl_value<std::string> &p_coEndUser
 /* формирование запроса на завершение сессии Procera */
 int pcrf_procera_terminate_session (otl_connect &p_coDBConn, otl_value<std::string> &p_coUGWSessionId);
 
+static std::map<std::string,int32_t> *g_pmapTetering = NULL;
+
 static int app_pcrf_ccr_cb (
 	msg ** p_ppsoMsg,
 	avp * p_psoAVP,
@@ -209,10 +211,6 @@ static int app_pcrf_ccr_cb (
 	case 3: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
 	default: /* DEFAULT */
-		/* загружаем список активных правил */
-		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), );
-		/* формируем список неактуальных правил */
-		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 	case 1: /* INITIAL_REQUEST */
 		/* загружаем информацию о мониторинге */
 		CHECK_POSIX_DO(pcrf_server_db_monit_key(*(pcoDBConn), *(soMsgInfoCache.m_psoSessInfo), psoStat), /* continue */);
@@ -301,6 +299,8 @@ static int app_pcrf_ccr_cb (
 		}
 		break; /* INITIAL_REQUEST */
 	case 2: /* UPDATE_REQUEST */
+		/* загружаем список активных правил */
+		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), );
 		/* обрабатываем триггеры */
 		{
 			std::vector<int32_t>::iterator iter = soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.begin();
@@ -340,18 +340,59 @@ static int app_pcrf_ccr_cb (
 					break;
         case 777:
           if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-            SDBAbonRule soAbonRule;
-            soAbonRule.m_bIsActivated = false;
-            soAbonRule.m_bIsRelevant = true;
-            soAbonRule.m_coDynamicRuleFlag = 0;
-            soAbonRule.m_coRuleGroupFlag = 0;
-            soAbonRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
-            vectAbonRules.push_back(soAbonRule);
+            SDBAbonRule soRule;
+            std::map<std::string,int32_t>::iterator iter;
+
+            soRule.m_coDynamicRuleFlag = 0;
+            soRule.m_coRuleGroupFlag = 0;
+            soRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
+
+            if (NULL != g_pmapTetering) {
+            } else {
+              g_pmapTetering = new std::map<std::string,int32_t>;
+            }
+
+            iter = g_pmapTetering->find (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
+            if (iter == g_pmapTetering->end()) {
+              if (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null()) {
+              } else {
+                switch (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v) {
+                case 0:
+                  soRule.m_bIsActivated = true;
+                  vectActive.push_back (soRule);
+                default:
+                  soRule.m_bIsRelevant = true;
+                  vectAbonRules.push_back (soRule);
+                  g_pmapTetering->insert (std::make_pair (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, 1));
+                }
+              }
+            } else {
+              if (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null()) {
+                switch (iter->second) {
+                case 0:
+                  g_pmapTetering->erase (iter);
+                  break;
+                default:
+                  soRule.m_bIsRelevant = true;
+                  vectAbonRules.push_back (soRule);
+                }
+              } else {
+                if (0 == soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v) {
+                  g_pmapTetering->erase (iter);
+                } else {
+                  soRule.m_bIsRelevant = true;
+                  vectAbonRules.push_back (soRule);
+                  iter->second = 1;
+                }
+              }
+            }
           }
           break;
 				}
 			}
 		}
+		/* формируем список неактуальных правил */
+		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 		/* Charging-Rule-Remove */
     psoChildAVP = pcrf_make_CRR (pcoDBConn, *soMsgInfoCache.m_psoSessInfo, vectActive, psoStat);
 		/* put 'Charging-Rule-Remove' into answer */
@@ -1572,6 +1613,13 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 				break;
 			}
 			break; /* 3GPP */
+    case 15397: /* Procera */
+      switch (psoAVPHdr->avp_code) {
+      case 777: /* Procera-Tetering-Flag */
+        p_psoMsgInfo->m_psoReqInfo->m_coTeteringFlag = psoAVPHdr->avp_value->u32;
+        break;
+      }
+      break; /* Procera */
 		}
 	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, NULL));
 

@@ -116,6 +116,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
+  otl_value<uint32_t> m_coTeteringFlag;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
   SRequestInfo() { m_iCCRequestType = 0; }
