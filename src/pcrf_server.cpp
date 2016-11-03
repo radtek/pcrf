@@ -447,6 +447,9 @@ void app_pcrf_serv_fini (void)
 	if (app_pcrf_hdl_ccr) {
 		(void) fd_disp_unregister (&app_pcrf_hdl_ccr, NULL);
 	}
+
+	/* Advertise the support for the Gx application in the peer */
+	CHECK_FCT (fd_disp_app_support (g_psoDictApp, g_psoDictVend, 1, 0));
 }
 
 int pcrf_logger_init(void)
