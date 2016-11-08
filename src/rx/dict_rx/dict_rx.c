@@ -91,6 +91,9 @@ struct local_rules_definition {
   }									      			                                                                  \
 }
 
+#define CHECK_DICT_SEARCH(type,crit,what,res)  CHECK_FCT(fd_dict_search (fd_g_config->cnf_dict, type, crit, what, res, ENOENT))
+#define CHECK_DICT_NEW(type,data,parent,ref)  CHECK_FCT(fd_dict_new (fd_g_config->cnf_dict, type, data, parent, ref))
+
 static int dict_rx_entry (char *conffile)
 {
   struct dict_object *appl;
@@ -104,8 +107,8 @@ static int dict_rx_entry (char *conffile)
     struct dict_object *vendor;
     struct dict_application_data appl_data = { APP_RX_ID, "Rx application" };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_VENDOR, VENDOR_BY_ID, &tVendId, &vendor, ENOENT));
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_APPLICATION, &appl_data, vendor, &appl));
+    CHECK_DICT_SEARCH( DICT_VENDOR, VENDOR_BY_ID, &tVendId, &vendor );
+    CHECK_DICT_NEW( DICT_APPLICATION, &appl_data, vendor, &appl );
   }
 
   /* rx specific avp section *************************************************/
@@ -113,14 +116,14 @@ static int dict_rx_entry (char *conffile)
 	struct dict_object *UTF8string_type;
 	struct dict_object *IPFilterRule_type;
 
-  CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_BY_NAME, "Address", &address_type, ENOENT));
-  CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_BY_NAME, "UTF8String", &UTF8string_type, ENOENT));
-	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_BY_NAME, "IPFilterRule", &IPFilterRule_type, ENOENT));
+  CHECK_DICT_SEARCH( DICT_TYPE, TYPE_BY_NAME, "Address", &address_type );
+  CHECK_DICT_SEARCH( DICT_TYPE, TYPE_BY_NAME, "UTF8String", &UTF8string_type );
+	CHECK_DICT_SEARCH( DICT_TYPE, TYPE_BY_NAME, "IPFilterRule", &IPFilterRule_type );
 
   /* Abort-Cause | 500 | 5.3.1 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Abort-Cause)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Abort-Cause)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "BEARER_RELEASED",                          { .i32 = 0 } },
@@ -138,13 +141,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Access-Network-Charging-Address | 501 | 5.3.2 | Address | M,V | P | | | Y */
@@ -158,7 +161,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, address_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, address_type, NULL );
   }
 
   /* Access-Network-Charging-Identifier | 502 | 5.3.3 | Grouped | M,V | P | | | Y */
@@ -172,7 +175,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Access-Network-Charging-Identifier-Value | 503 | 5.3.4 | OctetString | M,V | | | P| Y */
@@ -186,7 +189,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Acceptable-Service-Info | 526 | 5.3.24 | Grouped | M,V | P | | | Y */
@@ -200,7 +203,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* AF-Application-Identifier | 504 | 5.3.5 | OctetString | M,V | P | | | Y */
@@ -214,7 +217,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* AF-Charging-Identifier | 505 | 5.3.6 | OctetString | M,V | P | | | Y */
@@ -228,7 +231,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Application-Service-Provider-Identity | 532 | 5.3.29 | UTF8String | V | P | M | | | Y */
@@ -242,7 +245,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, UTF8string_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, UTF8string_type, NULL );
   }
 
   /* Codec-Data | 524 | 5.3.7 | OctetString | M,V | P | | | Y */
@@ -256,7 +259,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Flow-Description | 507 | 5.3.8 | IPFilterRule | M,V | P | | | Y */
@@ -270,7 +273,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, IPFilterRule_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, IPFilterRule_type, NULL );
   }
 
   /* Flow-Number | 509 | 5.3.9 | Unsigned32 | M,V | P | | | Y */
@@ -284,7 +287,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Flows | 510 | 5.3.10 | Grouped | M,V | P | | | Y */
@@ -298,13 +301,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Flow-Status | 511 | 5.3.11 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Flow-Status)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Flow-Status)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "ENABLED-UPLINK",   { .i32 = 0 } },
@@ -322,19 +325,19 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Flow-Usage | 512 | 5.3.12 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Flow-Usage)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Flow-Usage)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "NO_INFORMATION", { .i32 = 0 } },
@@ -350,13 +353,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* GCS-Identifier | 538 | 5.3.36 | OctetString | V | P | | M | Y */
@@ -370,7 +373,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Service-URN | 525 | 5.3.23 | OctetString | M,V | P | | | Y */
@@ -384,13 +387,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Specific-Action | 513 | 5.3.13 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Specific-Action)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Specific-Action)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
 /*      { "Void", { .i32 = 0 } }, */
@@ -418,13 +421,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Max-Requested-Bandwidth-DL | 515 | 5.3.14 | Unsigned32 | M,V | P | | | Y */
@@ -438,7 +441,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Max-Requested-Bandwidth-UL | 516 | 5.3.15 | Unsigned32 | M,V | P | | | Y */
@@ -452,7 +455,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Media-Component-Description | 517 | 5.3.16 | Grouped | M,V | P | | | Y */
@@ -466,7 +469,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Media-Component-Number | 518 | 5.3.17 | Unsigned32 | M,V | P | | | Y */
@@ -480,7 +483,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Media-Sub-Component | 519 | 5.3.18 | Grouped | M,V | P | | | Y */
@@ -494,13 +497,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Media-Type | 520 | 5.3.19 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Media-Type)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Media-Type)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "AUDIO",        { .i32 = 0 } },
@@ -521,13 +524,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* MPS-Identifier | 528 | 5.3.30 | OctetString | V | P | | M | Y */
@@ -541,7 +544,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Min-Requested-Bandwidth-DL | 534 | 5.3.32 | Unsigned32 | V | P | | M | Y */
@@ -555,7 +558,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Min-Requested-Bandwidth-UL | 535 | 5.3.33 | Unsigned32 | V | P | | M | Y */
@@ -569,7 +572,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* RR-Bandwidth | 521 | 5.3.20 | Unsigned32 | M,V | P | | | Y */
@@ -583,7 +586,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* RS-Bandwidth | 522 | 5.3.21 | Unsigned32 | M,V | P | | | Y */
@@ -597,13 +600,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* Service-Info-Status | 527 | 5.3.25 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Service-Info-Status)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Service-Info-Status)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "FINAL SERVICE INFORMATION",        { .i32 = 0 } },
@@ -618,19 +621,19 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* SIP-Forking-Indication | 523 | 5.3.22 | Enumerated | M,V | P | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(SIP-Forking-Indication)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(SIP-Forking-Indication)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "SINGLE_DIALOGUE",    { .i32 = 0 } },
@@ -645,13 +648,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Sponsor-Identity | 531 | 5.3.28 | UTF8String | V | P | | M | Y */
@@ -665,7 +668,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, UTF8string_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, UTF8string_type, NULL );
   }
 
   /* Sponsored-Connectivity-Data | 530 | 5.3.27 | Grouped | V | P | | M | Y */
@@ -679,13 +682,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_GROUPED
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* AF-Signalling-Protocol | 529 | 5.3.26 | Enumerated | V | P | | M | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(AF-Signalling-Protocol)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(AF-Signalling-Protocol)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "NO_INFORMATION", { .i32 = 0 } },
@@ -700,19 +703,19 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Required-Access-Info | 536 | 5.3.34 | Enumerated | V | P | | M | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Required-Access-Info)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Required-Access-Info)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "USER_LOCATION",  { .i32 = 0 } },
@@ -727,19 +730,19 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Rx-Request-Type | 533 | 5.3.31 | Enumerated | V | P | | M | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Rx-Request-Type)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Rx-Request-Type)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "INITIAL_REQUEST",  { .i32 = 0 } },
@@ -755,13 +758,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* IP-Domain-Id | 537 | 5.3.35 | OctetString | V | P | | M | Y */
@@ -775,7 +778,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_OCTETSTRING
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
 
   /* reused avp section ******************************************************/
@@ -798,12 +801,12 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED64
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
   /* OC-Report-Type | 626 | RFC-7683[7.6] | Enumerated | | V */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(OC-Report-Type)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(OC-Report-Type)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "HOST_REPORT",  { .i32 =  0 } },
@@ -818,13 +821,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
   /* OC-Reduction-Percentage | 627 | RFC-7683[7.7] | Unsigned32 | | V */
   {
@@ -837,7 +840,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
   /* OC-Validity-Duration | 625 | RFC-7683[7.5] | Unsigned32 | | V */
   {
@@ -850,7 +853,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED32
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
   /* OC-OLR | 623 | RFC-7683[7.3] | Grouped | | V */
   {
@@ -871,7 +874,7 @@ static int dict_rx_entry (char *conffile)
     };
 
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, &group_avp));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -890,7 +893,7 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_UNSIGNED64
     };
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, NULL );
   }
   /* OC-Supported-Features | 621 | RFC-7683[7.1] | Grouped | | V */
   {
@@ -908,14 +911,14 @@ static int dict_rx_entry (char *conffile)
     };
 
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, NULL, &group_avp));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, NULL, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
   /* Reservation-priority | 458 | ETSI TS 183 017 V3.2.1 (2010-02)[7.3.9] | Enumerated | V | M | | | Y */
   {
     size_t ind;
-    struct dict_type_data     data_type = { AVP_TYPE_INTEGER32, "Enumerated*(Reservation-priority)", NULL, NULL, NULL };
+    struct dict_type_data     data_type = { .type_base = AVP_TYPE_INTEGER32, .type_name = "Enumerated*(Reservation-priority)" };
     struct dict_object        *enum_type;
     struct dict_enumval_data  data_enum[] = {
       { "DEFAULT",            { .i32 =  0 } },
@@ -944,13 +947,13 @@ static int dict_rx_entry (char *conffile)
       AVP_TYPE_INTEGER32
     };
     /* create enumerated type */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_TYPE, &data_type, NULL, &enum_type));
+    CHECK_DICT_NEW( DICT_TYPE, &data_type, NULL, &enum_type );
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], enum_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], enum_type, NULL );
     }
     /* create avp */
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data_avp, enum_type, NULL));
+    CHECK_DICT_NEW( DICT_AVP, &data_avp, enum_type, NULL );
   }
 
   /* Rx specific Experimental-Result-Code AVP values */
@@ -969,12 +972,12 @@ static int dict_rx_entry (char *conffile)
       { "TEMPORARY_NETWORK_FAILURE",                { .i32 =  5068 } }
     };
 
-    CHECK_FCT (fd_dict_search( fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Experimental-Result-Code", &avp, ENOENT));
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, avp, &avp_type, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME, "Experimental-Result-Code", &avp);
+    CHECK_DICT_SEARCH( DICT_TYPE, TYPE_OF_AVP, avp, &avp_type );
 
     /* create enumerated values */
     for (ind = 0; ind < sizeof(data_enum)/sizeof(*data_enum); ++ind) {
-      CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &data_enum[ind], avp_type, NULL));
+      CHECK_DICT_NEW( DICT_ENUMVAL, &data_enum[ind], avp_type, NULL );
     }
   }
 
@@ -992,7 +995,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Flows" },                                     RULE_OPTIONAL, -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -1012,7 +1015,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Max-Requested-Bandwidth-UL" },  RULE_OPTIONAL, -1,  1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -1031,7 +1034,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_DIAM_ID, 0, "Final-Unit-Action" },       RULE_OPTIONAL, -1,  1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -1070,7 +1073,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Codec-Data" },                  RULE_OPTIONAL, -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   };
 
@@ -1098,7 +1101,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "AF-Signalling-Protocol" },      RULE_OPTIONAL, -1,  1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -1120,7 +1123,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_DIAM_ID, 0, "Used-Service-Unit" },                     RULE_OPTIONAL, -1,  1 }
     };
 
-    CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp, ENOENT));
+    CHECK_DICT_SEARCH( DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &group_avp );
     PARSE_loc_rules (avp_rules, group_avp);
   }
 
@@ -1200,7 +1203,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_DIAM_ID, 0, "Route-Record" },                RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1271,7 +1274,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_DIAM_ID, 0, "Proxy-Info" },                          RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1345,7 +1348,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Route-Record" },                        RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1401,7 +1404,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Proxy-Info" },                  RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1447,7 +1450,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Route-Record" },                        RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1513,7 +1516,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Proxy-Info" },                  RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1555,7 +1558,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Route-Record" },          RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
@@ -1603,7 +1606,7 @@ static int dict_rx_entry (char *conffile)
       { { VENDOR_3GPP_ID, 0, "Proxy-Info" },              RULE_OPTIONAL,   -1, -1 }
     };
 
-    CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_COMMAND, &cmd_data, NULL, &cmd));
+    CHECK_DICT_NEW( DICT_COMMAND, &cmd_data, NULL, &cmd );
     PARSE_loc_rules (cmd_rules, cmd);
   }
 
