@@ -1389,7 +1389,7 @@ int set_777_event_trigger (
 	return iRetVal;
 }
 
-int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo)
+int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo)
 {
 	int iRetVal = 0;
 

@@ -1,6 +1,6 @@
-#include "log.h"
-#include "timemeasurer.h"
-#include "stat.h"
+#include "utils/log/log.h"
+#include "utils/timemeasurer/timemeasurer.h"
+#include "utils/stat/stat.h"
 
 #include <freeDiameter/extension.h>
 #include <stdint.h>
