@@ -10,6 +10,7 @@ static int app_rx_aar_cb ( struct msg **, struct avp *, struct session *, void *
 static int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR);
 /* выборка данных из Media-Component-Description */
 static int app_rx_extract_mcd (avp *p_psoAVP, std::vector<SMCD> &p_vectMCD);
+/* выборка данных из Media-Sub-Component */
 static int app_rx_extract_msc (avp *p_psoAVP, std::vector<SMSC> &p_vectMSC);
 /* выборка из Subscription-Id */
 static int app_rx_extract_si (avp *p_psoAVP, SSubscriptionId &p_soSI);
