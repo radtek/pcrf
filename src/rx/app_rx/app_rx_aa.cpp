@@ -6,17 +6,28 @@
 static disp_hdl * app_rx_aar_cb_hdl = NULL;
 static int app_rx_aar_cb ( struct msg **, struct avp *, struct session *, void *, enum disp_action *);
 
+/* выборка данных из AAR */
 static int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR);
+/* выборка данных из Media-Component-Description */
 static int app_rx_extract_mcd (avp *p_psoAVP, std::vector<SMCD> &p_vectMCD);
 static int app_rx_extract_msc (avp *p_psoAVP, std::vector<SMSC> &p_vectMSC);
+/* выборка из Subscription-Id */
 static int app_rx_extract_si (avp *p_psoAVP, SSubscriptionId &p_soSI);
+/* выборка данных из OC-Supported-Features */
 static int app_rx_extract_ocsf (avp *p_psoAVP, otl_value<SOCSF> &p_coOCSF);
+/* выборка данных из Supported-Features */
 static int app_rx_extract_sf (avp *p_psoAVP, SSF &p_soSF);
+/* выборка данных из Sponsored-Connectivity-Data */
 static int app_rx_extract_scd (avp *p_psoAVP, otl_value<SSCD> &p_coSCD);
+/* выборка данных из Granted-Service-Unit */
 static int app_rx_extract_gsu (avp *p_psoAVP, otl_value<SGSU> &p_coGSU);
+/* выборка данных из Used-Service-Unit */
 static int app_rx_extract_usu (avp *p_psoAVP, otl_value<SUSU> &p_coUSU);
+/* выборка данных из CC-Money*/
 static int app_rx_extract_ccm (avp *p_psoAVP, otl_value<SCCMoney> &p_coCCMoney);
+/* выборка данных из Unit-Value */
 static int app_rx_extract_uv (avp *p_psoAVP, otl_value<SUnitValue> &p_coUV);
+/* выбрка данных из Proxy-Info */
 static int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI);
 
 extern "C"
@@ -48,6 +59,7 @@ int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR)
 {
   int iRetVal = 0;
 
+  /* проверка параметров */
 	if (NULL == p_psoMsg) {
 		return EINVAL;
 	}
@@ -56,8 +68,10 @@ int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoMsg, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -215,6 +229,7 @@ int app_rx_extract_mcd (avp *p_psoAVP, std::vector<SMCD> &p_vectMCD)
   int iRetVal = 0;
   SMCD soMCD;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -223,8 +238,10 @@ int app_rx_extract_mcd (avp *p_psoAVP, std::vector<SMCD> &p_vectMCD)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -302,6 +319,7 @@ int app_rx_extract_msc (avp *p_psoAVP, std::vector<SMSC> &p_vectMSC)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -310,8 +328,10 @@ int app_rx_extract_msc (avp *p_psoAVP, std::vector<SMSC> &p_vectMSC)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -369,6 +389,7 @@ static int app_rx_extract_si (avp *p_psoAVP, SSubscriptionId &p_soSI)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -377,8 +398,10 @@ static int app_rx_extract_si (avp *p_psoAVP, SSubscriptionId &p_soSI)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -418,6 +441,7 @@ int app_rx_extract_ocsf (avp *p_psoAVP, otl_value<SOCSF> &p_coOCSF)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -426,8 +450,10 @@ int app_rx_extract_ocsf (avp *p_psoAVP, otl_value<SOCSF> &p_coOCSF)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -464,6 +490,7 @@ static int app_rx_extract_sf (avp *p_psoAVP, SSF &p_soSF)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -472,8 +499,10 @@ static int app_rx_extract_sf (avp *p_psoAVP, SSF &p_soSF)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -515,6 +544,7 @@ static int app_rx_extract_scd (avp *p_psoAVP, otl_value<SSCD> &p_coSCD)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -523,8 +553,10 @@ static int app_rx_extract_scd (avp *p_psoAVP, otl_value<SSCD> &p_coSCD)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -573,6 +605,7 @@ int app_rx_extract_gsu (avp *p_psoAVP, otl_value<SGSU> &p_coGSU)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -581,8 +614,10 @@ int app_rx_extract_gsu (avp *p_psoAVP, otl_value<SGSU> &p_coGSU)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -638,6 +673,7 @@ int app_rx_extract_usu (avp *p_psoAVP, otl_value<SUSU> &p_coUSU)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -646,8 +682,10 @@ int app_rx_extract_usu (avp *p_psoAVP, otl_value<SUSU> &p_coUSU)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -703,6 +741,7 @@ int app_rx_extract_ccm (avp *p_psoAVP, otl_value<SCCMoney> &p_coCCMoney)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -711,8 +750,10 @@ int app_rx_extract_ccm (avp *p_psoAVP, otl_value<SCCMoney> &p_coCCMoney)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -753,6 +794,7 @@ int app_rx_extract_uv (avp *p_psoAVP, otl_value<SUnitValue> &p_coUV)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -761,8 +803,10 @@ int app_rx_extract_uv (avp *p_psoAVP, otl_value<SUnitValue> &p_coUV)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
@@ -803,6 +847,7 @@ int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI)
   int iInd = 0;
   SMSC soMSC;
 
+  /* проверка параметров */
 	if (NULL == p_psoAVP) {
 		return EINVAL;
 	}
@@ -811,8 +856,10 @@ int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI)
 	struct avp_hdr *psoAVPHdr;
 	vendor_id_t tVenId;
 
+	/* ищем первую AVP */
   CHECK_FCT (fd_msg_browse_internal (p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL));
   do {
+		/* получаем заголовок AVP */
 		if (NULL == psoAVP) {
 			break;
     }
