@@ -1,6 +1,5 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include "timemeasurer.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -12,6 +11,7 @@
 #include <sys/types.h>
 
 extern CLog *g_pcoLog;
+extern struct SAppPCRFConf *g_psoConf;
 
 /* структура для хранения сведений о пуле */
 struct SDBPoolInfo {
@@ -74,7 +74,7 @@ int pcrf_db_pool_init (void)
 	try {
 		for (unsigned int iInd = 0; iInd < iPoolSize; ++iInd) {
 			psoTmp = new SDBPoolInfo;
-			/* инициализация струтуры */
+			/* инициализация структуры */
 			memset (psoTmp, 0, sizeof (*psoTmp));
 			psoTmp->m_uiNumber = iInd;
 			/* укладываем всех в список */

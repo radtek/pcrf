@@ -1,6 +1,6 @@
-#include "log.h"
-#include "timemeasurer.h"
-#include "stat.h"
+#include "utils/log/log.h"
+#include "utils/timemeasurer/timemeasurer.h"
+#include "utils/stat/stat.h"
 
 #include <freeDiameter/extension.h>
 #include <stdint.h>
@@ -10,8 +10,6 @@
 #include <string.h>
 #include <vector>
 #include <map>
-
-#define DEBUG
 
 #ifdef WIN32
 	typedef char uint8_t;
@@ -307,6 +305,13 @@ int pcrf_client_db_delete_refqueue (
 int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
 /* определяет подключен ли пер */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
+
+/* добавление данных о сессии в кеш */
+void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId);
+/* загрузка данных о сессии из кеша */
+int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
+/* удаление данных из кеша */
+void pcrf_session_cache_remove (std::string &p_strSessionId);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

@@ -5,7 +5,8 @@ PROJECT("PCRF Diameter Application" C)
 BISON_FILE(app_pcrf_conf.y)
 FLEX_FILE(app_pcrf_conf.l)
 SET_SOURCE_FILES_PROPERTIES(lex.app_pcrf_conf.c app_pcrf_conf.tab.c PROPERTIES COMPILE_FLAGS "-I ${CMAKE_CURRENT_SOURCE_DIR}" )
-SET_SOURCE_FILES_PROPERTIES(pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp PROPERTIES COMPILE_FLAGS "-I/oracle/orahome/rdbms/public" )
+SET_SOURCE_FILES_PROPERTIES(pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp pcrf_session_cache.cpp PROPERTIES COMPILE_FLAGS "-I/oracle/orahome/rdbms/public" )
+SET_SOURCE_FILES_PROPERTIES(pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp pcrf_session_cache.cpp PROPERTIES COMPILE_FLAGS "-I~/project/utils/src/" )
 
 # List of source files
 SET( PCRF_APP_SRC
@@ -29,6 +30,7 @@ SET( PCRF_APP_SRC
 	pcrf_tracer.cpp
 	pcrf_ULI.cpp
 	stat.cpp
+	pcrf_session_cache.cpp
 )
 
 # Compile as a module

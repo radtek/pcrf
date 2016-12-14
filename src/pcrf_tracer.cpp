@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 extern CLog *g_pcoLog;
+extern struct SAppPCRFConf *g_psoConf;
 
 static void pcrf_tracer (
 	fd_hook_type p_eHookType,

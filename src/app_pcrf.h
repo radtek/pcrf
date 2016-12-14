@@ -15,8 +15,6 @@ struct SAppPCRFConf {
 	int m_iTraceReq;
 };
 
-extern struct SAppPCRFConf *g_psoConf;
-
 /* объекты словаря */
 extern struct dict_object *g_psoDictApp;
 extern struct dict_object *g_psoDictVend;
@@ -58,6 +56,11 @@ void pcrf_logger_fini(void);
 
 /* инициализация списока клиентов и регистрация функции-валидатора клиента */
 int app_pcrf_load_peer (void);
+
+/* инициализация кеша сессий */
+int pcrf_session_cache_init (void);
+/* деинициализация кеша сессий */
+void pcrf_session_cache_fini (void);
 
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;
