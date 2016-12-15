@@ -1230,6 +1230,10 @@ int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP)
 {
+	/* PCRF-113 15.12.2016 */
+	return 0;
+	/***********************/
+
 	int iRetVal = 0;
 	avp *psoAVP;
 	avp_value soAVPValue;
