@@ -16,15 +16,7 @@
 extern CLog *g_pcoLog;
 
 #include "utils/stat/stat.h"
-/*static*/ 
-  struct SStat *g_psoSessionCacheStat;
-
-/* начальное значение семафора */
-#define SEM_INIT 32
-/* ожиданеие семафора при чтении */
-#define SEM_RD_WAIT 1000
-/* ожидание семафора при записи */
-#define SEM_WR_WAIT 5000
+static struct SStat *g_psoSessionCacheStat;
 
 struct SSessionCache {
   otl_value<std::string> m_coSubscriberId;
@@ -50,33 +42,34 @@ struct SNode {
   uint16_t m_port;
 };
 
-/* хранилище для информации о сессиях */
+/* С…СЂР°РЅРёР»РёС‰Рµ РґР»СЏ РёРЅС„РѕСЂРјР°С†РёРё Рѕ СЃРµСЃСЃРёСЏС… */
 static std::map<std::string,SSessionCache> *g_pmapSessionCache;
 static std::map<std::string,std::list<std::string> > *g_pmapParent;
 static std::map<std::string,std::string> *g_pmapChild;
 
-/* список нод */
-static std::vector<SNode> *g_pvectNodeList;
-/* семафор для организации доступа к хранилищу */
-static sem_t g_sem;
+/* РјСЊСЋС‚РµРєСЃ РґР»СЏ РѕСЂРіР°РЅРёР·Р°С†РёРё РґРѕСЃС‚СѓРїР° Рє С…СЂР°РЅРёР»РёС‰Сѓ */
+static pthread_mutex_t g_mutex;
+/* РѕР¶РёРґР°РЅРµРёРµ РјСЊСЋС‚РµРєСЃР° */
+#define MUTEX_WAIT 1000
 
-/* поток для обработки входящих команд */
-/*static*/ 
-  pthread_t    g_thrdSessionCacheReceiver;
-/*static*/ 
-  volatile bool g_lets_work = true;
+/* СЃРїРёСЃРѕРє РЅРѕРґ */
+static std::vector<SNode> *g_pvectNodeList;
+
+/* РїРѕС‚РѕРє РґР»СЏ РѕР±СЂР°Р±РѕС‚РєРё РІС…РѕРґСЏС‰РёС… РєРѕРјР°РЅРґ */
+static pthread_t    g_thrdSessionCacheReceiver;
+static volatile bool g_lets_work = true;
 static std::string  g_strLocalIPAddress = "0.0.0.0";
 static uint16_t     g_uiLocalPort = 7777;
 static volatile bool g_module_is_initialized = false;
 static void * pcrf_session_cache_receiver (void *p_vParam);
 #define POLL_TIMEOUT 100
 
-/* загрузка списка нод */
+/* Р·Р°РіСЂСѓР·РєР° СЃРїРёСЃРєР° РЅРѕРґ */
 static int g_send_sock = -1;
 static int pcrf_session_cache_init_node ();
 static void pcrf_session_cache_fini_node ();
 
-/* отправка сообщение нодам */
+/* РѕС‚РїСЂР°РІРєР° СЃРѕРѕР±С‰РµРЅРёРµ РЅРѕРґР°Рј */
 #define NODE_POLL_WAIT 1
 #pragma pack(push,1)
 struct SPayloadHdr {
@@ -89,19 +82,19 @@ struct SPayloadHdr {
 
 int pcrf_session_cache_init ()
 {
-  /* создаем кеш сессий */
+  /* СЃРѕР·РґР°РµРј РєРµС€ СЃРµСЃСЃРёР№ */
   g_pmapSessionCache = new std::map<std::string,SSessionCache>;
   g_pmapParent = new std::map<std::string,std::list<std::string> >;
   g_pmapChild = new std::map<std::string,std::string>;
-  /* создаем список нод */
+  /* СЃРѕР·РґР°РµРј СЃРїРёСЃРѕРє РЅРѕРґ */
   g_pvectNodeList = new std::vector<SNode>;
-  /* создаем семафор */
-  CHECK_FCT_DO( sem_init (&g_sem, 0, SEM_INIT), return errno );
-  /* создаем поток для обработки входящих команд */
+  /* СЃРѕР·РґР°РµРј СЃРµРјР°С„РѕСЂ */
+  CHECK_FCT( pthread_mutex_init (&g_mutex, NULL) );
+  /* СЃРѕР·РґР°РµРј РїРѕС‚РѕРє РґР»СЏ РѕР±СЂР°Р±РѕС‚РєРё РІС…РѕРґСЏС‰РёС… РєРѕРјР°РЅРґ */
   CHECK_FCT( pthread_create (&g_thrdSessionCacheReceiver, NULL, pcrf_session_cache_receiver, NULL) );
-  /* загрузка списка нод */
+  /* Р·Р°РіСЂСѓР·РєР° СЃРїРёСЃРєР° РЅРѕРґ */
   CHECK_FCT( pcrf_session_cache_init_node () );
-  /* инициализация ветки статистики */
+  /* РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РІРµС‚РєРё СЃС‚Р°С‚РёСЃС‚РёРєРё */
   g_psoSessionCacheStat = stat_get_branch ("pcrf_session_cache");
 
   g_module_is_initialized = true;
@@ -111,14 +104,12 @@ int pcrf_session_cache_init ()
 
 void pcrf_session_cache_fini (void)
 {
-  /* останавливаем поток обработки команд */
+  /* РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїРѕС‚РѕРє РѕР±СЂР°Р±РѕС‚РєРё РєРѕРјР°РЅРґ */
   g_lets_work = false;
   pthread_join (g_thrdSessionCacheReceiver, NULL);
-  /* дожидаемся завершения всех запросов */
-  for (int i = 0; i < SEM_INIT; ++i) {
-    CHECK_FCT_DO( sem_wait (&g_sem), /* continue */ );
-  }
-  /* удаляем кеш */
+  /* СѓРЅРёС‡С‚РѕР¶Р°РµРј СЃРµРјР°С„РѕСЂ */
+  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutex), /* continue */ );
+  /* СѓРґР°Р»СЏРµРј РєРµС€ */
   if (NULL != g_pmapSessionCache) {
     delete g_pmapSessionCache;
   }
@@ -128,11 +119,9 @@ void pcrf_session_cache_fini (void)
   if (NULL != g_pmapChild) {
     delete g_pmapChild;
   }
-  /* уничтожаем семафор */
-  CHECK_FCT_DO( sem_destroy (&g_sem), /* continue */ );
-  /* освобождаем ресурсы нод */
+  /* РѕСЃРІРѕР±РѕР¶РґР°РµРј СЂРµСЃСѓСЂСЃС‹ РЅРѕРґ */
   pcrf_session_cache_fini_node ();
-  /* удаляем список нод */
+  /* СѓРґР°Р»СЏРµРј СЃРїРёСЃРѕРє РЅРѕРґ */
   if (NULL != g_pvectNodeList) {
     delete g_pvectNodeList;
   }
@@ -230,16 +219,16 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
   } else {
     return;
   }
-  /* создаем линк к дочернему элементу */
+  /* СЃРѕР·РґР°РµРј Р»РёРЅРє Рє РґРѕС‡РµСЂРЅРµРјСѓ СЌР»РµРјРµРЅС‚Сѓ */
   pcrf_session_cache_mk_parent2child (p_strSessionId, *p_pstrParentSessionId);
 
-  /* создаем линк к родителю */
+  /* СЃРѕР·РґР°РµРј Р»РёРЅРє Рє СЂРѕРґРёС‚РµР»СЋ */
   std::pair<std::map<std::string,std::string>::iterator,bool> pair;
   pair = g_pmapChild->insert (std::pair<std::string,std::string> (p_strSessionId, *p_pstrParentSessionId));
-  /* если связка уже существует */
+  /* РµСЃР»Рё СЃРІСЏР·РєР° СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚ */
   if (! pair.second) {
     UTL_LOG_D( *g_pcoLog, "child link for session id '%s' already exists", p_strSessionId.c_str() );
-    /* если отношения между родительской и дочерней сессией не изменились */
+    /* РµСЃР»Рё РѕС‚РЅРѕС€РµРЅРёСЏ РјРµР¶РґСѓ СЂРѕРґРёС‚РµР»СЊСЃРєРѕР№ Рё РґРѕС‡РµСЂРЅРµР№ СЃРµСЃСЃРёРµР№ РЅРµ РёР·РјРµРЅРёР»РёСЃСЊ */
     if (pair.first->second == (*p_pstrParentSessionId)) {
     } else {
       UTL_LOG_N( *g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str() );
@@ -257,11 +246,11 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
   std::map<std::string,std::string>::iterator iterChild;
 
   iterParent = g_pmapParent->find (p_strSessionId);
-  /* если сессия родительская */
+  /* РµСЃР»Рё СЃРµСЃСЃРёСЏ СЂРѕРґРёС‚РµР»СЊСЃРєР°СЏ */
   if (iterParent != g_pmapParent->end ()) {
-    /* обходим список всех дочерних сессий */
+    /* РѕР±С…РѕРґРёРј СЃРїРёСЃРѕРє РІСЃРµС… РґРѕС‡РµСЂРЅРёС… СЃРµСЃСЃРёР№ */
     for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
-      /* ищем и удаляем дочернюю сессию */
+      /* РёС‰РµРј Рё СѓРґР°Р»СЏРµРј РґРѕС‡РµСЂРЅСЋСЋ СЃРµСЃСЃРёСЋ */
       iterChild = g_pmapChild->find (*iterList);
       if (iterChild != g_pmapChild->end()) {
         g_pmapChild->erase (iterChild);
@@ -269,11 +258,11 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
     }
   } else {
     iterChild = g_pmapChild->find (p_strSessionId);
-    /* если сессия дочерняя */
+    /* РµСЃР»Рё СЃРµСЃСЃРёСЏ РґРѕС‡РµСЂРЅСЏСЏ */
     if (iterChild != g_pmapChild->end ()) {
-      /* удаляем связку родительской сессии */
+      /* СѓРґР°Р»СЏРµРј СЃРІСЏР·РєСѓ СЂРѕРґРёС‚РµР»СЊСЃРєРѕР№ СЃРµСЃСЃРёРё */
       pcrf_session_cache_rm_parent2child_link (p_strSessionId, iterChild->second);
-      /* удаляем связку с родетельской сессией */
+      /* СѓРґР°Р»СЏРµРј СЃРІСЏР·РєСѓ СЃ СЂРѕРґРµС‚РµР»СЊСЃРєРѕР№ СЃРµСЃСЃРёРµР№ */
       g_pmapChild->erase (iterChild);
     }
   }
@@ -283,23 +272,20 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 {
   std::pair<std::map<std::string,SSessionCache>::iterator,bool> insertResult;
 
-  int iLockCnt = 0;
   timeval soTimeVal;
   timespec soTimeSpec;
 
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, SEM_WR_WAIT);
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
 
-  /* дожадаемся завершения всех операций */
-  for (; iLockCnt < SEM_INIT; ++iLockCnt) {
-    CHECK_FCT_DO( sem_timedwait (&g_sem, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto unlock_and_exit );
-  }
+  /* РґРѕР¶Р°РґР°РµРјСЃСЏ Р·Р°РІРµСЂС€РµРЅРёСЏ РІСЃРµС… РѕРїРµСЂР°С†РёР№ */
+  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
 
-  /* сохраняем связку между сессиями */
+  /* СЃРѕС…СЂР°РЅСЏРµРј СЃРІСЏР·РєСѓ РјРµР¶РґСѓ СЃРµСЃСЃРёСЏРјРё */
   pcrf_session_cache_mk_link2parent (p_strSessionId, p_pstrParentSessionId);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
-  /* если в кеше уже есть такая сессия обновляем ее значения */
+  /* РµСЃР»Рё РІ РєРµС€Рµ СѓР¶Рµ РµСЃС‚СЊ С‚Р°РєР°СЏ СЃРµСЃСЃРёСЏ РѕР±РЅРѕРІР»СЏРµРј РµРµ Р·РЅР°С‡РµРЅРёСЏ */
   if (! insertResult.second) {
     stat_measure (g_psoSessionCacheStat, "session updated", NULL);
     insertResult.first->second = p_soSessionInfo;
@@ -308,11 +294,11 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
     stat_measure (g_psoSessionCacheStat, "session inserterd", NULL);
   }
 
-  unlock_and_exit:
-  /* освобождаем семафор */
-  for (; iLockCnt; --iLockCnt) {
-    CHECK_FCT_DO( sem_post (&g_sem), /* continue */ );
-  }
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
+
+clean_and_exit:
+
+  return;
 }
 
 static inline void pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
@@ -343,10 +329,10 @@ static int pcrf_session_cache_fill_pspack (
 
   CHECK_FCT_DO( ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType), return -1 );
 
-  /* связываем заголовок с буфером */
+  /* СЃРІСЏР·С‹РІР°РµРј Р·Р°РіРѕР»РѕРІРѕРє СЃ Р±СѓС„РµСЂРѕРј */
   pso_payload_hdr = reinterpret_cast<SPayloadHdr*>(mc_attr);
 
-  /* добавляем SessionId */
+  /* РґРѕР±Р°РІР»СЏРµРј SessionId */
   pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length());
   iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
   if (0 < iRetVal) {
@@ -362,7 +348,7 @@ static int pcrf_session_cache_fill_pspack (
     otl_value<std::string> *pco_field;
     uint16_t vend_id;
     uint16_t avp_id;
-    /* добавляем Subscriber-Id */
+    /* РґРѕР±Р°РІР»СЏРµРј Subscriber-Id */
     pco_field = &p_psoSessionInfo->m_coSubscriberId;
     if (! pco_field->is_null()) {
       vend_id = 65535;
@@ -370,7 +356,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем Framed-IP-Address */
+    /* РґРѕР±Р°РІР»СЏРµРј Framed-IP-Address */
     pco_field = &p_psoSessionInfo->m_coFramedIPAddr;
     if (! pco_field->is_null()) {
       vend_id = 0;
@@ -378,7 +364,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем Called-Station-Id */
+    /* РґРѕР±Р°РІР»СЏРµРј Called-Station-Id */
     pco_field = &p_psoSessionInfo->m_coCalledStationId;
     if (! pco_field->is_null()) {
       vend_id = 0;
@@ -386,7 +372,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем IP-CAN-Type */
+    /* РґРѕР±Р°РІР»СЏРµРј IP-CAN-Type */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
     if (! pco_field->is_null()) {
       vend_id = 10415;
@@ -394,7 +380,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем SGSN-IP-Address */
+    /* РґРѕР±Р°РІР»СЏРµРј SGSN-IP-Address */
     pco_field = &p_psoSessionInfo->m_coSGSNIPAddr;
     if (! pco_field->is_null()) {
       vend_id = 10415;
@@ -402,7 +388,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем RAT-Type */
+    /* РґРѕР±Р°РІР»СЏРµРј RAT-Type */
     pco_field = &p_psoSessionInfo->m_coRATType;
     if (! pco_field->is_null()) {
       vend_id = 10415;
@@ -410,7 +396,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем Origin-Host */
+    /* РґРѕР±Р°РІР»СЏРµРј Origin-Host */
     pco_field = &p_psoSessionInfo->m_coOriginHost;
     if (! pco_field->is_null()) {
       vend_id = 0;
@@ -418,7 +404,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем Origin-Realm */
+    /* РґРѕР±Р°РІР»СЏРµРј Origin-Realm */
     pco_field = &p_psoSessionInfo->m_coOriginRealm;
     if (! pco_field->is_null()) {
       vend_id = 0;
@@ -426,7 +412,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем CGI */
+    /* РґРѕР±Р°РІР»СЏРµРј CGI */
     pco_field = &p_psoSessionInfo->m_coCGI;
     if (! pco_field->is_null()) {
       vend_id = 65535;
@@ -434,7 +420,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем ECGI */
+    /* РґРѕР±Р°РІР»СЏРµРј ECGI */
     pco_field = &p_psoSessionInfo->m_coECGI;
     if (! pco_field->is_null()) {
       vend_id = 65535;
@@ -442,7 +428,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем IMEI-SV */
+    /* РґРѕР±Р°РІР»СЏРµРј IMEI-SV */
     pco_field = &p_psoSessionInfo->m_coIMEISV;
     if (! pco_field->is_null()) {
       vend_id = 65535;
@@ -450,7 +436,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем End-User-IMSI */
+    /* РґРѕР±Р°РІР»СЏРµРј End-User-IMSI */
     pco_field = &p_psoSessionInfo->m_coEndUserIMSI;
     if (! pco_field->is_null()) {
       vend_id = 65535;
@@ -458,7 +444,7 @@ static int pcrf_session_cache_fill_pspack (
       pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
-    /* добавляем Parent-Session-Id (по необходимости) */
+    /* РґРѕР±Р°РІР»СЏРµРј Parent-Session-Id (РїРѕ РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё) */
     if (NULL != p_pstrParentSessionId) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_PSES;
@@ -466,7 +452,7 @@ static int pcrf_session_cache_fill_pspack (
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
   } else if (static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION) == p_uiReqType) {
-    /* для удаления сессии достаточно лишь SessionId*/
+    /* РґР»СЏ СѓРґР°Р»РµРЅРёСЏ СЃРµСЃСЃРёРё РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р»РёС€СЊ SessionId*/
   } else {
     UTL_LOG_E (*g_pcoLog, "unsupported command type: '%#x", static_cast<uint32_t>(p_uiReqType));
     return -1;
@@ -487,10 +473,10 @@ static inline void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, S
     return;
   }
 
-  /* собираем пакет данных для запроса */
+  /* СЃРѕР±РёСЂР°РµРј РїР°РєРµС‚ РґР°РЅРЅС‹С… РґР»СЏ Р·Р°РїСЂРѕСЃР° */
   ssize_t sent;
   sockaddr_in soAddr;
-  /* обходим все ноды */
+  /* РѕР±С…РѕРґРёРј РІСЃРµ РЅРѕРґС‹ */
   for (iter = g_pvectNodeList->begin(); iter != g_pvectNodeList->end(); ++iter) {
     soAddr.sin_family = AF_INET;
     if (0 == inet_aton (iter->m_addr.c_str(), &soAddr.sin_addr)) {
@@ -510,7 +496,7 @@ static inline void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, S
 void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId)
 {
   CTimeMeasurer coTM;
-  /* проверяем параметры */
+  /* РїСЂРѕРІРµСЂСЏРµРј РїР°СЂР°РјРµС‚СЂС‹ */
   if (0 != p_strSessionId.length()) {
   } else {
     return;
@@ -518,7 +504,7 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
 
   SSessionCache soTmp;
 
-  /* копируем необходмые данные */
+  /* РєРѕРїРёСЂСѓРµРј РЅРµРѕР±С…РѕРґРјС‹Рµ РґР°РЅРЅС‹Рµ */
   soTmp.m_coSubscriberId    = p_soSessionInfo.m_strSubscriberId;
   soTmp.m_coFramedIPAddr    = p_soSessionInfo.m_coFramedIPAddress;
   soTmp.m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
@@ -550,12 +536,12 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   timeval soTimeVal;
   timespec soTimeSpec;
 
-  /* готовим таймер семафора */
+  /* РіРѕС‚РѕРІРёРј С‚Р°Р№РјРµСЂ РјСЊСЋС‚РµРєСЃР° */
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return errno );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, SEM_RD_WAIT);
-  CHECK_FCT_DO( sem_timedwait (&g_sem, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); return errno );
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
+  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); goto clean_and_exit );
 
-  /* запрашиваем информацию о сессии из кеша */
+  /* Р·Р°РїСЂР°С€РёРІР°РµРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ СЃРµСЃСЃРёРё РёР· РєРµС€Р° */
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
     stat_measure (g_psoSessionCacheStat, "cache hit", NULL);
@@ -579,9 +565,10 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     stat_measure (g_psoSessionCacheStat, "cache miss", NULL);
     iRetVal = EINVAL;
   }
-  /* освобождаем семафор */
-  CHECK_FCT_DO( sem_post (&g_sem), /* continue */ );
+  /* РѕСЃРІРѕР±РѕР¶РґР°РµРј РјСЊСЋС‚РµРєСЃ */
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
 
+clean_and_exit:
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 
   return iRetVal;
@@ -591,17 +578,13 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   std::map<std::string,SSessionCache>::iterator iter;
 
-  int iLockCnt = 0;
   timeval soTimeVal;
   timespec soTimeSpec;
 
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, SEM_WR_WAIT);
-
-  /* дожадаемся завершения всех операций */
-  for (; iLockCnt < SEM_INIT; ++iLockCnt) {
-    CHECK_FCT_DO( sem_timedwait (&g_sem, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto unlock_and_exit );
-  }
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
+  /* РґРѕР¶Р°РґР°РµРјСЃСЏ РѕСЃРІРѕР±РѕР¶РґРµРЅРёСЏ РјСЊСЋС‚РµРєСЃР° */
+  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
@@ -611,11 +594,10 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
     stat_measure (g_psoSessionCacheStat, "session removed", NULL);
   }
 
-  unlock_and_exit:
-  /* освобождаем семафор */
-  for (; iLockCnt; --iLockCnt) {
-    CHECK_FCT_DO( sem_post (&g_sem), /* continue */ );
-  }
+  /* РѕСЃРІРѕР±РѕР¶РґР°РµРј СЃРµРјР°С„РѕСЂ */
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
+
+clean_and_exit:
 
   return;
 }
@@ -647,16 +629,16 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
   SSessionCache soCache;
   std::string *pstrParentSessionId = NULL;
 
-  /* парсинг запроса */
+  /* РїР°СЂСЃРёРЅРі Р·Р°РїСЂРѕСЃР° */
   CHECK_FCT( coPSPack.Parse (reinterpret_cast<const SPSRequest*>(p_pmucBuf), static_cast<size_t>(p_stMsgLen), uiPackNum, uiReqType, uiPackLen, mmap) );
   UTL_LOG_D( *g_pcoLog, "packet number: '%u'; packet type: '%#x'; packet length: '%u'; attibute count: '%d'", uiPackNum, uiReqType, uiPackLen, mmap.size() );
 
-  /* обходим все атрибуты запроса */
+  /* РѕР±С…РѕРґРёРј РІСЃРµ Р°С‚СЂРёР±СѓС‚С‹ Р·Р°РїСЂРѕСЃР° */
   for (iter = mmap.begin(); iter != mmap.end(); ++iter) {
     UTL_LOG_D( *g_pcoLog, "attribute: key value: '%#x'; type: '%#x'; length: '%u'", iter->first, iter->second.m_usAttrType, iter->second.m_usDataLen );
-    /* проверяем размр буфера */
+    /* РїСЂРѕРІРµСЂСЏРµРј СЂР°Р·РјСЂ Р±СѓС„РµСЂР° */
     if (stBufSize < iter->second.m_usDataLen) {
-      /* выделяем дополнительную память с запасом на будущее */
+      /* РІС‹РґРµР»СЏРµРј РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅСѓСЋ РїР°РјСЏС‚СЊ СЃ Р·Р°РїР°СЃРѕРј РЅР° Р±СѓРґСѓС‰РµРµ */
       stBufSize = iter->second.m_usDataLen * 2;
       if (NULL != pmucBuf) {
         free (pmucBuf);
@@ -745,14 +727,14 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     }
   }
 
-  /* если Session-Id не задан прерываем обработку */
+  /* РµСЃР»Рё Session-Id РЅРµ Р·Р°РґР°РЅ РїСЂРµСЂС‹РІР°РµРј РѕР±СЂР°Р±РѕС‚РєСѓ */
   if (0 != strSessionId.length ()) {
   } else {
     UTL_LOG_E( *g_pcoLog, "session id not defined" );
     goto clean_and_exit;
   }
 
-  /* выполняем команду */
+  /* РІС‹РїРѕР»РЅСЏРµРј РєРѕРјР°РЅРґСѓ */
   switch (uiReqType) {
   case PCRF_CMD_INSERT_SESSION:
     pcrf_session_cache_insert_local (strSessionId, soCache, pstrParentSessionId);
@@ -764,7 +746,7 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", psoPayload->m_vend_id );
   }
 
-  clean_and_exit:
+clean_and_exit:
   if (NULL != pmucBuf) {
     free (pmucBuf);
   }
@@ -786,10 +768,10 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
   const size_t stBufSize = 0x10000;
   ssize_t stRecv;
 
-  /* предотвращаем предпреждение компилятора */
+  /* РїСЂРµРґРѕС‚РІСЂР°С‰Р°РµРј РїСЂРµРґРїСЂРµР¶РґРµРЅРёРµ РєРѕРјРїРёР»СЏС‚РѕСЂР° */
   p_vParam = p_vParam;
 
-  /* создаем сокет для получения запросов */
+  /* СЃРѕР·РґР°РµРј СЃРѕРєРµС‚ РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ Р·Р°РїСЂРѕСЃРѕРІ */
   iRecvSock = socket (AF_INET, SOCK_DGRAM, 0);
   if (-1 != iRecvSock) {
   } else {
@@ -797,13 +779,13 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
   }
 
   UTL_LOG_D( *g_pcoLog, "receiver thread is waiting for module initialization completion" );
-  /* ждем пока модуль не инициализируется полностью */
+  /* Р¶РґРµРј РїРѕРєР° РјРѕРґСѓР»СЊ РЅРµ РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµС‚СЃСЏ РїРѕР»РЅРѕСЃС‚СЊСЋ */
   while (! g_module_is_initialized && g_lets_work) {
     sleep (0);
   }
   UTL_LOG_D( *g_pcoLog, "module initialization completed, receiver thread has continued work" );
 
-  /* привязываемся к локальному адресу */
+  /* РїСЂРёРІСЏР·С‹РІР°РµРјСЃСЏ Рє Р»РѕРєР°Р»СЊРЅРѕРјСѓ Р°РґСЂРµСЃСѓ */
   soAddr.sin_family = AF_INET;
   if (0 != inet_aton (g_strLocalIPAddress.c_str(), &soAddr.sin_addr)) {
     UTL_LOG_D( *g_pcoLog, "inet address converted successfully: %s -> %#x", g_strLocalIPAddress.c_str(), soAddr.sin_addr.s_addr );
@@ -824,8 +806,8 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
         stAddrLen = sizeof(soAddr);
         stRecv = recvfrom (iRecvSock, pmucBuf, stBufSize, 0, reinterpret_cast<sockaddr*>(&soAddr), &stAddrLen);
         if (sizeof(soAddr) >= stAddrLen) {
-          /* в этом случае мы имеем корректно сформированный адрес пира */
-          /* использование inet_ntoa в этом случае не опасно, т.к. обрабатываем по одному пакету за цикл */
+          /* РІ СЌС‚РѕРј СЃР»СѓС‡Р°Рµ РјС‹ РёРјРµРµРј РєРѕСЂСЂРµРєС‚РЅРѕ СЃС„РѕСЂРјРёСЂРѕРІР°РЅРЅС‹Р№ Р°РґСЂРµСЃ РїРёСЂР° */
+          /* РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµ inet_ntoa РІ СЌС‚РѕРј СЃР»СѓС‡Р°Рµ РЅРµ РѕРїР°СЃРЅРѕ, С‚.Рє. РѕР±СЂР°Р±Р°С‚С‹РІР°РµРј РїРѕ РѕРґРЅРѕРјСѓ РїР°РєРµС‚Сѓ Р·Р° С†РёРєР» */
           UTL_LOG_D( *g_pcoLog, "receved packet: length: '%d'; from: '%s:%u'", stRecv, inet_ntoa (soAddr.sin_addr), ntohs (soAddr.sin_port) );
         }
         if (0 < stRecv) {

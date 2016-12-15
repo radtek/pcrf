@@ -15,6 +15,8 @@ struct SAppPCRFConf {
 	int m_iTraceReq;
 };
 
+extern struct SAppPCRFConf *g_psoConf;
+
 /* объекты словаря */
 extern struct dict_object *g_psoDictApp;
 extern struct dict_object *g_psoDictVend;

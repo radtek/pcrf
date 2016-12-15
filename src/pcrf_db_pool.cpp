@@ -11,7 +11,6 @@
 #include <sys/types.h>
 
 extern CLog *g_pcoLog;
-extern struct SAppPCRFConf *g_psoConf;
 
 /* структура для хранения сведений о пуле */
 struct SDBPoolInfo {

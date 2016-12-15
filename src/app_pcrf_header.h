@@ -23,7 +23,7 @@
 #define OTL_STL
 #define OTL_UBIGINT long unsigned int
 #define OTL_STREAM_NO_PRIVATE_UNSIGNED_LONG_OPERATORS
-#include "otlv4.h"
+#include "utils/otlv4.h"
 
 #ifdef __cplusplus
 extern "C" {	/* функции, реализованные на C++ */
@@ -211,7 +211,7 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize);
 
 /* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_abon_id (
+int pcrf_server_db_load_subscriber_id (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	SStat *p_psoStat);

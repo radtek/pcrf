@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 extern CLog *g_pcoLog;
-extern struct SAppPCRFConf *g_psoConf;
 
 /* длительность интервала опроса БД по умолчанию */
 #define DB_REQ_INTERVAL 1

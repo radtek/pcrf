@@ -1,12 +1,11 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include "stat.h"
+#include "utils/stat/stat.h"
 
 #include <vector>
 #include <stdio.h>
 
 extern CLog *g_pcoLog;
-extern struct SAppPCRFConf *g_psoConf;
 
 static void pcrf_tracer (
 	fd_hook_type p_eHookType,
