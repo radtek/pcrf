@@ -485,7 +485,7 @@ int pcrf_db_close_session_policy (
 }
 
 /* загружает идентификатор абонента (subscriber_id) из БД */
-int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, SStat *p_psoStat)
+int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, SStat *p_psoStat)
 {
 	if (NULL == p_pcoDBConn)
 		return EINVAL;

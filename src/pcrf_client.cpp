@@ -16,7 +16,6 @@ static pthread_mutex_t g_tDBReqMutex;
 static pthread_t g_tThreadId = -1;
 static int g_iStop = 0;
 
-extern struct SAppPCRFConf *g_psoConf;
 
 struct sess_state {
 	struct timespec m_soTS;      /* Time of sending the message */
