@@ -19,18 +19,20 @@ extern CLog *g_pcoLog;
 static struct SStat *g_psoSessionCacheStat;
 
 struct SSessionCache {
-  otl_value<std::string> m_coSubscriberId;
-  otl_value<std::string> m_coFramedIPAddr;
-  otl_value<std::string> m_coCalledStationId;
-  otl_value<std::string> m_coIPCANType;
-  otl_value<std::string> m_coSGSNIPAddr;
-  otl_value<std::string> m_coRATType;
-  otl_value<std::string> m_coOriginHost;
-  otl_value<std::string> m_coOriginRealm;
-  otl_value<std::string> m_coCGI;
-  otl_value<std::string> m_coECGI;
-  otl_value<std::string> m_coIMEISV;
-  otl_value<std::string> m_coEndUserIMSI;
+  otl_value<std::string>  m_coSubscriberId;
+  otl_value<std::string>  m_coFramedIPAddr;
+  otl_value<std::string>  m_coCalledStationId;
+  otl_value<std::string>  m_coIPCANType;
+  otl_value<std::string>  m_coSGSNIPAddr;
+  otl_value<std::string>  m_coRATType;
+  otl_value<std::string>  m_coOriginHost;
+  otl_value<std::string>  m_coOriginRealm;
+  otl_value<std::string>  m_coCGI;
+  otl_value<std::string>  m_coECGI;
+  otl_value<std::string>  m_coIMEISV;
+  otl_value<std::string>  m_coEndUserIMSI;
+  int32_t                 m_iIPCANType;
+  SSessionCache() { m_iIPCANType = 0; }
 };
 
 struct SNode {
@@ -50,7 +52,9 @@ static std::map<std::string,std::string> *g_pmapChild;
 /* мьютекс для организации доступа к хранилищу */
 static pthread_mutex_t g_mutex;
 /* ожиданеие мьютекса */
-#define MUTEX_WAIT 1000
+#define MUTEX_RD_WAIT 1000
+#define MUTEX_WR_WAIT 2000
+#define MUTEX_RM_WAIT 5000
 
 /* список нод */
 static std::vector<SNode> *g_pvectNodeList;
@@ -152,6 +156,7 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
         if (! p_soSessionInfo.m_coFramedIPAddr.is_null())     iterCache->second.m_coFramedIPAddr    = p_soSessionInfo.m_coFramedIPAddr;
         if (! p_soSessionInfo.m_coCalledStationId.is_null())  iterCache->second.m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
         if (! p_soSessionInfo.m_coIPCANType.is_null())        iterCache->second.m_coIPCANType       = p_soSessionInfo.m_coIPCANType;
+                                                              iterCache->second.m_iIPCANType        = p_soSessionInfo.m_iIPCANType;
         if (! p_soSessionInfo.m_coSGSNIPAddr.is_null())       iterCache->second.m_coSGSNIPAddr      = p_soSessionInfo.m_coSGSNIPAddr;
         if (! p_soSessionInfo.m_coRATType.is_null())          iterCache->second.m_coRATType         = p_soSessionInfo.m_coRATType;
         if (! p_soSessionInfo.m_coCGI.is_null())              iterCache->second.m_coCGI             = p_soSessionInfo.m_coCGI;
@@ -168,6 +173,8 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
         UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%s' : '%s'",
           p_soSessionInfo.m_coIPCANType.is_null() ? "<null>" : p_soSessionInfo.m_coIPCANType.v.c_str(),
           iterCache->second.m_coIPCANType.is_null() ? "<null>" : iterCache->second.m_coIPCANType.v.c_str());
+        UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%d' : '%d'",
+          p_soSessionInfo.m_iIPCANType, iterCache->second.m_iIPCANType);
         UTL_LOG_D( *g_pcoLog, "sgsn-address:      '%s' : '%s'",
           p_soSessionInfo.m_coSGSNIPAddr.is_null() ? "<null>" : p_soSessionInfo.m_coSGSNIPAddr.v.c_str(),
           iterCache->second.m_coSGSNIPAddr.is_null() ? "<null>" : iterCache->second.m_coSGSNIPAddr.v.c_str());
@@ -276,7 +283,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   timespec soTimeSpec;
 
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WR_WAIT);
 
   /* дожадаемся завершения всех операций */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
@@ -373,12 +380,17 @@ static int pcrf_session_cache_fill_pspack (
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем IP-CAN-Type */
+    vend_id = 10415;
+    avp_id = 1027;
+    pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType));
+    iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
+    /* добавляем IP-CAN-Type (в текстовом виде) */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
-    if (! pco_field->is_null()) {
-      vend_id = 10415;
-      avp_id = 1027;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
-      iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
+    if (!pco_field->is_null()) {
+      vend_id = 65535;
+      avp_id = PCRF_ATTR_IPCANTYPE;
+      pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length());
+      iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем SGSN-IP-Address */
     pco_field = &p_psoSessionInfo->m_coSGSNIPAddr;
@@ -509,6 +521,7 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
   soTmp.m_coFramedIPAddr    = p_soSessionInfo.m_coFramedIPAddress;
   soTmp.m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
   soTmp.m_coIPCANType       = p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType;
+  soTmp.m_iIPCANType        = p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType;
   soTmp.m_coSGSNIPAddr      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress;
   soTmp.m_coRATType         = p_soRequestInfo.m_soUserLocationInfo.m_coRATType;
   soTmp.m_coOriginHost      = p_soSessionInfo.m_coOriginHost;
@@ -538,7 +551,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
   /* готовим таймер мьютекса */
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return errno );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RD_WAIT);
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
@@ -546,13 +559,14 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   if (iter != g_pmapSessionCache->end ()) {
     stat_measure (g_psoSessionCacheStat, "cache hit", NULL);
     if (! iter->second.m_coSubscriberId.is_null ()) {
-      p_soSessionInfo.m_strSubscriberId                   = iter->second.m_coSubscriberId.v;
+      p_soSessionInfo.m_strSubscriberId = iter->second.m_coSubscriberId.v;
     } else {
-      p_soSessionInfo.m_strSubscriberId                   = "";
+      p_soSessionInfo.m_strSubscriberId = "";
     }
     if (p_soSessionInfo.m_coFramedIPAddress.is_null())                  p_soSessionInfo.m_coFramedIPAddress                   = iter->second.m_coFramedIPAddr;
     if (p_soSessionInfo.m_coCalledStationId.is_null())                  p_soSessionInfo.m_coCalledStationId                   = iter->second.m_coCalledStationId;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType.is_null())   p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType    = iter->second.m_coIPCANType;
+                                                                        p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType     = iter->second.m_iIPCANType;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress.is_null()) p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress  = iter->second.m_coSGSNIPAddr;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coRATType.is_null())     p_soRequestInfo.m_soUserLocationInfo.m_coRATType      = iter->second.m_coRATType;
     if (p_soSessionInfo.m_coOriginHost.is_null())                       p_soSessionInfo.m_coOriginHost                        = iter->second.m_coOriginHost;
@@ -582,7 +596,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   timespec soTimeSpec;
 
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WAIT);
+  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RM_WAIT);
   /* дожадаемся освобождения мьютекса */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
 
@@ -652,22 +666,22 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     case 0:     /* Dimeter */
       switch (psoPayload->m_avp_id) {
       case 8:   /* Framed-IP-Address */
-        soCache.m_coFramedIPAddr.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coFramedIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coFramedIPAddr.set_non_null();
         break;  /* Framed-IP-Address */
       case 30:  /* Called-Station-Id */
-        soCache.m_coCalledStationId.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coCalledStationId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coCalledStationId.set_non_null();
         break;  /* Called-Station-Id */
       case 263: /* Session-Id */
-        strSessionId.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        strSessionId.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         break;  /* Session-Id */
       case 264: /* Origin-Host */
-        soCache.m_coOriginHost.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coOriginHost.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coOriginHost.set_non_null();
         break;  /* Origin-Host */
       case 296: /* Origin-Realm */
-        soCache.m_coOriginRealm.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coOriginRealm.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coOriginRealm.set_non_null();
         break;  /* Origin-Realm */
       default:
@@ -677,15 +691,18 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     case 10415: /* 3GPP */
       switch (psoPayload->m_avp_id) {
       case 6:     /* SGSN-IP-Address */
-        soCache.m_coSGSNIPAddr.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coSGSNIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coSGSNIPAddr.set_non_null();
         break;    /* SGSN-IP-Address */
       case 1027:  /* IP-CAN-Type */
-        soCache.m_coIPCANType.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
-        soCache.m_coIPCANType.set_non_null();
+        if (sizeof(soCache.m_iIPCANType) == psoPayload->m_payload_len - sizeof(*psoPayload)) {
+          soCache.m_iIPCANType = *reinterpret_cast<int32_t*>(reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload));
+        } else {
+          /* invalid data size */
+        }
         break;    /* IP-CAN-Type */
       case 1032:  /* RAT-Type */
-        soCache.m_coRATType.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coRATType.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coRATType.set_non_null();
         break;    /* RAT-Type */
       default:
@@ -695,15 +712,15 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     case 65535: /* Tenet */
       switch (psoPayload->m_avp_id) {
       case PS_SUBSCR: /* Subscriber-Id */
-        soCache.m_coSubscriberId.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coSubscriberId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coSubscriberId.set_non_null();
         break;        /* Subscriber-Id */
       case PCRF_ATTR_CGI: /* CGI */
-        soCache.m_coCGI.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coCGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coCGI.set_non_null();
         break;            /* CGI */
       case PCRF_ATTR_ECGI:  /* ECGI */
-        soCache.m_coECGI.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coECGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coECGI.set_non_null();
         break;              /* ECGI */
       case PCRF_ATTR_IMEI:  /* IMEI-SV */
@@ -711,13 +728,17 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
         soCache.m_coIMEISV.set_non_null();
         break;              /* IMEI-SV */
       case PCRF_ATTR_IMSI:  /* End-User-IMSI */
-        soCache.m_coEndUserIMSI.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coEndUserIMSI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coEndUserIMSI.set_non_null();
         break;              /* End-User-IMSI */
       case PCRF_ATTR_PSES:  /* Parent-Session-Id */
         pstrParentSessionId = new std::string;
-        pstrParentSessionId->insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        pstrParentSessionId->insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         break;              /* Parent-Session-Id */
+      case PCRF_ATTR_IPCANTYPE: /* IP-CAN-Type */
+        soCache.m_coIPCANType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coIPCANType.set_non_null();
+        break;                  /* IP-CAN-Type */
       default:
         UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
       }

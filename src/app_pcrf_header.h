@@ -86,7 +86,7 @@ struct SUserLocationInfo {
 	otl_value<std::string> m_coCGI;
 	otl_value<std::string> m_coECGI;
 	otl_value<std::string> m_coTAI;
-	SUserLocationInfo() { m_bLoaded = false; }
+	SUserLocationInfo() { m_bLoaded = false; m_iIPCANType = 0; }
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -128,7 +128,7 @@ struct SPeerInfo {
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerProto;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; }
+	SPeerInfo () { m_iIsConnected = 0; m_uiPeerProto = 0; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {

@@ -7,7 +7,6 @@ extern CLog *g_pcoLog;
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue)
 {
 	int iRetVal = 0;
-	char mcSubscriberId[256];
 	SRefQueue soQueueElem;
 
 	otl_nocommit_stream coStream;

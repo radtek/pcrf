@@ -120,12 +120,13 @@ static int app_pcrf_ccr_cb (
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
       pstrUgwSessionId = new std::string;
       /* ищем базовую сессию ugw */
-			if (0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
-        /* ищем сведения о сессии в кеше */
-        if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
-          /* если не находим в кеше - ищем в БД */
-				  pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
-        }
+			if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length () &&
+        0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+          /* ищем сведения о сессии в кеше */
+          if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
+            /* если не находим в кеше - ищем в БД */
+				    pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
+          }
 			} else {
         delete pstrUgwSessionId;
         pstrUgwSessionId = NULL;
@@ -159,12 +160,13 @@ static int app_pcrf_ccr_cb (
 		  if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
         pstrUgwSessionId = new std::string;
         /* ищем базовую сессию ugw */
-			  if (0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
-          /* ищем информацию о базовой сессии в кеше */
-          if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
-            /* если не находим в кеше - ищем в БД */
-  				  pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
-          }
+			  if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length() && 
+          0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+            /* ищем информацию о базовой сессии в кеше */
+            if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
+              /* если не находим в кеше - ищем в БД */
+  				    pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
+            }
 			  } else {
           delete pstrUgwSessionId;
           pstrUgwSessionId = NULL;
@@ -288,7 +290,7 @@ static int app_pcrf_ccr_cb (
 		{
       bool bCacheUPdated = false;
 			std::vector<int32_t>::iterator iter = soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.begin();
-			for (; iter != soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.end(); iter++) {
+			for (; iter != soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.end(); ++iter) {
 				switch (*iter) {
 				case 2:	/* RAT_CHANGE */
 					/* Event-Trigger RAT_CHANGE */
@@ -387,8 +389,6 @@ void app_pcrf_serv_fini (void)
 
 int pcrf_logger_init(void)
 {
-	int iRetVal = 0;
-
 	g_pcoLog = new CLog;
 
 	return g_pcoLog->Init (g_psoConf->m_pszLogFileMask);
@@ -763,7 +763,7 @@ avp * pcrf_make_CRD (
 	avp *psoAVPParent = NULL;
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
-	int iIpCanType = -1;
+	int iIpCanType;
 	char mcValue[2048];
 	int iFnRes;
 	const char *pcszRuleName = NULL; /* имя правила для сохранения в БД */

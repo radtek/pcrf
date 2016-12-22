@@ -81,7 +81,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 					p_coDBConn.commit();
 					if (coStream.good())
 						coStream.close();
-				} catch (otl_exception coExcept) {
+				} catch (otl_exception &coExcept) {
 					UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s';", coExcept.code, coExcept.msg, coExcept.stm_text);
 					if (coStream.good())
 						coStream.close();
@@ -771,7 +771,6 @@ int load_rule_info (
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
-	int iFnRes;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -834,8 +833,8 @@ int load_rule_info (
 				>> soAbonRule.m_coMonitKey
 				>> soAbonRule.m_coRedirectAddressType
 				>> soAbonRule.m_coRedirectServerAddress;
-			CHECK_FCT (iFnRes = load_rule_flows (p_coDBConn, p_soMsgInfo, uiRuleId, soAbonRule.m_vectFlowDescr));
-			if (0 == iFnRes) {
+			CHECK_FCT (iRetVal = load_rule_flows (p_coDBConn, p_soMsgInfo, uiRuleId, soAbonRule.m_vectFlowDescr));
+			if (0 == iRetVal) {
 				/* запоминаем имя правила */
 				soAbonRule.m_coRuleName = p_strRuleName;
 				/* сохраняем в списке описание правила */
@@ -849,8 +848,6 @@ int load_rule_info (
 					if (iterMK == p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.end())
 						p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.insert(std::make_pair(soAbonRule.m_coMonitKey.v, SDBMonitoringInfo()));
 				}
-			} else {
-				iRetVal = iFnRes;
 			}
 			break; /* Gx */
 		case 2: /* Gx Cisco SCE */
@@ -904,7 +901,7 @@ int load_rule_info (
 		if (coStream.good()) {
 			coStream.close();
 		}
-	} catch (otl_exception coExcept) {
+	} catch (otl_exception &coExcept) {
 		UTL_LOG_E (*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'; var info: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text, coExcept.var_info);
 		iRetVal = coExcept.code;
 		if (coStream.good()) {
@@ -923,7 +920,7 @@ int load_rule_info (
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
-	int iFnRes;
+
 	std::vector<std::string>::iterator iter = p_vectRuleList.begin ();
 
 	for (; iter != p_vectRuleList.end (); ++iter) {
@@ -1149,7 +1146,7 @@ int pcrf_server_db_user_location(
 		p_coDBConn.commit();
 		if (coStream.good())
 			coStream.close();
-	} catch (otl_exception coExcept) {
+	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		if (coStream.good())
 			coStream.close();

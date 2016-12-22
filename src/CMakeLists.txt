@@ -1,6 +1,8 @@
 # The app_pcrf extension
 PROJECT("PCRF Diameter Application" C)
 
+SET(CMAKE_BUILD_TYPE debug)
+
 # Parser files
 BISON_FILE(app_pcrf_conf.y)
 FLEX_FILE(app_pcrf_conf.l)

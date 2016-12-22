@@ -16,7 +16,6 @@ static pthread_mutex_t g_tDBReqMutex;
 static pthread_t g_tThreadId = -1;
 static int g_iStop = 0;
 
-
 struct sess_state {
 	struct timespec m_soTS;      /* Time of sending the message */
 	char *m_pszSessionId; /* Session-Id */
@@ -98,7 +97,7 @@ static int pcrf_client_RAR (
 		int iIsNew;
 		CHECK_FCT_DO (iRetVal = fd_sess_fromsid_msg ((uint8_t *)p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str (), p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length (), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictSessionID, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (uint8_t *) p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str ();
+		soAVPValue.os.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(p_soReqInfo.m_psoSessInfo->m_coSessionId.v.data ()));
 		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_FIRST_CHILD, psoAVP), goto out);
@@ -106,7 +105,7 @@ static int pcrf_client_RAR (
 	}
 
 	/* выделяем память для структуры, хранящей состояние сессии (запроса) */
-	psoMsgState = (sess_state *) malloc (sizeof (struct sess_state));
+	psoMsgState = reinterpret_cast<sess_state *>(malloc (sizeof (struct sess_state)));
 	if (psoMsgState == NULL) {
 		fd_log_debug ("malloc failed: %s", strerror (errno));
 		goto out;
@@ -226,7 +225,7 @@ static int pcrf_ASR (SSessionInfo &p_soSessInfo)
 	}
 
 	/* выделяем память для хранения инфомрации о состоянии сессии (запроса) */
-	psoMsgState = (sess_state *) malloc (sizeof (struct sess_state));
+	psoMsgState = reinterpret_cast<sess_state *>(malloc (sizeof (struct sess_state)));
 	if (psoMsgState == NULL) {
 		fd_log_debug ("malloc failed: %s", strerror (errno));
 		goto out;
@@ -350,10 +349,13 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
 			/* загружаем из БД информацию о сессии абонента */
 			{
-				std::string strSessionId;
-				/* получаем из БД информацию о сессии */
-				if (pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v, psoStat))
-					goto clear_and_continue;
+        /* ищем информацию о базовой сессии в кеше */
+        if (0 != pcrf_session_cache_get(soSessInfo.m_psoSessInfo->m_coSessionId.v, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo)) {
+          /* если не находим в кеше - ищем в БД */
+          if (0 != pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v, psoStat)) {
+            goto clear_and_continue;
+          }
+        }
 				/* необходимо определить диалект хоста */
 				CHECK_POSIX_DO (pcrf_peer_proto(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
 			}

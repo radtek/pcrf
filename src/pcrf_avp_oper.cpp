@@ -80,13 +80,13 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 			}
 			break;
 		case AVP_TYPE_INTEGER64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", (long long) p_psoAVPHdr->avp_value->i64);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", static_cast<unsigned long long>(p_psoAVPHdr->avp_value->i64));
 			if (iFnRes < 0) {
 				iRetVal = errno;
 			}
 			break;
 		case AVP_TYPE_UNSIGNED64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", (unsigned long long) p_psoAVPHdr->avp_value->u64);
+			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", static_cast<unsigned long long>(p_psoAVPHdr->avp_value->u64));
 			if (iFnRes < 0) {
 				iRetVal = errno;
 			}
