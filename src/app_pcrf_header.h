@@ -23,7 +23,7 @@
 #define OTL_STL
 #define OTL_UBIGINT long unsigned int
 #define OTL_STREAM_NO_PRIVATE_UNSIGNED_LONG_OPERATORS
-#include "otlv4.h"
+#include "utils/otlv4.h"
 
 #ifdef __cplusplus
 extern "C" {	/* функции, реализованные на C++ */
@@ -86,7 +86,7 @@ struct SUserLocationInfo {
 	otl_value<std::string> m_coCGI;
 	otl_value<std::string> m_coECGI;
 	otl_value<std::string> m_coTAI;
-	SUserLocationInfo() { m_bLoaded = false; }
+	SUserLocationInfo() { m_bLoaded = false; m_iIPCANType = 0; }
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -130,7 +130,7 @@ struct SPeerInfo {
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; }
+	SPeerInfo () { m_iIsConnected = 0; m_uiPeerProto = 0; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
@@ -220,7 +220,7 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize);
 
 /* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_abon_id (
+int pcrf_server_db_load_subscriber_id (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfo,
 	SStat *p_psoStat);
@@ -335,6 +335,13 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 
 /* функция для закрытия всех правил локации сессии Procera */
 int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
+
+/* добавление данных о сессии в кеш */
+void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId);
+/* загрузка данных о сессии из кеша */
+int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
+/* удаление данных из кеша */
+void pcrf_session_cache_remove (std::string &p_strSessionId);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

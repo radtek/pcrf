@@ -492,7 +492,7 @@ int pcrf_db_close_session_policy (
 }
 
 /* загружает идентификатор абонента (subscriber_id) из БД */
-int pcrf_server_db_load_abon_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, SStat *p_psoStat)
+int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, SStat *p_psoStat)
 {
 	if (NULL != p_pcoDBConn) {
   } else {
@@ -755,7 +755,6 @@ int pcrf_db_load_rule_info (
 	std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
-	int iFnRes;
 
 	otl_nocommit_stream coStream;
 	try {
@@ -819,8 +818,8 @@ int pcrf_db_load_rule_info (
 				>> soAbonRule.m_coMonitKey
 				>> soAbonRule.m_coRedirectAddressType
 				>> soAbonRule.m_coRedirectServerAddress;
-			CHECK_FCT (iFnRes = load_rule_flows (p_coDBConn, uiRuleId, soAbonRule.m_vectFlowDescr));
-			if (0 == iFnRes) {
+			CHECK_FCT (iRetVal = load_rule_flows (p_coDBConn, p_soMsgInfo, uiRuleId, soAbonRule.m_vectFlowDescr));
+			if (0 == iRetVal) {
 				/* запоминаем имя правила */
 				soAbonRule.m_coRuleName = p_strRuleName;
 				/* сохраняем в списке описание правила */
@@ -836,8 +835,6 @@ int pcrf_db_load_rule_info (
 						p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.insert(std::make_pair(soAbonRule.m_coMonitKey.v, SDBMonitoringInfo()));
           }
 				}
-			} else {
-				iRetVal = iFnRes;
 			}
 			break; /* Gx */
 		case 2: /* Gx Cisco SCE */
@@ -902,6 +899,24 @@ int pcrf_db_load_rule_info (
 	return iRetVal;
 }
 
+/* загружает описание правил */
+int load_rule_info (
+	otl_connect &p_coDBConn,
+	SMsgDataForDB &p_soMsgInfo,
+	std::vector<std::string> &p_vectRuleList,
+	std::vector<SDBAbonRule> &p_vectAbonRules)
+{
+	int iRetVal = 0;
+
+	std::vector<std::string>::iterator iter = p_vectRuleList.begin ();
+
+	for (; iter != p_vectRuleList.end (); ++iter) {
+		load_rule_info (p_coDBConn, p_soMsgInfo, *iter, p_vectAbonRules);
+	}
+
+	return iRetVal;
+}
+
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat)
 {
 	int iRetVal = 0;
@@ -949,10 +964,15 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 	return iRetVal;
 }
 
-int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat)
+int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string *p_pstrUGWSessionId, SStat *p_psoStat)
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
+
+  if (NULL != p_pstrUGWSessionId) {
+  } else {
+    return EINVAL;
+  }
 
   otl_nocommit_stream coStream;
   try {
@@ -970,7 +990,7 @@ int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::strin
       p_coDBConn);
     coStream
       << p_strFramedIPAddress;
-    if (coStream >> p_strUGWSessionId) {
+    if (coStream >> *p_pstrUGWSessionId) {
     } else {
       UTL_LOG_E (
         *g_pcoLog,

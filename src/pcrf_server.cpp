@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 CLog *g_pcoLog = NULL;
-extern struct SAppPCRFConf *g_psoConf;
 
 /* handler for CCR req cb */
 static disp_hdl * app_pcrf_hdl_ccr = NULL;
@@ -78,8 +77,15 @@ static int app_pcrf_ccr_cb (
 	SStat *psoStat = stat_get_branch(__FUNCTION__);
 
 	SMsgDataForDB soMsgInfoCache;
+
   unsigned int uiResultCode = 2001; /* DIAMETER_SUCCESS */
-	std::string strSessionId;
+	/* список правил профиля абонента */
+	std::vector<SDBAbonRule> vectAbonRules;
+	/* список активных правил абонента */
+	std::vector<SDBAbonRule> vectActive;
+	otl_connect *pcoDBConn = NULL;
+	const char *pszResultCode = "DIAMETER_SUCCESS";
+	std::string *pstrUgwSessionId = NULL;
 
 	/* инициализация структуры хранения данных сообщения */
 	CHECK_POSIX_DO (pcrf_server_DBstruct_init (&soMsgInfoCache), /*continue*/);
@@ -143,21 +149,42 @@ static int app_pcrf_ccr_cb (
 			  CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStat), /*continue*/);
       }
     } else if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+      pstrUgwSessionId = new std::string;
   		/* загружаем идентификтор абонента из профиля абонента */
   		CHECK_POSIX_DO(pcrf_server_db_load_abon_id(pcoDBConn, soMsgInfoCache, psoStat), /*continue*/);
 		  /* загрузка данных сессии UGW для обслуживания запроса SCE */
-			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
-				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
-			}
+			if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length () && 
+        0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+          /* ищем сведения о сессии в кеше */
+          if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
+            /* если не находим в кеше - ищем в БД */
+				    pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
+          }
+			} else {
+        delete pstrUgwSessionId;
+        pstrUgwSessionId = NULL;
+      }
     } else if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-    /* загрузка данных сессии UGW для обслуживания запроса Procera */
-      if (0 == pcrf_server_find_ugw_session_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
-        pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
-      } else {
+      pstrUgwSessionId = new std::string;
+      /* загрузка данных сессии UGW для обслуживания запроса Procera */
+      if (0 == pcrf_server_find_ugw_session_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+          /* ищем сведения о сессии в кеше */
+          if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
+            /* если не находим в кеше - ищем в БД */
+				    pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStat);
+          }
+			} else {
+        delete pstrUgwSessionId;
+        pstrUgwSessionId = NULL;
+      }
         uiResultCode = 5030; /* USER_UNKNOWN */
 		    goto dummy_answer;
       }
     }
+    pcrf_session_cache_insert (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
+		/* проверка наличия зависших сессий */
+		if (g_psoConf->m_iLook4StalledSession)
+			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStat), /*continue*/);
 		break;/* INITIAL_REQUEST */
 	case 3: /* TERMINATION_REQUEST */
 		{
@@ -174,24 +201,35 @@ static int app_pcrf_ccr_cb (
     if (1 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
       pcrf_procera_terminate_session (*pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coSessionId);
     }
+    pcrf_session_cache_remove (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
 		break;	/* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем идентификатор абонента из списка активных сессий абонента */
 		pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStat);
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
 		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-			if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
-				pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
-			}
+      pstrUgwSessionId = new std::string;
+			if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length() && 
+        0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+          pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
+      } else {
+        delete pstrUgwSessionId;
+        pstrUgwSessionId = NULL;
+      }
 		}
     /* загрузка данных сессии UGW для обслуживания запроса Procera */
     if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-      if (0 == pcrf_server_find_ugw_session_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
-        pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
+      pstrUgwSessionId = new std::string;
+      if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length() && 
+        0 == pcrf_server_find_ugw_session_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStat)) {
+          pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, strSessionId, psoStat);
+      } else {
+        delete pstrUgwSessionId;
+        pstrUgwSessionId = NULL;
       }
     }
     break; /* DEFAULT */
-	}
+
 
 	/* сохраняем в БД запрос */
 	pcrf_server_req_db_store(*(pcoDBConn), &soMsgInfoCache, psoStat);
@@ -303,12 +341,17 @@ static int app_pcrf_ccr_cb (
 		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), );
 		/* обрабатываем триггеры */
 		{
+      bool bCacheUPdated = false;
 			std::vector<int32_t>::iterator iter = soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.begin();
 			for (; iter != soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.end(); ++iter) {
 				switch (*iter) {
 				case 2:	/* RAT_CHANGE */
 					/* Event-Trigger RAT_CHANGE */
 					CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+          if (! bCacheUPdated) {
+            pcrf_session_cache_insert (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
+            bCacheUPdated = true;
+          }
 					break;
 				case 13: /* USER_LOCATION_CHANGE */
 					/* Event-Trigger USER_LOCATION_CHANGE */
@@ -322,7 +365,12 @@ static int app_pcrf_ccr_cb (
 				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
 					/* Default-EPS-Bearer-QoS */
 					pcrf_make_DefaultEPSBearerQoS (ans, *soMsgInfoCache.m_psoReqInfo);
-					pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo);
+					CHECK_FCT_DO( pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo), /* continue */ );
+					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+          if (! bCacheUPdated) {
+            pcrf_session_cache_insert (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
+            bCacheUPdated = true;
+          }
 					break;
 				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
 					if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
@@ -839,7 +887,7 @@ avp * pcrf_make_CRD (
 	avp *psoAVPParent = NULL;
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
-	int iIpCanType = -1;
+	int iIpCanType;
 
 	/* сохраняем значение IP-CAN-Type в локальной переменной, т.к. оно часто испольуется */
 	iIpCanType = p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType;
@@ -1071,7 +1119,6 @@ int pcrf_make_SI(msg *p_psoMsg, SMsgDataForDB &p_soReqInfo)
 
 int pcrf_make_APNAMBR(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 {
-	int iRetVal = 0;
 	avp *psoAVPQoSI = NULL;
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
@@ -1097,7 +1144,7 @@ int pcrf_make_APNAMBR(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 		CHECK_FCT_DO(fd_msg_avp_add(p_psoMsg, MSG_BRW_LAST_CHILD, psoAVPQoSI), return __LINE__);
 	}
 
-	return iRetVal;
+	return 0;
 }
 
 int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
@@ -1169,7 +1216,6 @@ int pcrf_make_UMI (
 	avp *psoAVPET = NULL;  /* Event-Trigger */
 	avp *psoAVPChild = NULL;
 	union avp_value soAVPVal;
-	int iRetVal = 0;
 	bool bEvenTriggerInstalled = false;
 
 	std::map<std::string,SDBMonitoringInfo>::iterator iterMonitInfo = p_soSessInfo.m_mapMonitInfo.begin ();
@@ -1219,7 +1265,7 @@ int pcrf_make_UMI (
 		}
 		/* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
 		CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU), return __LINE__);
-		/* допольнительные параметры */
+		/* дополнительные параметры */
 		if (!p_bFull && 2 == p_soSessInfo.m_uiPeerDialect) {
 			/* Usage-Monitoring-Level */
 			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return __LINE__);
@@ -1262,11 +1308,11 @@ int pcrf_make_UMI (
 				CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPET));
 				bEvenTriggerInstalled = true;
 			}
-			CHECK_FCT (fd_msg_avp_add (p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI));
+			CHECK_FCT (fd_msg_avp_add (p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI) );
 		}
 	}
 
-	return iRetVal;
+	return 0;
 }
 
 avp * pcrf_make_HWUR ()
@@ -1330,6 +1376,10 @@ int set_ULCh_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP)
 {
+	/* PCRF-113 15.12.2016 */
+	return 0;
+	/***********************/
+
 	int iRetVal = 0;
 	avp *psoAVP;
 	avp_value soAVPValue;

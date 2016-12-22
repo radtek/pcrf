@@ -15,26 +15,19 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 int app_pcrf_load_peer ()
 {
 	int iRetVal = 0;
-	int iFnRes;
 	otl_connect *pcoDBConn = NULL;
 
 	do {
-		iFnRes = pcrf_db_pool_get((void **)&pcoDBConn, __FUNCTION__);
-		if (0 == iFnRes) {
-    } else {
-			iRetVal = iFnRes;
+		iRetVal = pcrf_db_pool_get((void **)&pcoDBConn, __FUNCTION__);
+		if (iRetVal) {
 			break;
 		}
-		iFnRes = app_pcrf_load_peer_info (g_vectPeerList, *pcoDBConn);
-		if (0 == iFnRes) {
-    } else {
-			iRetVal = iFnRes;
+		iRetVal = app_pcrf_load_peer_info (g_vectPeerList, *pcoDBConn);
+		if (iRetVal) {
 			break;
 		}
-		iFnRes = fd_peer_validate_register (app_pcrf_peer_validate);
-		if (iFnRes) {
-    } else {
-			iRetVal = iFnRes;
+		iRetVal = fd_peer_validate_register (app_pcrf_peer_validate);
+		if (iRetVal) {
 			break;
 		}
 	} while (0);
@@ -57,6 +50,7 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 		otl_value<std::string> coHostName;
 		otl_value<std::string> coRealm;
 		otl_value<unsigned> coDialect;
+
 		coStream.open (
 			10,
 			"select "
