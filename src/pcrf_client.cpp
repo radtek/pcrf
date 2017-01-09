@@ -359,6 +359,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				CHECK_POSIX_DO (pcrf_peer_dialect(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
         /* для Procera нам понадобится дополнительная информация */
         if (3 == soSessInfo.m_psoSessInfo->m_uiPeerDialect) {
+          std::string strSessionId;
           if (0 == pcrf_server_find_ugw_session_byframedip (*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, strSessionId, psoStat)) {
             pcrf_server_db_load_session_info (*p_pcoDBConn, soSessInfo, strSessionId, psoStat);
           }

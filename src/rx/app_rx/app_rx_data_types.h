@@ -51,6 +51,7 @@ struct SMCD {
   std::vector<SMSC> m_vectMediaSubComponent;
   otl_value<std::string> m_coAFApplicationIdentifier;
   otl_value<int32_t> m_coMediaType;
+  otl_value<std::string> m_coMediaTypeEnum;
   otl_value<uint32_t> m_coMaxRequestedBandwidthUL;
   otl_value<uint32_t> m_coMaxRequestedBandwidthDL;
   otl_value<uint32_t> m_coMinRequestedBandwidthUL;
@@ -67,7 +68,7 @@ struct SMCD {
     { Subscription-Id-Type }
     { Subscription-Id-Data }
 */
-struct SSubscriptionId {
+struct SSId {
   otl_value<int32_t> m_coSubscriptionIdType;
   otl_value<std::string> m_coSubscriptionIdData;
 };
@@ -96,10 +97,10 @@ struct SFramedIPAddress {
   union {
     uint32_t m_uiAddr;
     struct {
-      char b1;
-      char b2;
-      char b3;
-      char b4;
+      unsigned char b1;
+      unsigned char b2;
+      unsigned char b3;
+      unsigned char b4;
     } m_soAddr;
   } m_uAddr;
 };
@@ -279,36 +280,36 @@ struct SFailedAVP {
     *[ Route-Record ]
 */
 struct SAAR {
-  otl_value<std::string> m_coSessionId;
-  otl_value<uint32_t> m_coAuthApplicationId;
-  otl_value<std::string> m_coOriginHost;
-  otl_value<std::string> m_coOriginRealm;
-  otl_value<std::string> m_coDestinationRealm;
-  otl_value<std::string> m_coDestinationHost;
-  otl_value<std::string> m_coIPDomainId;
-  otl_value<int32_t> m_coAuthSessionState;
-  otl_value<std::string> m_coAFApplicationIdentifier;
-  std::vector<SMCD> m_vectMediaComponentDescription;
-  otl_value<int32_t> m_coServiceInfoStatus;
-  otl_value<std::string> m_coAFChargingIdentifier;
-  otl_value<int32_t> m_coSIPForkingIndication;
-  std::vector<int32_t> m_vectSpecificAction;
-  std::vector<SSubscriptionId> m_vectSubscriptionId;
-  otl_value<SOCSF> m_coOCSupportedFeatures;
-  std::vector<SSF> m_vectSupportedFeatures;
-  otl_value<int32_t> m_coReservationPriority;
+  otl_value<std::string>      m_coSessionId;
+  otl_value<uint32_t>         m_coAuthApplicationId;
+  otl_value<std::string>      m_coOriginHost;
+  otl_value<std::string>      m_coOriginRealm;
+  otl_value<std::string>      m_coDestinationRealm;
+  otl_value<std::string>      m_coDestinationHost;
+  otl_value<std::string>      m_coIPDomainId;
+  otl_value<int32_t>          m_coAuthSessionState;
+  otl_value<std::string>      m_coAFApplicationIdentifier;
+  std::vector<SMCD>           m_vectMediaComponentDescription;
+  otl_value<int32_t>          m_coServiceInfoStatus;
+  otl_value<std::string>      m_coAFChargingIdentifier;
+  otl_value<int32_t>          m_coSIPForkingIndication;
+  std::vector<int32_t>        m_vectSpecificAction;
+  std::vector<SSId>           m_vectSubscriptionId;
+  otl_value<SOCSF>            m_coOCSupportedFeatures;
+  std::vector<SSF>            m_vectSupportedFeatures;
+  otl_value<int32_t>          m_coReservationPriority;
   otl_value<SFramedIPAddress> m_coFramedIPAddress;
-  otl_value<std::string> m_coFramedIpv6Prefix;
-  otl_value<std::string> m_coCalledStationId;
-  otl_value<std::string> m_coServiceURN;
-  otl_value<SSCD> m_coSponsoredConnectivityData;
-  otl_value<std::string> m_coMPSIdentifier;
-  otl_value<std::string> m_coGCSIdentifier;
-  otl_value<int32_t> m_coRxRequestType;
-  std::vector<int32_t> m_vectRequiredAccessInfo;
-  otl_value<uint32_t> m_coOriginStateId;
-  std::vector<SProxyInfo> m_vectProxyInfo;
-  std::vector<std::string> m_vectRouteRecord;
+  otl_value<std::string>      m_coFramedIpv6Prefix;
+  otl_value<std::string>      m_coCalledStationId;
+  otl_value<std::string>      m_coServiceURN;
+  otl_value<SSCD>             m_coSponsoredConnectivityData;
+  otl_value<std::string>      m_coMPSIdentifier;
+  otl_value<std::string>      m_coGCSIdentifier;
+  otl_value<int32_t>          m_coRxRequestType;
+  std::vector<int32_t>        m_vectRequiredAccessInfo;
+  otl_value<uint32_t>         m_coOriginStateId;
+  std::vector<SProxyInfo>     m_vectProxyInfo;
+  std::vector<std::string>    m_vectRouteRecord;
 };
 
 /*

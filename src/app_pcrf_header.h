@@ -130,7 +130,7 @@ struct SPeerInfo {
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; m_uiPeerProto = 0; }
+	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = 0; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {

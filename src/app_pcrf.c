@@ -52,9 +52,6 @@ static int pcrf_entry (char * conffile)
 	/* инициализация клиента (client) */
 	CHECK_FCT (pcrf_cli_init ());
 
-  /* инициализация приложения Rx */
-	CHECK_FCT (app_rx_init());
-
   /* формирование списка клиентов и регистрация функции валидации клиента */
 	CHECK_FCT (app_pcrf_load_peer ());
 
