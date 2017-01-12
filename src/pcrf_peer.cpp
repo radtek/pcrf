@@ -49,7 +49,7 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 		SPeerInfo soPeerInfo;
 		otl_value<std::string> coHostName;
 		otl_value<std::string> coRealm;
-		otl_value<unsigned> coProto;
+		otl_value<unsigned> coDialect;
 
 		coStream.open (
 			10,
@@ -64,15 +64,15 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 			coStream
 				>> coHostName
 				>> coRealm
-				>> coProto;
+				>> coDialect;
 			if (! coHostName.is_null ())
 				soPeerInfo.m_coHostName = coHostName;
 			if (! coRealm.is_null ())
 				soPeerInfo.m_coHostReal = coRealm;
-			if (!coProto.is_null())
-				soPeerInfo.m_uiPeerProto = coProto.v;
+			if (!coDialect.is_null())
+				soPeerInfo.m_uiPeerDialect = coDialect.v;
 			else
-				soPeerInfo.m_uiPeerProto = 0;
+				soPeerInfo.m_uiPeerDialect = GX_UNDEF;
 			p_vectPeerList.push_back (soPeerInfo);
 		}
 		coStream.close ();
@@ -138,7 +138,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 	return iRetVal;
 }
 
-int pcrf_peer_proto (SSessionInfo &p_soSessInfo)
+int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = -1403;
 
@@ -147,7 +147,7 @@ int pcrf_peer_proto (SSessionInfo &p_soSessInfo)
 	while (iterPeerList != g_vectPeerList.end ()) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
 			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
-			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
 			iRetVal = 0;
 			break;
 		}
@@ -166,7 +166,7 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 	while (iterPeerList != g_vectPeerList.end ()) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
 			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
-			p_soSessInfo.m_uiPeerProto = iterPeerList->m_uiPeerProto;
+			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
 			iRetVal = iterPeerList->m_iIsConnected;
 			break;
 		}

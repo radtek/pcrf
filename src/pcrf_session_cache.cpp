@@ -161,32 +161,6 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
         if (! p_soSessionInfo.m_coRATType.is_null())          iterCache->second.m_coRATType         = p_soSessionInfo.m_coRATType;
         if (! p_soSessionInfo.m_coCGI.is_null())              iterCache->second.m_coCGI             = p_soSessionInfo.m_coCGI;
         if (! p_soSessionInfo.m_coECGI.is_null())             iterCache->second.m_coECGI            = p_soSessionInfo.m_coECGI;
-        UTL_LOG_D( *g_pcoLog, "subscriber-id:     '%s' : '%s'",
-          p_soSessionInfo.m_coSubscriberId.is_null() ? "<null>" : p_soSessionInfo.m_coSubscriberId.v.c_str(),
-          iterCache->second.m_coSubscriberId.is_null() ? "<null>" : iterCache->second.m_coSubscriberId.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "framed-ip-address: '%s' : '%s'",
-          p_soSessionInfo.m_coFramedIPAddr.is_null() ? "<null>" : p_soSessionInfo.m_coFramedIPAddr.v.c_str(),
-          iterCache->second.m_coFramedIPAddr.is_null() ? "<null>" : iterCache->second.m_coFramedIPAddr.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "called-station-id: '%s' : '%s'",
-          p_soSessionInfo.m_coCalledStationId.is_null() ? "<null>" : p_soSessionInfo.m_coCalledStationId.v.c_str(),
-          iterCache->second.m_coCalledStationId.is_null() ? "<null>" : iterCache->second.m_coCalledStationId.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%s' : '%s'",
-          p_soSessionInfo.m_coIPCANType.is_null() ? "<null>" : p_soSessionInfo.m_coIPCANType.v.c_str(),
-          iterCache->second.m_coIPCANType.is_null() ? "<null>" : iterCache->second.m_coIPCANType.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%d' : '%d'",
-          p_soSessionInfo.m_iIPCANType, iterCache->second.m_iIPCANType);
-        UTL_LOG_D( *g_pcoLog, "sgsn-address:      '%s' : '%s'",
-          p_soSessionInfo.m_coSGSNIPAddr.is_null() ? "<null>" : p_soSessionInfo.m_coSGSNIPAddr.v.c_str(),
-          iterCache->second.m_coSGSNIPAddr.is_null() ? "<null>" : iterCache->second.m_coSGSNIPAddr.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "rat-type:          '%s' : '%s'",
-          p_soSessionInfo.m_coRATType.is_null() ? "<null>" : p_soSessionInfo.m_coRATType.v.c_str(),
-          iterCache->second.m_coRATType.is_null() ? "<null>" : iterCache->second.m_coRATType.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "cgi:               '%s' : '%s'",
-          p_soSessionInfo.m_coCGI.is_null() ? "<null>" : p_soSessionInfo.m_coCGI.v.c_str(),
-          iterCache->second.m_coCGI.is_null() ? "<null>" : iterCache->second.m_coCGI.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ecgi:              '%s' : '%s'",
-          p_soSessionInfo.m_coECGI.is_null() ? "<null>" : p_soSessionInfo.m_coECGI.v.c_str(),
-          iterCache->second.m_coECGI.is_null() ? "<null>" : iterCache->second.m_coECGI.v.c_str());
       }
     }
   }
@@ -196,13 +170,11 @@ static inline void pcrf_session_cache_rm_parent2child_link (std::string &p_strSe
 {
   std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
   if (iter != g_pmapParent->end()) {
-    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ++ iterLst) {
+    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
       if (*iterLst == p_strSessionId) {
-        iter->second.erase (iterLst);
-        if (0 == iter->second.size()) {
-          g_pmapParent->erase (iter);
-        }
-        break;
+        iterLst = iter->second.erase (iterLst);
+      } else {
+        ++iterLst;
       }
     }
   }
@@ -234,7 +206,6 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
   pair = g_pmapChild->insert (std::pair<std::string,std::string> (p_strSessionId, *p_pstrParentSessionId));
   /* если связка уже существует */
   if (! pair.second) {
-    UTL_LOG_D( *g_pcoLog, "child link for session id '%s' already exists", p_strSessionId.c_str() );
     /* если отношения между родительской и дочерней сессией не изменились */
     if (pair.first->second == (*p_pstrParentSessionId)) {
     } else {
@@ -259,10 +230,11 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
     for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
       /* ищем и удаляем дочернюю сессию */
       iterChild = g_pmapChild->find (*iterList);
-      if (iterChild != g_pmapChild->end()) {
+      if (iterChild != g_pmapChild->end() && iterChild->second == p_strSessionId) {
         g_pmapChild->erase (iterChild);
       }
     }
+    g_pmapParent->erase(iterParent);
   } else {
     iterChild = g_pmapChild->find (p_strSessionId);
     /* если сессия дочерняя */
@@ -285,7 +257,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
   pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WR_WAIT);
 
-  /* дожадаемся завершения всех операций */
+  /* дожидаемся завершения всех операций */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
 
   /* сохраняем связку между сессиями */
@@ -531,9 +503,9 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
   soTmp.m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   soTmp.m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
-  pcrf_session_cache_cmd2remote (p_strSessionId, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
-
   pcrf_session_cache_insert_local (p_strSessionId, soTmp, p_pstrParentSessionId);
+
+  pcrf_session_cache_cmd2remote (p_strSessionId, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
 
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 
@@ -552,7 +524,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   /* готовим таймер мьютекса */
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return errno );
   pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RD_WAIT);
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
@@ -620,9 +592,9 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
 
-  pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
-
   pcrf_session_cache_remove_local (p_strSessionId);
+
+  pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 }
@@ -645,11 +617,9 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
 
   /* парсинг запроса */
   CHECK_FCT( coPSPack.Parse (reinterpret_cast<const SPSRequest*>(p_pmucBuf), static_cast<size_t>(p_stMsgLen), uiPackNum, uiReqType, uiPackLen, mmap) );
-  UTL_LOG_D( *g_pcoLog, "packet number: '%u'; packet type: '%#x'; packet length: '%u'; attibute count: '%d'", uiPackNum, uiReqType, uiPackLen, mmap.size() );
 
   /* обходим все атрибуты запроса */
   for (iter = mmap.begin(); iter != mmap.end(); ++iter) {
-    UTL_LOG_D( *g_pcoLog, "attribute: key value: '%#x'; type: '%#x'; length: '%u'", iter->first, iter->second.m_usAttrType, iter->second.m_usDataLen );
     /* проверяем размр буфера */
     if (stBufSize < iter->second.m_usDataLen) {
       /* выделяем дополнительную память с запасом на будущее */
@@ -661,7 +631,6 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     }
     psoPayload = reinterpret_cast<SPayloadHdr*>(pmucBuf);
     memcpy (psoPayload, iter->second.m_pvData, iter->second.m_usDataLen);
-    UTL_LOG_D( *g_pcoLog, "payload: vendor id: '%u'; avp id: '%#x'; length: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id, psoPayload->m_payload_len );
     switch (psoPayload->m_vend_id) {
     case 0:     /* Dimeter */
       switch (psoPayload->m_avp_id) {
@@ -780,7 +749,6 @@ clean_and_exit:
 
 static void * pcrf_session_cache_receiver (void *p_vParam)
 {
-  UTL_LOG_D( *g_pcoLog, "receiver thread is started" );
   int iRecvSock;
   uint8_t *pmucBuf = NULL;
   sockaddr_in soAddr;
@@ -799,17 +767,14 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
     goto clean_and_exit;
   }
 
-  UTL_LOG_D( *g_pcoLog, "receiver thread is waiting for module initialization completion" );
   /* ждем пока модуль не инициализируется полностью */
   while (! g_module_is_initialized && g_lets_work) {
     sleep (0);
   }
-  UTL_LOG_D( *g_pcoLog, "module initialization completed, receiver thread has continued work" );
 
   /* привязываемся к локальному адресу */
   soAddr.sin_family = AF_INET;
   if (0 != inet_aton (g_strLocalIPAddress.c_str(), &soAddr.sin_addr)) {
-    UTL_LOG_D( *g_pcoLog, "inet address converted successfully: %s -> %#x", g_strLocalIPAddress.c_str(), soAddr.sin_addr.s_addr );
   } else {
     UTL_LOG_E( *g_pcoLog, "inet_aton can not convert local address: '%s'", g_strLocalIPAddress.c_str());
     goto clean_and_exit;
@@ -829,7 +794,6 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
         if (sizeof(soAddr) >= stAddrLen) {
           /* в этом случае мы имеем корректно сформированный адрес пира */
           /* использование inet_ntoa в этом случае не опасно, т.к. обрабатываем по одному пакету за цикл */
-          UTL_LOG_D( *g_pcoLog, "receved packet: length: '%d'; from: '%s:%u'", stRecv, inet_ntoa (soAddr.sin_addr), ntohs (soAddr.sin_port) );
         }
         if (0 < stRecv) {
           pcrf_session_cache_process_request (reinterpret_cast<char*>(pmucBuf), stRecv);
@@ -839,7 +803,6 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
   }
 
 clean_and_exit:
-  UTL_LOG_D( *g_pcoLog, "error code: '%d'; description: '%s'", errno, strerror(errno) );
   if (-1 != iRecvSock) {
     shutdown (iRecvSock, SHUT_RDWR);
     close (iRecvSock);

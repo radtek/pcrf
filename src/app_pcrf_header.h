@@ -25,6 +25,12 @@
 #define OTL_STREAM_NO_PRIVATE_UNSIGNED_LONG_OPERATORS
 #include "utils/otlv4.h"
 
+/* идентификаторы диалектов */
+#define GX_UNDEF      0
+#define GX_3GPP       1
+#define GX_CISCO_SCE  2
+#define GX_PROCERA    3
+
 #ifdef __cplusplus
 extern "C" {	/* функции, реализованные на C++ */
 #endif
@@ -46,7 +52,7 @@ struct SDBMonitoringInfo {
 	SDBMonitoringInfo() { m_bDataLoaded = false; }
 };
 struct SSessionInfo {
-	unsigned int m_uiPeerProto;
+	unsigned int m_uiPeerDialect;
 	otl_value<std::string> m_coSessionId;
 	std::string m_strSubscriberId;
 	otl_value<std::string> m_coOriginHost;
@@ -66,7 +72,7 @@ struct SSessionInfo {
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
-	SSessionInfo () { m_uiPeerProto = 0; };
+	SSessionInfo () { m_uiPeerDialect = GX_UNDEF; };
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;
@@ -126,9 +132,9 @@ struct SMsgDataForDB {
 struct SPeerInfo {
 	otl_value<std::string> m_coHostName;
 	otl_value<std::string> m_coHostReal;
-	unsigned int m_uiPeerProto;
+	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; m_uiPeerProto = 0; }
+	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = GX_UNDEF; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
@@ -301,8 +307,9 @@ int pcrf_get_vlink_id(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, SDBAb
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soRefQueue);
+
 /* функция определяет протокол пира */
-int pcrf_peer_proto(SSessionInfo &p_soSessInfo);
+int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
 /* определяет подключен ли пер */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 

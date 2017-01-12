@@ -357,7 +357,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
           }
         }
 				/* необходимо определить диалект хоста */
-				CHECK_POSIX_DO (pcrf_peer_proto(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
+				CHECK_POSIX_DO (pcrf_peer_dialect(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
 			}
 			/* проверяем, подключен ли пир к freeDiameterd */
 			if (!pcrf_peer_is_connected (*soSessInfo.m_psoSessInfo)) {
@@ -380,7 +380,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			/* загружаем vlink_id для Cisco SCE */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("update_vlink_id")) {
 				/* только для Cisco SCE */
-				if (2 == soSessInfo.m_psoSessInfo->m_uiPeerProto) {
+				if (GX_CISCO_SCE == soSessInfo.m_psoSessInfo->m_uiPeerDialect) {
 					if (vectAbonRules.size()) {
 						pcrf_get_vlink_id(*p_pcoDBConn, soSessInfo, vectAbonRules[0]);
 						/* посылаем RAR-запрос */

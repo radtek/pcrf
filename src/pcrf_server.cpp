@@ -71,6 +71,7 @@ static int app_pcrf_ccr_cb (
 	otl_connect *pcoDBConn = NULL;
 	const char *pszResultCode = "DIAMETER_SUCCESS";
 	std::string *pstrUgwSessionId = NULL;
+  std::string strReqType = "CCR-";
 
 	if (p_ppsoMsg == NULL) {
 		return EINVAL;
@@ -84,10 +85,10 @@ static int app_pcrf_ccr_cb (
 	pcrf_extract_req_data (pMsgOrAVP, &soMsgInfoCache);
 
 	/* необходимо определить диалект хоста */
-	CHECK_POSIX_DO (pcrf_peer_proto(*soMsgInfoCache.m_psoSessInfo), /*continue*/);
+	CHECK_POSIX_DO (pcrf_peer_dialect(*soMsgInfoCache.m_psoSessInfo), /*continue*/);
 
 	/* исправляем косяки циски */
-	if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {	/* Gx Cisco SCE */
+	if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {	/* Gx Cisco SCE */
 		/* переносим значение E164 на IMSI */
 		if (soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.is_null() && !soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.is_null()) {
 			soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI = soMsgInfoCache.m_psoSessInfo->m_coEndUserE164;
@@ -113,11 +114,12 @@ static int app_pcrf_ccr_cb (
 
 	/* дополняем данные запроса необходимыми параметрами */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
-	case 1: /* INITIAL_REQUEST */
+	case INITIAL_REQUEST: /* INITIAL_REQUEST */
+    strReqType += 'I';
   	/* загружаем идентификтор абонента из профиля абонента */
 		CHECK_POSIX_DO( pcrf_server_db_load_subscriber_id(pcoDBConn, soMsgInfoCache, psoStat), /*continue*/ );
 		/* загрузка данных сессии UGW для обслуживания запроса SCE */
-		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+		if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
       pstrUgwSessionId = new std::string;
       /* ищем базовую сессию ugw */
 			if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length () &&
@@ -137,8 +139,9 @@ static int app_pcrf_ccr_cb (
 		if (g_psoConf->m_iLook4StalledSession)
 			CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStat), /*continue*/);
 		break;/* INITIAL_REQUEST */
-	case 3: /* TERMINATION_REQUEST */
-		{
+	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
+    strReqType += 'T';
+    {
 			time_t tSecsSince1970;
 			tm soTime;
 			if ((time_t)-1 != time(&tSecsSince1970)) {
@@ -150,14 +153,15 @@ static int app_pcrf_ccr_cb (
 		}
     pcrf_session_cache_remove (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
 		break;	/* TERMINATION_REQUEST */
-	default: /* DEFAULT */
+  default: /* DEFAULT */
+    strReqType += soMsgInfoCache.m_psoReqInfo->m_iCCRequestType == UPDATE_REQUEST ?  "U" : ""; /* UPDATE_REQUEST */
     /* ищем информацию о сессии в кеше */
     if (0 != pcrf_session_cache_get (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
       /* если не находим информацию в кеше */
 		  /* загружаем идентификатор абонента из списка активных сессий абонента */
 		  pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStat);
 		  /* загрузка данных сессии UGW для обслуживания запроса SCE */
-		  if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+		  if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
         pstrUgwSessionId = new std::string;
         /* ищем базовую сессию ugw */
 			  if (0 < soMsgInfoCache.m_psoSessInfo->m_strSubscriberId.length() && 
@@ -185,20 +189,20 @@ static int app_pcrf_ccr_cb (
 		/* загружаем из БД правила абонента */
 		CHECK_POSIX_DO(pcrf_server_db_abon_rule(*(pcoDBConn), soMsgInfoCache, vectAbonRules, psoStat), /* continue */);
 		break; /* INITIAL_REQUEST */ /* DEFAULT */
-	case 3: /* TERMINATION_REQUEST */
+	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
 	}
 
 	/* выполняем дополнительные действия с правилами */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
-	case 3: /* TERMINATION_REQUEST */
+	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
 	default: /* DEFAULT */
 		/* загружаем список активных правил */
 		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), );
-	case 1: /* INITIAL_REQUEST */
+	case INITIAL_REQUEST: /* INITIAL_REQUEST */
 		/* определяем vlink_id для Cisco SCE */
-		if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto && vectAbonRules.size())
+		if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && vectAbonRules.size())
 			pcrf_get_vlink_id(*(pcoDBConn), soMsgInfoCache, vectAbonRules[0]);
 		/* формируем список неактуальных правил */
 		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(soMsgInfoCache, vectAbonRules, vectActive), );
@@ -264,7 +268,7 @@ static int app_pcrf_ccr_cb (
 	} while (0);
 
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
-	case 1: /* INITIAL_REQUEST */
+	case INITIAL_REQUEST: /* INITIAL_REQUEST */
 		/* Supported-Features */
 		psoChildAVP = pcrf_make_SF (&soMsgInfoCache);
 		if (psoChildAVP) {
@@ -285,7 +289,7 @@ static int app_pcrf_ccr_cb (
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
 		}
 		break; /* INITIAL_REQUEST */
-	case 2: /* UPDATE_REQUEST */
+	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		/* обрабатываем триггеры */
 		{
       bool bCacheUPdated = false;
@@ -317,13 +321,13 @@ static int app_pcrf_ccr_cb (
           CHECK_FCT_DO( pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo), /* continue */ );
 					break;
 				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
-					if (2 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+					if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
 						/* Usage-Monitoring-Information */
 						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
 					}
 					break;
 				case 33: /* USAGE_REPORT */ /* 3GPP notation */
-					if (1 == soMsgInfoCache.m_psoSessInfo->m_uiPeerProto) {
+					if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
 						/* Usage-Monitoring-Information */
 						CHECK_FCT_DO(pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
 					}
@@ -348,7 +352,12 @@ static int app_pcrf_ccr_cb (
 
 cleanup_and_exit:
 	/* фиксируем статистику */
+  /* статистика по пиру */
 	stat_measure (psoStat, soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.c_str(), &coTM);
+  /* статистика по типу запросов */
+	stat_measure (psoStat, strReqType.c_str(), &coTM);
+
+  /* освобождаем занятые ресурсы */
 	pcrf_server_DBStruct_cleanup (&soMsgInfoCache);
 
 	/* освобождаем объект класса взаимодействия с БД */
@@ -359,6 +368,7 @@ cleanup_and_exit:
 	if (ans)
 		CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
 
+  /* статистика по работе функции */
 	stat_measure(psoStat, __FUNCTION__, &coTM);
 
 	return 0;
@@ -618,8 +628,8 @@ avp * pcrf_make_CRR (
 		/* если правило актуально переходим к другому */
 		if (iter->m_bIsRelevant)
 			continue;
-		switch (p_psoReqInfo->m_psoSessInfo->m_uiPeerProto) {
-		case 1: /* Gx */
+		switch (p_psoReqInfo->m_psoSessInfo->m_uiPeerDialect) {
+		case GX_3GPP: /* Gx */
 			/* Charging-Rule-Remove */
 			if (NULL == psoAVPCRR) {
 				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleRemove, 0, &psoAVPCRR), return NULL);
@@ -647,7 +657,7 @@ avp * pcrf_make_CRR (
 			if (p_pcoDBConn)
 				CHECK_FCT_DO (pcrf_db_close_session_policy (*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), iter->m_coRuleName.v), );
 			break; /* Gx */
-		case 2: /* Gx Cisco SCE */
+		case GX_CISCO_SCE: /* Gx Cisco SCE */
 			if (p_pcoDBConn)
 				CHECK_FCT_DO (pcrf_db_close_session_policy (*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), iter->m_coRuleName.v), );
 			break; /* Gx Cisco SCE */
@@ -680,8 +690,8 @@ avp * pcrf_make_CRI (
 	/* обходим все правила */
 	for (; iter != p_vectAbonRules.end (); ++ iter) {
 		/* если првило уже активировано переходим к следующей итерации */
-		switch (p_psoReqInfo->m_psoSessInfo->m_uiPeerProto) {
-		case 1: /* Gx */
+		switch (p_psoReqInfo->m_psoSessInfo->m_uiPeerDialect) {
+		case GX_3GPP: /* Gx */
 			if (iter->m_bIsActivated) {
 				continue;
 			}
@@ -710,7 +720,7 @@ avp * pcrf_make_CRI (
 					CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
 			}
 			break; /* Gx */
-		case 2: /* Gx Cisco SCE */
+		case GX_CISCO_SCE: /* Gx Cisco SCE */
 			/* Cisco-SCA BB-Package-Install */
 			if (! iter->m_coSCE_PackageId.is_null ()) {
 				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCiscoBBPackageInstall, 0, &psoAVPChild), return NULL);
@@ -1152,8 +1162,8 @@ int pcrf_make_UMI (
 		}
 		/* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
 		CHECK_FCT( fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU) );
-		/* допольнительные параметры */
-		if (!p_bFull && 2 == p_soSessInfo.m_uiPeerProto) {
+		/* дополнительные параметры */
+		if (!p_bFull && GX_CISCO_SCE == p_soSessInfo.m_uiPeerDialect) {
 			/* Usage-Monitoring-Level */
 			CHECK_FCT( fd_msg_avp_new(g_psoDictUsageMonitoringLevel, 0, &psoAVPChild) );
 			soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
@@ -1179,12 +1189,12 @@ int pcrf_make_UMI (
 			/* Event-Trigger */
 			if (!bEvenTriggerInstalled) {
 				CHECK_FCT( fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVPET) );
-				switch (p_soSessInfo.m_uiPeerProto) {
+				switch (p_soSessInfo.m_uiPeerDialect) {
 				default:
-				case 1: /* Gx */
+				case GX_3GPP: /* Gx */
 					soAVPVal.i32 = 33;
 					break;
-				case 2: /* Gx Cisco SCE */
+				case GX_CISCO_SCE: /* Gx Cisco SCE */
 					soAVPVal.i32 = 26;
 					break;
 				}
@@ -1269,8 +1279,8 @@ int set_ULCh_event_trigger (
 	avp_value soAVPValue;
 
 	/* Event-Trigger */
-	switch (p_soSessInfo.m_uiPeerProto) {
-	case 1: /* Gx */
+	switch (p_soSessInfo.m_uiPeerDialect) {
+	case GX_3GPP: /* Gx */
 		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
 		soAVPValue.i32 = 13;	/* USER_LOCATION_CHANGE */
 		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
@@ -1290,8 +1300,8 @@ int set_RAT_CHANGE_event_trigger (
 	avp_value soAVPValue;
 
 	/* Event-Trigger */
-	switch (p_soSessInfo.m_uiPeerProto) {
-	case 1: /* Gx */
+	switch (p_soSessInfo.m_uiPeerDialect) {
+	case GX_3GPP: /* Gx */
 		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
 		soAVPValue.i32 = 2;		/* RAT_CHANGE */
 		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));

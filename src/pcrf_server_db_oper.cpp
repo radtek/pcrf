@@ -57,7 +57,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 		char mcValue[0x10000];
 
 		switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
-		case 1: /* INITIAL_REQUEST */
+		case INITIAL_REQUEST: /* INITIAL_REQUEST */
 			iFnRes = pcrf_db_insert_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 			if (iFnRes) {
 				iRetVal = iFnRes;
@@ -70,7 +70,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 				break;
 			}
 			break;
-		case 3: /* TERMINATION_REQUEST */
+		case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 			/* закрываем открытые записи о локациях */
 			{
 				otl_nocommit_stream coStream;
@@ -88,8 +88,8 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 					p_coDBConn.rollback();
 				}
 			}
-		case 2: /* UPDATE_REQUEST */
-		case 4: /* EVENT_REQUEST */
+		case UPDATE_REQUEST: /* UPDATE_REQUEST */
+		case EVENT_REQUEST: /* EVENT_REQUEST */
 			/* выполянем запрос на обновление записи */
 			iFnRes = pcrf_db_update_session (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 			if (iFnRes) {
@@ -97,7 +97,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 				break;
 			}
 			/* для TERMINATION_REQUEST информацию о локациях не сохраняем */
-			if (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType != 3) {
+			if (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType != TERMINATION_REQUEST) {
 				/* сохраняем в БД данные о локации абонента */
 				iFnRes = pcrf_server_db_user_location(p_coDBConn, (*p_psoMsgInfo));
 				if (iFnRes) {
@@ -147,7 +147,7 @@ int pcrf_server_policy_db_store (
 	}
 
 	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
-	case 3: /* TERMINATION_REQUEST */
+	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		/* сначала фиксируем информацию, полученную в запросе */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
 			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
@@ -162,7 +162,7 @@ int pcrf_server_policy_db_store (
 			break;
 		}
 		break;
-	case 2: /* UPDATE_REQUEST */
+	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
 			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
 		}
@@ -170,7 +170,7 @@ int pcrf_server_policy_db_store (
 			break;
 		}
 		break;
-	case 4: /* EVENT_REQUEST */
+	case EVENT_REQUEST: /* EVENT_REQUEST */
 		break;
 	default:
 		break;
@@ -577,7 +577,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		//		coStream.close();
 		//}
 		/* ищем сессии по ip-адресу */
-		if (!p_psoSessInfo->m_coFramedIPAddress.is_null() && p_psoSessInfo->m_uiPeerProto == 1) {
+		if (!p_psoSessInfo->m_coFramedIPAddress.is_null() && p_psoSessInfo->m_uiPeerDialect == GX_3GPP) {
 			coStream.open(
 				100,
 				"select "
@@ -685,7 +685,7 @@ int load_abon_rule_list (
 			"begin "
 				":cur<refcur,out[32]> := ps.GetSubRules("
 						":subscriber_id <char[64],in>,"
-						":peer_proto <unsigned,in>,"
+						":peer_dialect <unsigned,in>,"
 						":ip_can_type <char[20],in>,"
 						":rat_type <char[20],in>,"
 						":apn_name <char[255],in>,"
@@ -696,7 +696,7 @@ int load_abon_rule_list (
 			p_coDBConn);
 		coStream
 			<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-			<< p_soMsgInfo.m_psoSessInfo->m_uiPeerProto
+			<< p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect
 			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType
 			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType
 			<< p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
@@ -777,8 +777,8 @@ int load_rule_info (
 		SDBMonitoringInfo soMonitInfo;
 		SDBAbonRule soAbonRule;
 		unsigned int uiRuleId;
-		switch (p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
-		case 1: /* Gx */
+		switch (p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect) {
+		case GX_3GPP: /* Gx */
 			coStream.open (
 				10,
 				"select "
@@ -850,7 +850,7 @@ int load_rule_info (
 				}
 			}
 			break; /* Gx */
-		case 2: /* Gx Cisco SCE */
+		case GX_CISCO_SCE: /* Gx Cisco SCE */
 			coStream.open (
 				10,
 				"select "
@@ -1177,7 +1177,7 @@ int pcrf_server_db_abon_rule (
 		if (vectRuleList.size ()) {
 			load_rule_info (p_coDBConn, p_soMsgInfo, vectRuleList, p_vectAbonRules);
 			/* в случае с SCE нам надо оставить одно правило с наивысшим приоритетом */
-			if (p_vectAbonRules.size() && 2 == p_soMsgInfo.m_psoSessInfo->m_uiPeerProto) {
+			if (p_vectAbonRules.size() && GX_CISCO_SCE == p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect) {
 				SDBAbonRule soAbonRule;
 				std::vector<SDBAbonRule>::iterator iterList = p_vectAbonRules.begin();
 				if (iterList != p_vectAbonRules.end()) {
