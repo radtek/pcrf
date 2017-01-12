@@ -61,13 +61,17 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 				"ps.peer",
 			p_coDBConn);
 		while (! coStream.eof ()) {
+      soPeerInfo.m_coHostName = "";
+      soPeerInfo.m_coHostReal = "";
+      soPeerInfo.m_uiPeerDialect = 0;
 			coStream
 				>> coHostName
 				>> coRealm
 				>> coDialect;
-			if (! coHostName.is_null ())
+			if (! coHostName.is_null ()) {
 				soPeerInfo.m_coHostName = coHostName;
-			if (! coRealm.is_null ())
+      }
+			if (! coRealm.is_null ()) {
 				soPeerInfo.m_coHostReal = coRealm;
 			if (!coDialect.is_null())
 				soPeerInfo.m_uiPeerDialect = coDialect.v;
@@ -78,40 +82,43 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 		coStream.close ();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		iRetVal = coExcept.code;
-		if (! iRetVal) {
+		if (0 != coExcept.code) {
+  		iRetVal = coExcept.code;
+    } else {
 			iRetVal = -1;
 		}
-		if (coStream.good()) {
-			coStream.close();
-		}
+		coStream.close();
 	}
 
 	return iRetVal;
 }
 
-int app_pcrf_peer_compare(peer_info &p_soLeft, SPeerInfo &p_soRight)
+int app_pcrf_peer_compare (peer_info &p_soLeft, SPeerInfo &p_soRight)
 {
 	int iRetVal;
 
 	/* сравниваем длины имен */
 	iRetVal = p_soLeft.pi_diamidlen - p_soRight.m_coHostName.v.length();
-	if (iRetVal) {
+	if (0 == iRetVal) {
+  } else {
 		return iRetVal;
 	}
 	/* сравниваем содержимое имен */
 	iRetVal = memcmp (p_soLeft.pi_diamid, p_soRight.m_coHostName.v.data(), p_soLeft.pi_diamidlen);
-	if (iRetVal) {
+	if (0 == iRetVal) {
+  } else {
 		return iRetVal;
 	}
 	/* сравниваем длины реалмов */
 	iRetVal = p_soLeft.runtime.pir_realmlen - p_soRight.m_coHostReal.v.length();
-	if (iRetVal) {
+	if (0 == iRetVal) {
+  } else {
 		return iRetVal;
 	}
 	/* сравниваем соответствие доменов */
 	iRetVal = memcmp (p_soLeft.runtime.pir_realm, p_soRight.m_coHostReal.v.data(), p_soLeft.runtime.pir_realmlen);
-	if (iRetVal) {
+	if (0 == iRetVal) {
+  } else {
 		return iRetVal;
 	}
 
@@ -122,15 +129,26 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 {
 	int iRetVal = 0;
 
-	*p_piAuth = 0;
+  /* suppress compiler warning */
+  cb2 = cb2;
+
+  if (p_piAuth) {
+  	*p_piAuth = 0;
+  }
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin();
 
 	for (; iterPeerList != g_vectPeerList.end (); ++ iterPeerList) {
 		if (0 == app_pcrf_peer_compare (*p_psoPeerInfo, *iterPeerList)) {
-			*p_piAuth = 1;
+      if (p_piAuth) {
+			  *p_piAuth = 1;
+      }
 			p_psoPeerInfo->config.pic_flags.sec = PI_SEC_NONE;
 			iterPeerList->m_iIsConnected = 1;
+      UTL_LOG_D (*g_pcoLog, "peer validated: host name: '%s'; realm: '%s'; dialect: '%u'",
+        iterPeerList->m_coHostName.v.c_str(),
+        iterPeerList->m_coHostReal.v.c_str(),
+        iterPeerList->m_uiPeerDialect);
 			break;
 		}
 	}
@@ -144,14 +162,12 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 
-	while (iterPeerList != g_vectPeerList.end ()) {
-		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
-			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
+	for (; iterPeerList != g_vectPeerList.end (); ++iterPeerList) {
+		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v && iterPeerList->m_coHostReal.v == p_soSessInfo.m_coOriginRealm.v) {
 			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
 			iRetVal = 0;
 			break;
 		}
-		++iterPeerList;
 	}
 
 	return iRetVal;
@@ -163,15 +179,28 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 
-	while (iterPeerList != g_vectPeerList.end ()) {
-		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v
-			&& iterPeerList->m_coHostReal.v == iterPeerList->m_coHostReal.v) {
-			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
+	for (; iterPeerList != g_vectPeerList.end (); ++iterPeerList) {
+		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v && iterPeerList->m_coHostReal.v == p_soSessInfo.m_coOriginRealm.v) {
 			iRetVal = iterPeerList->m_iIsConnected;
 			break;
 		}
-		++iterPeerList;
 	}
 
 	return iRetVal;
+}
+
+int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect)
+{
+  int iRetVal = 0;
+
+  std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
+
+  for (; iterPeerList != g_vectPeerList.end (); ++iterPeerList) {
+    if (iterPeerList->m_uiPeerDialect == p_uiPeerDialect && iterPeerList->m_iIsConnected) {
+      iRetVal = 1;
+      break;
+    }
+  }
+
+  return iRetVal;
 }

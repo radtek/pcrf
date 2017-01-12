@@ -68,16 +68,18 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 	} else {
 		switch (soAVPInfo.avp_basetype) {
 		case AVP_TYPE_INTEGER32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#08x", (int) p_psoAVPHdr->avp_value->i32);
-			if (iFnRes < 0) {
-				iRetVal = errno;
-			}
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#08x", (int) p_psoAVPHdr->avp_value->i32);
+      if (0 < iFnRes) {
+      } else {
+        iRetVal = -1;
+      }
 			break;
 		case AVP_TYPE_UNSIGNED32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#08x", (unsigned int) p_psoAVPHdr->avp_value->u32);
-			if (iFnRes < 0) {
-				iRetVal = errno;
-			}
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#08x", (unsigned int) p_psoAVPHdr->avp_value->u32);
+      if (0 < iFnRes) {
+      } else {
+        iRetVal = -1;
+      }
 			break;
 		case AVP_TYPE_INTEGER64:
 			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%#016Lx", static_cast<unsigned long long>(p_psoAVPHdr->avp_value->i64));
@@ -92,25 +94,29 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 			}
 			break;
 		case AVP_TYPE_FLOAT32:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%f", p_psoAVPHdr->avp_value->f32);
-			if (iFnRes < 0) {
-				iRetVal = errno;
-			}
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%f", p_psoAVPHdr->avp_value->f32);
+      if (0 < iFnRes) {
+      } else {
+        iRetVal = -1;
+      }
 			break;
 		case AVP_TYPE_FLOAT64:
-			iFnRes = snprintf (p_pszBuf, p_iBufSize - 1, "%f", p_psoAVPHdr->avp_value->f64);
-			if (iFnRes < 0) {
-				iRetVal = errno;
-			}
+			iFnRes = snprintf (p_pszBuf, p_iBufSize , "%f", p_psoAVPHdr->avp_value->f64);
+      if (0 < iFnRes) {
+      } else {
+        iRetVal = -1;
+      }
 			break;
 		default:
-			iFnRes = 0;
-			p_pszBuf[0] = '\0';
+			iRetVal = -1;
 			break;
 		}
-		if (iFnRes >= p_iBufSize) {
-			p_pszBuf[p_iBufSize - 1] = '\0';
-		}
+    if (0 == iRetVal) {
+      if (p_iBufSize > iFnRes) {
+      } else {
+        p_pszBuf[p_iBufSize - 1] = '\0';
+      }
+    }
 	}
 
 	return iRetVal;

@@ -31,6 +31,9 @@ static void pcrf_tracer (
 	char mcEnumValue[256];
 	otl_connect *pcoDBConn = NULL;
 
+  /* suppress compiler warning */
+  p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
+
 	if (NULL == p_psoMsg) {
 		UTL_LOG_E (*g_pcoLog, "NULL pointer to message structure");
 		return;
@@ -87,12 +90,13 @@ static void pcrf_tracer (
 	{
 		char mcCode[256];
 		iFnRes = snprintf (mcCode, sizeof (mcCode), "%u", psoMsgHdr->msg_code);
-		if (iFnRes > 0) {
-			if (iFnRes >= sizeof (mcCode))
-				iFnRes = sizeof (mcCode) - 1;
-			mcCode[iFnRes] = '\0';
+    if (0 < iFnRes) {
+			if (sizeof (mcCode) > static_cast<size_t>(iFnRes)) {
+      } else {
+  			mcCode[sizeof(mcCode) - 1] = '\0';
+      }
 			strRequestType += mcCode;
-		}
+    }
 	}
 	break;
 	}

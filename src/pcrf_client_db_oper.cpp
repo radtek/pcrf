@@ -45,8 +45,10 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 	otl_datetime coDateTime;
 
 	/* запрашиваем указатель на объект подключения к БД */
-	if (pcrf_db_pool_get((void**)&pcoDBConn, __FUNCTION__))
+	if (0 == pcrf_db_pool_get(reinterpret_cast<void**>(&pcoDBConn), __FUNCTION__)) {
+  } else {
 		return -1;
+  }
 
 	otl_nocommit_stream coStream;
 	try {
@@ -137,7 +139,7 @@ int pcrf_client_db_load_session_list (
 		} else if (0 == p_soReqQueue.m_strIdentifierType.compare("session_id")) {
 			p_vectSessionList.push_back(p_soReqQueue.m_strIdentifier);
 		} else {
-			UTL_LOG_F(*g_pcoLog, "unsupported identifier type");
+			UTL_LOG_F(*g_pcoLog, "unsupported identifier type: '%s'", p_soReqQueue.m_strIdentifierType.c_str());
 			iRetVal = -1;
 		}
 	} catch (otl_exception &coExcept) {
