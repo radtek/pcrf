@@ -207,12 +207,16 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
   /* если связка уже существует */
   if (! pair.second) {
     /* если отношения между родительской и дочерней сессией не изменились */
-    if (pair.first->second == (*p_pstrParentSessionId)) {
+    if (pair.first != g_pmapChild->end()) {
+      if (pair.first->second == (*p_pstrParentSessionId)) {
+      } else {
+        UTL_LOG_N(*g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str());
+        pcrf_session_cache_rm_parent2child_link(p_strSessionId, pair.first->second);
+        pair.first->second = *p_pstrParentSessionId;
+        pcrf_session_cache_mk_parent2child(p_strSessionId, *p_pstrParentSessionId);
+      }
     } else {
-      UTL_LOG_N( *g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str() );
-      pcrf_session_cache_rm_parent2child_link (p_strSessionId, pair.first->second);
-      pair.first->second = *p_pstrParentSessionId;
-      pcrf_session_cache_mk_parent2child (p_strSessionId, *p_pstrParentSessionId);
+      UTL_LOG_E(*g_pcoLog, "insertion of child2parent link failed: map: size: '%u'; max size: '%u'", g_pmapChild->size(), g_pmapChild->max_size());
     }
   }
 }
@@ -260,18 +264,22 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   /* дожидаемся завершения всех операций */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
 
-  /* сохраняем связку между сессиями */
-  pcrf_session_cache_mk_link2parent (p_strSessionId, p_pstrParentSessionId);
-
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
   if (! insertResult.second) {
-    stat_measure (g_psoSessionCacheStat, "session updated", NULL);
-    insertResult.first->second = p_soSessionInfo;
-    pcrf_session_cache_update_child (p_strSessionId, p_soSessionInfo);
+    if (insertResult.first != g_pmapSessionCache->end()) {
+      insertResult.first->second = p_soSessionInfo;
+      pcrf_session_cache_update_child(p_strSessionId, p_soSessionInfo);
+      stat_measure(g_psoSessionCacheStat, "session updated", NULL);
+    } else {
+      UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
+    }
   } else {
     stat_measure (g_psoSessionCacheStat, "session inserterd", NULL);
   }
+
+  /* сохраняем связку между сессиями */
+  pcrf_session_cache_mk_link2parent(p_strSessionId, p_pstrParentSessionId);
 
   CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
 

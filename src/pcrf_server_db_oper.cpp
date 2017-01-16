@@ -819,7 +819,7 @@ int pcrf_db_load_rule_info (
 				>> soAbonRule.m_coMonitKey
 				>> soAbonRule.m_coRedirectAddressType
 				>> soAbonRule.m_coRedirectServerAddress;
-			CHECK_FCT (iRetVal = load_rule_flows (p_coDBConn, p_soMsgInfo, uiRuleId, soAbonRule.m_vectFlowDescr));
+			CHECK_FCT (iRetVal = load_rule_flows (p_coDBConn, uiRuleId, soAbonRule.m_vectFlowDescr));
 			if (0 == iRetVal) {
 				/* запоминаем имя правила */
 				soAbonRule.m_coRuleName = p_strRuleName;
@@ -917,11 +917,12 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 			"where "
 				"subscriber_id = :subscriber_id /*char[64]*/ "
 				"and framed_ip_address = :framed_ip_address /*char[16]*/ "
-				"and p.protocol_id = 1",
+				"and p.protocol_id = :dialect_id /*int*/",
 			p_coDBConn);
 		coStream
 			<< p_strSubscriberId
-			<< p_strFramedIPAddress;
+			<< p_strFramedIPAddress
+      << GX_3GPP;
 		if (!coStream.eof ()) {
 			coStream
 				>> p_strUGWSessionId;

@@ -71,12 +71,10 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 			if (! coHostName.is_null ()) {
 				soPeerInfo.m_coHostName = coHostName;
       }
-			if (! coRealm.is_null ()) {
-				soPeerInfo.m_coHostReal = coRealm;
-			if (!coDialect.is_null())
-				soPeerInfo.m_uiPeerDialect = coDialect.v;
-			else
-				soPeerInfo.m_uiPeerDialect = GX_UNDEF;
+      if (! coRealm.is_null()) {
+        soPeerInfo.m_coHostReal = coRealm;
+      }
+      soPeerInfo.m_uiPeerDialect = ((0 == coDialect.is_null()) ? coDialect.v : GX_UNDEF);
 			p_vectPeerList.push_back (soPeerInfo);
 		}
 		coStream.close ();
