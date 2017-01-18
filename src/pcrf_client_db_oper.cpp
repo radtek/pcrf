@@ -14,7 +14,7 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 		/* создаем объект класса потока ДБ */
 		coStream.open(
 			1000,
-			"select rowid, identifier, identifier_type, refresh_date, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+			"select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
 			p_coDBConn);
 		/* делаем выборку из БД */
 		while (! coStream.eof ()) {
@@ -22,7 +22,6 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 				>> soQueueElem.m_strRowId
 				>> soQueueElem.m_strIdentifier
 				>> soQueueElem.m_strIdentifierType
-				>> soQueueElem.m_coRefreshDate
 				>> soQueueElem.m_coAction;
 			p_vectQueue.push_back (soQueueElem);
 		}
@@ -155,6 +154,10 @@ int pcrf_client_db_load_session_list (
 
 int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQueue)
 {
+  if (0 == p_soRefQueue.m_strRowId.length()) {
+    return 0;
+  }
+
 	int iRetVal = 0;
 
 	otl_nocommit_stream coStream;

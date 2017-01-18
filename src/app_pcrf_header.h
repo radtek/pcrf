@@ -195,7 +195,6 @@ struct SRefQueue {
 	std::string m_strIdentifier;
 	std::string m_strIdentifierType;
 	otl_value<std::string> m_coAction;
-	otl_datetime m_coRefreshDate;
 };
 
 /* формирование полного списка правил */
@@ -330,7 +329,7 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
 
 /* функция для посылки команды на завершение сессии */
-int pcrf_client_ASR (SSessionInfo &p_soSessInfo);
+int pcrf_client_RAR_With_SessionReleaseCause (SSessionInfo &p_soSessInfo);
 
 /* функция для посылки RAR */
 int pcrf_client_RAR (otl_connect *p_pcoDBConn,
@@ -353,6 +352,9 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
 int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
 /* удаление данных из кеша */
 void pcrf_session_cache_remove (std::string &p_strSessionId);
+
+/* функция для добавления элемента в локальную очередь обновления политик */
+void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

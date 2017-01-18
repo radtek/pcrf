@@ -142,6 +142,7 @@ static int app_pcrf_ccr_cb (
 	std::vector<SDBAbonRule> vectAbonRules;
 	/* список активных правил абонента */
 	std::vector<SDBAbonRule> vectActive;
+  SSessionInfo *psoSessShouldBeTerm = NULL;
 
   /* запрашиваем объект класса для работы с БД */
   iFnRes = pcrf_db_pool_get (reinterpret_cast<void **>(&pcoDBConn), __FUNCTION__, psoStat);
@@ -211,14 +212,22 @@ static int app_pcrf_ccr_cb (
     }
     pcrf_session_cache_remove(soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
     break;	/* TERMINATION_REQUEST */
-  default: /* DEFAULT */
+  case UPDATE_REQUEST: /* UPDATE_REQUEST */
     /* ищем информацию о сессии в кеше */
     if (0 != pcrf_session_cache_get (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
+      int iSessNotFound;
       /* если не находим информацию в кеше */
 		  /* загружаем идентификатор абонента из списка активных сессий абонента */
-		  pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStat);
+      iSessNotFound = pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStat);
 		  /* загрузка данных сессии UGW для обслуживания запроса SCE */
       if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+        if (0 != iSessNotFound) {
+          /* если сессия ugw не найдена просим завершить ее */
+          psoSessShouldBeTerm = new SSessionInfo;
+          psoSessShouldBeTerm->m_coSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
+          psoSessShouldBeTerm->m_coOriginHost = soMsgInfoCache.m_psoSessInfo->m_coOriginHost;
+          psoSessShouldBeTerm->m_coOriginRealm = soMsgInfoCache.m_psoSessInfo->m_coOriginRealm;
+        }
       } else if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
         pstrUgwSessionId = new std::string;
         /* ищем базовую сессию ugw */
@@ -248,7 +257,9 @@ static int app_pcrf_ccr_cb (
         UTL_LOG_E(*g_pcoLog, "unsupported peer dialect: '%u'", soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect);
       }
     }
-    break; /* DEFAULT */
+    break;  /* UPDATE_REQUEST */
+  default:  /* DEFAULT */
+    break;  /* DEFAULT */
 	}
 
 	/* сохраняем в БД запрос */
@@ -506,6 +517,12 @@ cleanup_and_exit:
 
   /* статистика по работе функции */
 	stat_measure(psoStat, __FUNCTION__, &coTM);
+
+  /* если сессию следует завершить */
+  if (NULL != psoSessShouldBeTerm) {
+    pcrf_local_refresh_queue_add(*psoSessShouldBeTerm);
+    delete psoSessShouldBeTerm;
+  }
 
 	return 0;
 }
@@ -1621,6 +1638,7 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "HSPA Evolution";
 					break;
 				default:
+          UTL_LOG_N(*g_pcoLog, "unknown 3GPP-RAT-Type: '%u'", psoAVPHdr->avp_value->os.data[0]);
 					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = false;
 					break;
 				}
@@ -1701,7 +1719,8 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 				}
 				break;
 			case 1032: /* RAT-Type */
-				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
+        p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+        if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
 					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = mcValue;
 				}
 				break;
@@ -2222,12 +2241,16 @@ int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_
 
 int pcrf_procera_terminate_session (otl_connect &p_coDBConn, otl_value<std::string> &p_coUGWSessionId)
 {
+  if (0 == pcrf_peer_is_dialect_used(GX_PROCERA)) {
+    return EINVAL;
+  }
+
   int iRetVal = 0;
   std::vector<SSessionInfo> vectSessList;
 
   pcrf_procera_db_load_sess_list (p_coDBConn, p_coUGWSessionId, vectSessList);
   for (std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter) {
-    pcrf_client_ASR (*iter);
+    pcrf_client_RAR_With_SessionReleaseCause (*iter);
   }
 
   return iRetVal;
