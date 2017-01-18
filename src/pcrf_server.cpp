@@ -2250,7 +2250,7 @@ int pcrf_procera_terminate_session (otl_connect &p_coDBConn, otl_value<std::stri
 
   pcrf_procera_db_load_sess_list (p_coDBConn, p_coUGWSessionId, vectSessList);
   for (std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter) {
-    pcrf_client_RAR_With_SessionReleaseCause (*iter);
+    pcrf_client_RAR_W_SRCause (*iter);
   }
 
   return iRetVal;

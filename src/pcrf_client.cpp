@@ -80,7 +80,7 @@ int pcrf_client_RAR (
 {
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-	SStat *psoStat = stat_get_branch (__FUNCTION__);
+	SStat *psoStat = stat_get_branch ("gx client");
 	struct msg * psoReq = NULL;
 	struct avp * psoAVP;
 	union avp_value soAVPValue;
@@ -196,11 +196,11 @@ out:
 }
 
 /* отправка RAR сообщения, содержащего Session-Release-Cause */
-int pcrf_client_RAR_With_SessionReleaseCause (SSessionInfo &p_soSessInfo)
+int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch(__FUNCTION__);
+  SStat *psoStat = stat_get_branch("gx client");
   struct msg * psoReq = NULL;
 	struct avp * psoAVP;
 	union avp_value soAVPValue;
@@ -385,14 +385,14 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			}
 			/* если в поле action задано значение abort_session */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("abort_session")) {
-				CHECK_POSIX_DO(pcrf_client_RAR_With_SessionReleaseCause(*(soSessInfo.m_psoSessInfo)), );
+				CHECK_POSIX_DO(pcrf_client_RAR_W_SRCause(*(soSessInfo.m_psoSessInfo)), );
 				goto clear_and_continue;
 			}
 			/* загружаем из БД правила абонента */
 			CHECK_POSIX_DO(pcrf_server_create_abon_rule_list(*p_pcoDBConn, soSessInfo, vectAbonRules, psoStat), );
 			/* если у абонента нет активных политик завершаем его сессию */
 			if (0 == vectAbonRules.size()) {
-				CHECK_POSIX_DO(pcrf_client_RAR_With_SessionReleaseCause(*(soSessInfo.m_psoSessInfo)), );
+				CHECK_POSIX_DO(pcrf_client_RAR_W_SRCause(*(soSessInfo.m_psoSessInfo)), );
 				goto clear_and_continue;
 			}
 			/* загружаем список активных правил */
@@ -478,7 +478,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
     /* обрабатываем локальную очередь на завершение сессий */
     CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), goto clear_and_continue);
     for (iterLocalQueue = g_listLocalRefQueue.begin(); iterLocalQueue != g_listLocalRefQueue.end(); ++iterLocalQueue) {
-      pcrf_client_RAR_With_SessionReleaseCause(*iterLocalQueue);
+      pcrf_client_RAR_W_SRCause(*iterLocalQueue);
     }
     g_listLocalRefQueue.clear();
     CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */ );

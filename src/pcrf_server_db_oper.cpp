@@ -587,7 +587,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
         soSessInfo.m_coSessionId = strSessionId;
         soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
         soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
-        pcrf_client_RAR_With_SessionReleaseCause (soSessInfo);
+        pcrf_client_RAR_W_SRCause (soSessInfo);
 			}
 			coStream.close();
 		}
