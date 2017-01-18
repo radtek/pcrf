@@ -607,11 +607,16 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 }
 
 int pcrf_server_db_load_active_rules (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectActive,
 	SStat *p_psoStat)
 {
+  if (NULL != p_pcoDBConn) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
 
@@ -628,7 +633,7 @@ int pcrf_server_db_load_active_rules (
 			"where "
 				"sp.session_id = :session_id /* char[255] */ "
 				"and time_end is null",
-			p_coDBConn);
+			*p_pcoDBConn);
 		coStream
 			<< p_soMsgInfoCache.m_psoSessInfo->m_coSessionId;
 		while (! coStream.eof ()) {
@@ -1370,4 +1375,38 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 	}
 
 	return iRetVal;
+}
+
+int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo)
+{
+  if (NULL != p_pcoDBConn) {
+  } else {
+    return EINVAL;
+  }
+
+  otl_nocommit_stream coStream;
+
+  try {
+    coStream.open(
+      1,
+      "insert into ps.tetheringdetection (session_id, end_user_imsi, subscriber_id, event_date, tethering_status, origin_host, origin_realm) "
+      "values (:session_id/*char[255]*/, :imsi/*char[32]*/, :subscriber_id/*char[64]*/, sysdate, :tethering_status/*unsigned*/, :origin_host/*char[255]*/, :origin_realm/*char[255]*/)",
+      *p_pcoDBConn);
+    coStream
+      << p_soMsgInfo.m_psoSessInfo->m_coSessionId
+      << p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI
+      << p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
+      << p_soMsgInfo.m_psoReqInfo->m_coTeteringFlag
+      << p_soMsgInfo.m_psoSessInfo->m_coOriginHost
+      << p_soMsgInfo.m_psoSessInfo->m_coOriginRealm;
+    p_pcoDBConn->commit();
+  } catch (otl_exception &coExcept) {
+    UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if (coStream.good()) {
+      coStream.close();
+    }
+    return coExcept.code;
+  }
+
+  return 0;
 }

@@ -234,7 +234,7 @@ int pcrf_server_db_load_subscriber_id (
 int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo, SStat *p_psoStat);
 /* загрузка списка активных правил абонента */
 int pcrf_server_db_load_active_rules (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectActive,
 	SStat *p_psoStat);
@@ -292,10 +292,14 @@ int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SSessionInfo &p_soSessInfo,
 	bool p_bFull = true);
+/* запись TETHERING_REPORT в БД */
+int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo);
 /* задает значение Event-Trigger RAT_CHANGE */
 int set_RAT_CHANGE_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
+/* задает значение Event-Trigger TETHERING_REPORT */
+int set_TETHERING_REPORT_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
 /* задает значение Event-Trigger 777 */
 int set_777_event_trigger (
 	SSessionInfo &p_soSessInfo,

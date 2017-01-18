@@ -88,6 +88,25 @@ static int app_pcrf_ccr_cb (
 	msg_or_avp *pMsgOrAVP = *p_ppsoMsg;
 	pcrf_extract_req_data (pMsgOrAVP, &soMsgInfoCache);
 
+  /* информация для ститистики по типам CCR */
+  switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
+  case INITIAL_REQUEST:     /* INITIAL_REQUEST */
+    strReqType += 'I';
+    break;
+  case UPDATE_REQUEST:      /* UPDATE_REQUEST */
+    strReqType += 'U';
+    break;
+  case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
+    strReqType += 'T';
+    break;
+  case EVENT_REQUEST:       /* EVENT_REQUEST */
+    strReqType += 'E';
+    break;
+  default:
+    strReqType += 'D';
+    break;
+  }
+
 	/* необходимо определить диалект хоста */
 	CHECK_POSIX_DO (pcrf_peer_dialect(*soMsgInfoCache.m_psoSessInfo), /*continue*/);
 
@@ -131,25 +150,6 @@ static int app_pcrf_ccr_cb (
     uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
 		goto dummy_answer;
 	}
-
-  /* информация для ститистики по типам CCR */
-  switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
-  case INITIAL_REQUEST:     /* INITIAL_REQUEST */
-    strReqType += 'I';
-    break;
-  case UPDATE_REQUEST:      /* UPDATE_REQUEST */
-    strReqType += 'U';
-    break;
-  case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
-    strReqType += 'T';
-    break;
-  case EVENT_REQUEST:       /* EVENT_REQUEST */
-    strReqType += 'E';
-    break;
-  default:
-    strReqType += 'D';
-    break;
-  }
 
   /* дополняем данные запроса необходимыми параметрами */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
@@ -341,6 +341,8 @@ static int app_pcrf_ccr_cb (
 		CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
 		/* RAT_CHANGE */
 		CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+    /* TETHERING_REPORT */
+    CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
     /* дополняем ответ на CCR-I для Procera информацией о пользователе */
     /* Subscription-Id */
     if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
@@ -358,7 +360,7 @@ static int app_pcrf_ccr_cb (
 		break; /* INITIAL_REQUEST */
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		/* загружаем список активных правил */
-		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*(pcoDBConn), soMsgInfoCache, vectActive, psoStat), /* continue */ );
+		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive, psoStat), /* continue */ );
 		/* обрабатываем триггеры */
 		{
       bool bCacheUPdated = false;
@@ -403,8 +405,15 @@ static int app_pcrf_ccr_cb (
             break;
           }
 					break;
+        case 101: /* TETHERING_REPORT */
+          if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+            CHECK_FCT_DO( pcrf_server_db_insert_tetering_info(pcoDBConn, soMsgInfoCache), /* continue */ );
+            /* TETHERING_REPORT */
+            CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+          }
+          break;
         case 777:
-          if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+          if (GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
             SDBAbonRule soRule;
             std::map<std::string,int32_t>::iterator iter;
 
@@ -489,7 +498,7 @@ cleanup_and_exit:
 
 	/* освобождаем объект класса взаимодействия с БД */
 	if (pcoDBConn)
-		CHECK_POSIX_DO(pcrf_db_pool_rel((void *)pcoDBConn, __FUNCTION__), /*continue*/);
+		CHECK_POSIX_DO(pcrf_db_pool_rel(reinterpret_cast<void *>(pcoDBConn), __FUNCTION__), /*continue*/);
 
 	/* если ответ сформирован отправляем его */
 	if (ans)
@@ -1442,6 +1451,27 @@ int set_RAT_CHANGE_event_trigger (
 	return iRetVal;
 }
 
+int set_TETHERING_REPORT_event_trigger(
+  SSessionInfo &p_soSessInfo,
+  msg_or_avp *p_psoMsgOrAVP)
+{
+  int iRetVal = 0;
+  avp *psoAVP;
+  avp_value soAVPValue;
+
+  /* Event-Trigger */
+  switch (p_soSessInfo.m_uiPeerDialect) {
+  case GX_3GPP: /* Gx */
+    CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
+    soAVPValue.i32 = 101;		/* TETHERING_REPORT */
+    CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
+    CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
+    break; /* Gx */
+  }
+
+  return iRetVal;
+}
+
 int set_777_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP)
@@ -1690,6 +1720,13 @@ int pcrf_extract_req_data(msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_pso
 				break;
 			}
 			break; /* 3GPP */
+    case 2011:  /* Huawai */
+      switch (psoAVPHdr->avp_code) {
+      case 2029: /* X-HW-Tethering-Status */
+        p_psoMsgInfo->m_psoReqInfo->m_coTeteringFlag = psoAVPHdr->avp_value->u32;
+        break;
+      }
+      break;    /* Huawai */
     case 15397: /* Procera */
       switch (psoAVPHdr->avp_code) {
       case 777: /* Procera-Tetering-Flag */

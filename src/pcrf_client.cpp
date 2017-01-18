@@ -388,7 +388,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				goto clear_and_continue;
 			}
 			/* загружаем список активных правил */
-			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(*p_pcoDBConn, soSessInfo, vectActive, psoStat), );
+			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive, psoStat), );
 			/* формируем список неактуальных правил */
 			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */

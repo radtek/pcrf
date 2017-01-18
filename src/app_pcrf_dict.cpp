@@ -866,5 +866,21 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_AVP, &data , NULL, NULL));
 	}
 
+  /* X-HW-Tethering-Status */
+  {
+    /*
+    Unsigned32.
+    */
+    dict_avp_data data = {
+      2029,									                /* Code */
+      2011,								                  /* Vendor */
+      (char *) "X-HW-Tethering-Status",     /* Name */
+      AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY, /* Fixed flags */
+      AVP_FLAG_VENDOR,						          /* Fixed flag values */
+      AVP_TYPE_UNSIGNED32						        /* base type of data */
+    };
+    CHECK_FCT(fd_dict_new(fd_g_config->cnf_dict, DICT_AVP, &data, NULL, NULL));
+  }
+
 	return 0;
 }
