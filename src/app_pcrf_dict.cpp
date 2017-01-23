@@ -117,12 +117,12 @@ struct local_rules_definition {
 			    &((_rulearray)[__ar].avp_codes),								\
 			    &__data.rule_avp, 0 ) );										\
 	    if ( NULL != __data.rule_avp ) {												\
-      } else { UTL_LOG_D(*g_pcoLog, "AVP Not found: vendor id: '%d'; avp code: '%d'", (_rulearray)[__ar].avp_codes.avp_vendor, (_rulearray)[__ar].avp_codes.avp_code );	\
+      } else { TRACE_DEBUG(INFO, "AVP Not found: vendor id: '%d'; avp code: '%d'", (_rulearray)[__ar].avp_codes.avp_vendor, (_rulearray)[__ar].avp_codes.avp_code );	\
 		return ENOENT;															\
 	    }																		\
 	    CHECK_FCT_DO( fd_dict_new( fd_g_config->cnf_dict, DICT_RULE, &__data, _parent, NULL),				\
 			  {																								\
-			      UTL_LOG_D(*g_pcoLog, "Error on rule with AVP: vendor id: '%d'; avp code: '%d'",				\
+			      TRACE_DEBUG(INFO, "Error on rule with AVP: vendor id: '%d'; avp code: '%d'",				\
 					  (_rulearray)[__ar].avp_codes.avp_vendor, (_rulearray)[__ar].avp_codes.avp_code );		\
 			      return EINVAL;												\
 			  } );																\

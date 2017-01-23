@@ -509,7 +509,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
 {
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_ge("gx client");
+  SStat *psoStat = stat_get_branch("gx client");
   CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
   g_listLocalRefQueue.push_back(p_soSessionInfo);
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
