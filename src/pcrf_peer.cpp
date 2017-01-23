@@ -143,7 +143,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
       }
 			p_psoPeerInfo->config.pic_flags.sec = PI_SEC_NONE;
 			iterPeerList->m_iIsConnected = 1;
-      UTL_LOG_D (*g_pcoLog, "peer validated: host name: '%s'; realm: '%s'; dialect: '%u'",
+      UTL_LOG_D(*g_pcoLog, "peer validated: host name: '%s'; realm: '%s'; dialect: '%u'",
         iterPeerList->m_coHostName.v.c_str(),
         iterPeerList->m_coHostReal.v.c_str(),
         iterPeerList->m_uiPeerDialect);

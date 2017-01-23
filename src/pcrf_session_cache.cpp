@@ -99,7 +99,7 @@ int pcrf_session_cache_init ()
   /* загрузка списка нод */
   CHECK_FCT( pcrf_session_cache_init_node () );
   /* инициализация ветки статистики */
-  g_psoSessionCacheStat = stat_get_branch ("pcrf_session_cache");
+  g_psoSessionCacheStat = stat_get_branch ("session cache");
 
   g_module_is_initialized = true;
 
@@ -288,8 +288,14 @@ clean_and_exit:
   return;
 }
 
-static inline void pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
+static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
 {
+  if (p_uiDataLen + sizeof(*p_psoPayload) <= p_stMaxSize) {
+    /* все в порядке */
+  } else {
+    /* размера буфера не достаточно */
+    return EINVAL;
+  }
   p_psoPayload->m_vend_id = p_uiVendId;
   p_psoPayload->m_avp_id = p_uiAVPId;
   p_psoPayload->m_padding = 0;
@@ -297,7 +303,9 @@ static inline void pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, s
   memcpy (
     reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload),
     p_pvData,
-    p_uiDataLen + sizeof(*p_psoPayload) > p_stMaxSize ? p_uiDataLen : p_stMaxSize - sizeof(*p_psoPayload));
+    p_uiDataLen + sizeof(*p_psoPayload));
+
+  return 0;
 }
 
 static int pcrf_session_cache_fill_pspack (
@@ -314,13 +322,13 @@ static int pcrf_session_cache_fill_pspack (
   SPayloadHdr *pso_payload_hdr;
   char mc_attr[256];
 
-  CHECK_FCT_DO( ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType), return -1 );
+  CHECK_FCT(ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType));
 
   /* связываем заголовок с буфером */
   pso_payload_hdr = reinterpret_cast<SPayloadHdr*>(mc_attr);
 
   /* добавляем SessionId */
-  pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length());
+  CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length()));
   iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
   if (0 < iRetVal) {
   } else {
@@ -340,7 +348,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PS_SUBSCR;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Framed-IP-Address */
@@ -348,7 +356,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 8;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Called-Station-Id */
@@ -356,20 +364,20 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 30;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем IP-CAN-Type */
     vend_id = 10415;
     avp_id = 1027;
-    pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType));
+    CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType)));
     iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     /* добавляем IP-CAN-Type (в текстовом виде) */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
     if (!pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IPCANTYPE;
-      pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length());
+      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length()));
       iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем SGSN-IP-Address */
@@ -377,7 +385,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 6;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем RAT-Type */
@@ -385,7 +393,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 1032;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Origin-Host */
@@ -393,7 +401,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 264;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Origin-Realm */
@@ -401,7 +409,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 296;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем CGI */
@@ -409,7 +417,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_CGI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем ECGI */
@@ -417,7 +425,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_ECGI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем IMEI-SV */
@@ -425,7 +433,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMEI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем End-User-IMSI */
@@ -433,14 +441,14 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMSI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Parent-Session-Id (по необходимости) */
     if (NULL != p_pstrParentSessionId) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_PSES;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, p_pstrParentSessionId->data(), p_pstrParentSessionId->length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, p_pstrParentSessionId->data(), p_pstrParentSessionId->length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
   } else if (static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION) == p_uiReqType) {
@@ -855,7 +863,7 @@ static int pcrf_session_cache_init_node ()
         >> coReal
         >> coIPAddress
         >> coPort;
-      UTL_LOG_D( *g_pcoLog, "node information loaded: host: '%s'; realm: '%s'; ip-address: '%s'; port: '%u'", coHost.v.c_str(), coReal.v.c_str(), coIPAddress.v.c_str(), coPort.v );
+      UTL_LOG_D(*g_pcoLog, "node information loaded: host: '%s'; realm: '%s'; ip-address: '%s'; port: '%u'", coHost.v.c_str(), coReal.v.c_str(), coIPAddress.v.c_str(), coPort.v );
       if (! coHost.is_null () && coHost.v.length() == fd_g_config->cnf_diamid_len && 0 == coHost.v.compare (0, fd_g_config->cnf_diamid_len, reinterpret_cast<const char*>(fd_g_config->cnf_diamid))
         && ! coReal.is_null() && coReal.v.length() == fd_g_config->cnf_diamrlm_len && 0 == coReal.v.compare (0, fd_g_config->cnf_diamrlm_len, reinterpret_cast<const char*>(fd_g_config->cnf_diamrlm))) {
           if (! coIPAddress.is_null ()) {
@@ -864,7 +872,7 @@ static int pcrf_session_cache_init_node ()
           if (! coPort.is_null ()) {
             g_uiLocalPort = static_cast<uint16_t>(coPort.v);
           }
-          UTL_LOG_D( *g_pcoLog, "home node detected: set local ip-address to '%s'; set local port to '%u'", g_strLocalIPAddress.c_str(), g_uiLocalPort );
+          UTL_LOG_D(*g_pcoLog, "home node detected: set local ip-address to '%s'; set local port to '%u'", g_strLocalIPAddress.c_str(), g_uiLocalPort );
           continue;
       }
       if (! coHost.is_null()) {

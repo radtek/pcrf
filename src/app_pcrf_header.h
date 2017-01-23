@@ -328,9 +328,6 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 /* определяет есть ли подключенные пиры заданного диалекта */
 int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
 
-/* функция для посылки команды на завершение сессии */
-int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo);
-
 /* функция для посылки RAR */
 int pcrf_client_RAR (otl_connect *p_pcoDBConn,
 	SMsgDataForDB p_soReqInfo,

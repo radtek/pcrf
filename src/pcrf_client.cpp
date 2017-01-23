@@ -441,6 +441,9 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 	std::vector<SRefQueue> vectQueue;
 	std::vector<SRefQueue>::iterator iter;
   std::list<SSessionInfo>::iterator iterLocalQueue;
+  std::list<SSessionInfo>::iterator iterLocalQueueLast;
+  size_t stLocalQueueCnt;
+  size_t stCnt;
 
 	while (! g_iStop) {
 		/* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
@@ -476,11 +479,19 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		}
 
     /* обрабатываем локальную очередь на завершение сессий */
+    /* получаем какое количество элементов находится в очереди на момент запуска обработки */
     CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), goto clear_and_continue);
-    for (iterLocalQueue = g_listLocalRefQueue.begin(); iterLocalQueue != g_listLocalRefQueue.end(); ++iterLocalQueue) {
-      pcrf_client_RAR_W_SRCause(*iterLocalQueue);
+    stLocalQueueCnt = g_listLocalRefQueue.size();
+    CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
+    /* обходим все элементы очереди до заданного на момент исполнения количества элементов */
+    iterLocalQueue = g_listLocalRefQueue.begin();
+    iterLocalQueueLast = iterLocalQueue;
+    for (stCnt = 0; stCnt < stLocalQueueCnt &&iterLocalQueueLast != g_listLocalRefQueue.end(); ++stCnt, ++iterLocalQueueLast) {
+      pcrf_client_RAR_W_SRCause(*iterLocalQueueLast);
     }
-    g_listLocalRefQueue.clear();
+    /* очищаем локальную очередь */
+    CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), goto clear_and_continue);
+    g_listLocalRefQueue.erase(iterLocalQueue, iterLocalQueueLast);
     CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */ );
 
 		clear_and_continue:
@@ -497,9 +508,12 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
 {
+  CTimeMeasurer coTM;
+  SStat *psoStat = stat_ge("gx client");
   CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
   g_listLocalRefQueue.push_back(p_soSessionInfo);
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
+  stat_measure(psoStat, __FUNCTION__, &coTM);
 }
 
 /* инициализация клиента */
@@ -554,7 +568,7 @@ void pcrf_cli_fini (void)
 extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
 {
-	UTL_LOG_D(*g_pcoLog, "%p:%p:%p", state, sid, opaque);
+  UTL_LOG_D(*g_pcoLog, "%p:%p:%p", state, sid, opaque);
 
   /* suppress compiler warning */
   sid = sid; opaque = opaque;

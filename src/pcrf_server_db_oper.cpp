@@ -311,7 +311,7 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 				<< iter->m_coCCInputOctets
 				<< iter->m_coCCOutputOctets
 				<< iter->m_coCCTotalOctets;
-			UTL_LOG_D(*g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
+      UTL_LOG_D(*g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
 				iter->m_coCCInputOctets.is_null()   ? -1: iter->m_coCCInputOctets.v,
@@ -321,7 +321,7 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 				>> iter->m_coCCInputOctets
 				>> iter->m_coCCOutputOctets
 				>> iter->m_coCCTotalOctets;
-			UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+      UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 				p_soSessInfo.m_strSubscriberId.c_str(),
 				iter->m_coMonitoringKey.v.c_str(),
 				iter->m_coCCInputOctets.is_null()   ? -1 : iter->m_coCCInputOctets.v,
@@ -407,7 +407,7 @@ int pcrf_db_update_policy (
 			<< p_soSessInfo.m_coSessionId
 			<< p_soPoliciInfo.m_coChargingRuleName;
 		p_coDBConn.commit ();
-		UTL_LOG_D(*g_pcoLog, "session id: '%s'; '%u' rows processed; rule name: '%s'; failury code: '%s'", p_soSessInfo.m_coSessionId.v.c_str(), coStream.get_rpc(), p_soPoliciInfo.m_coChargingRuleName.v.c_str(), p_soPoliciInfo.m_coRuleFailureCode.v.c_str());
+    UTL_LOG_D(*g_pcoLog, "session id: '%s'; '%u' rows processed; rule name: '%s'; failury code: '%s'", p_soSessInfo.m_coSessionId.v.c_str(), coStream.get_rpc(), p_soPoliciInfo.m_coChargingRuleName.v.c_str(), p_soPoliciInfo.m_coRuleFailureCode.v.c_str());
 		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
@@ -583,11 +583,11 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 			while (!coStream.eof()) {
 				coStream
 					>> strSessionId;
-				UTL_LOG_D(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
+        UTL_LOG_D(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
         soSessInfo.m_coSessionId = strSessionId;
         soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
         soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
-        pcrf_client_RAR_W_SRCause (soSessInfo);
+        pcrf_local_refresh_queue_add(soSessInfo);
 			}
 			coStream.close();
 		}
@@ -1209,7 +1209,7 @@ int pcrf_server_db_monit_key(
 					>> iterMonitList->second.m_coDosageInputOctets
 					>> iterMonitList->second.m_coDosageOutputOctets
 					>> iterMonitList->second.m_coDosageTotalOctets;
-				UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+        UTL_LOG_D(*g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
 					p_soSessInfo.m_strSubscriberId.c_str(),
 					iterMonitList->first.c_str(),
 					iterMonitList->second.m_coDosageInputOctets.is_null()   ? -1:  iterMonitList->second.m_coDosageInputOctets.v,
