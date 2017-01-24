@@ -209,7 +209,7 @@ int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_pso
 			psoTmp->m_iIsBusy = 1;
 			psoTmp->m_pcoTM->Set();
 			*p_ppcoDBConn = psoTmp->m_pcoDBConn;
-			UTL_LOG_D(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
+      UTL_LOG_D(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
 		}
 	} else {
 		iRetVal = -2222;
@@ -257,7 +257,7 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 			char mcTimeInterval[256];
 			psoTmp->m_iIsBusy = 0;
 			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
-			UTL_LOG_D(*g_pcoLog, "released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
+      UTL_LOG_D(*g_pcoLog, "released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
 		} else {
 			UTL_LOG_F(*g_pcoLog, "connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}

@@ -79,7 +79,14 @@ extern struct dict_object *g_psoDictRARType;
 extern struct dict_object *g_psoDictRC;
 extern struct dict_object *g_psoDictOrignHost;
 extern struct dict_object *g_psoDictOrignRealm;
+
+/* CC-Request-Type */
+#define INITIAL_REQUEST     1
+#define UPDATE_REQUEST      2
+#define TERMINATION_REQUEST 3
+#define EVENT_REQUEST       4
 extern struct dict_object *g_psoDictCCRequestType;
+
 extern struct dict_object *g_psoDictCCRequestNumber;
 extern struct dict_object *g_psoDictOriginStateId;
 

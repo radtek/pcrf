@@ -71,12 +71,10 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
 			if (! coHostName.is_null ()) {
 				soPeerInfo.m_coHostName = coHostName;
       }
-			if (! coRealm.is_null ()) {
-				soPeerInfo.m_coHostReal = coRealm;
+      if (! coRealm.is_null()) {
+        soPeerInfo.m_coHostReal = coRealm;
       }
-			if (! coDialect.is_null()) {
-				soPeerInfo.m_uiPeerDialect = coDialect.v;
-      }
+      soPeerInfo.m_uiPeerDialect = ((0 == coDialect.is_null()) ? coDialect.v : GX_UNDEF);
 			p_vectPeerList.push_back (soPeerInfo);
 		}
 		coStream.close ();
@@ -145,7 +143,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
       }
 			p_psoPeerInfo->config.pic_flags.sec = PI_SEC_NONE;
 			iterPeerList->m_iIsConnected = 1;
-      UTL_LOG_D (*g_pcoLog, "peer validated: host name: '%s'; realm: '%s'; dialect: '%u'",
+      UTL_LOG_D(*g_pcoLog, "peer validated: host name: '%s'; realm: '%s'; dialect: '%u'",
         iterPeerList->m_coHostName.v.c_str(),
         iterPeerList->m_coHostReal.v.c_str(),
         iterPeerList->m_uiPeerDialect);
@@ -165,10 +163,6 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 	for (; iterPeerList != g_vectPeerList.end (); ++iterPeerList) {
 		if (iterPeerList->m_coHostName.v == p_soSessInfo.m_coOriginHost.v && iterPeerList->m_coHostReal.v == p_soSessInfo.m_coOriginRealm.v) {
 			p_soSessInfo.m_uiPeerDialect = iterPeerList->m_uiPeerDialect;
-      UTL_LOG_D (*g_pcoLog, "peer %s@%s recognised as '%u' dialect",
-        p_soSessInfo.m_coOriginHost.v.c_str(),
-        p_soSessInfo.m_coOriginRealm.v.c_str(),
-        p_soSessInfo.m_uiPeerDialect);
 			iRetVal = 0;
 			break;
 		}

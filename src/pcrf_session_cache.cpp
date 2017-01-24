@@ -99,7 +99,7 @@ int pcrf_session_cache_init ()
   /* загрузка списка нод */
   CHECK_FCT( pcrf_session_cache_init_node () );
   /* инициализация ветки статистики */
-  g_psoSessionCacheStat = stat_get_branch ("pcrf_session_cache");
+  g_psoSessionCacheStat = stat_get_branch ("session cache");
 
   g_module_is_initialized = true;
 
@@ -161,32 +161,6 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
         if (! p_soSessionInfo.m_coRATType.is_null())          iterCache->second.m_coRATType         = p_soSessionInfo.m_coRATType;
         if (! p_soSessionInfo.m_coCGI.is_null())              iterCache->second.m_coCGI             = p_soSessionInfo.m_coCGI;
         if (! p_soSessionInfo.m_coECGI.is_null())             iterCache->second.m_coECGI            = p_soSessionInfo.m_coECGI;
-        UTL_LOG_D( *g_pcoLog, "subscriber-id:     '%s' : '%s'",
-          p_soSessionInfo.m_coSubscriberId.is_null() ? "<null>" : p_soSessionInfo.m_coSubscriberId.v.c_str(),
-          iterCache->second.m_coSubscriberId.is_null() ? "<null>" : iterCache->second.m_coSubscriberId.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "framed-ip-address: '%s' : '%s'",
-          p_soSessionInfo.m_coFramedIPAddr.is_null() ? "<null>" : p_soSessionInfo.m_coFramedIPAddr.v.c_str(),
-          iterCache->second.m_coFramedIPAddr.is_null() ? "<null>" : iterCache->second.m_coFramedIPAddr.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "called-station-id: '%s' : '%s'",
-          p_soSessionInfo.m_coCalledStationId.is_null() ? "<null>" : p_soSessionInfo.m_coCalledStationId.v.c_str(),
-          iterCache->second.m_coCalledStationId.is_null() ? "<null>" : iterCache->second.m_coCalledStationId.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%s' : '%s'",
-          p_soSessionInfo.m_coIPCANType.is_null() ? "<null>" : p_soSessionInfo.m_coIPCANType.v.c_str(),
-          iterCache->second.m_coIPCANType.is_null() ? "<null>" : iterCache->second.m_coIPCANType.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ip-can-type:       '%d' : '%d'",
-          p_soSessionInfo.m_iIPCANType, iterCache->second.m_iIPCANType);
-        UTL_LOG_D( *g_pcoLog, "sgsn-address:      '%s' : '%s'",
-          p_soSessionInfo.m_coSGSNIPAddr.is_null() ? "<null>" : p_soSessionInfo.m_coSGSNIPAddr.v.c_str(),
-          iterCache->second.m_coSGSNIPAddr.is_null() ? "<null>" : iterCache->second.m_coSGSNIPAddr.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "rat-type:          '%s' : '%s'",
-          p_soSessionInfo.m_coRATType.is_null() ? "<null>" : p_soSessionInfo.m_coRATType.v.c_str(),
-          iterCache->second.m_coRATType.is_null() ? "<null>" : iterCache->second.m_coRATType.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "cgi:               '%s' : '%s'",
-          p_soSessionInfo.m_coCGI.is_null() ? "<null>" : p_soSessionInfo.m_coCGI.v.c_str(),
-          iterCache->second.m_coCGI.is_null() ? "<null>" : iterCache->second.m_coCGI.v.c_str());
-        UTL_LOG_D( *g_pcoLog, "ecgi:              '%s' : '%s'",
-          p_soSessionInfo.m_coECGI.is_null() ? "<null>" : p_soSessionInfo.m_coECGI.v.c_str(),
-          iterCache->second.m_coECGI.is_null() ? "<null>" : iterCache->second.m_coECGI.v.c_str());
       }
     }
   }
@@ -196,13 +170,11 @@ static inline void pcrf_session_cache_rm_parent2child_link (std::string &p_strSe
 {
   std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
   if (iter != g_pmapParent->end()) {
-    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ++ iterLst) {
+    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
       if (*iterLst == p_strSessionId) {
-        iter->second.erase (iterLst);
-        if (0 == iter->second.size()) {
-          g_pmapParent->erase (iter);
-        }
-        break;
+        iterLst = iter->second.erase (iterLst);
+      } else {
+        ++iterLst;
       }
     }
   }
@@ -234,14 +206,17 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
   pair = g_pmapChild->insert (std::pair<std::string,std::string> (p_strSessionId, *p_pstrParentSessionId));
   /* если связка уже существует */
   if (! pair.second) {
-    UTL_LOG_D( *g_pcoLog, "child link for session id '%s' already exists", p_strSessionId.c_str() );
     /* если отношения между родительской и дочерней сессией не изменились */
-    if (pair.first->second == (*p_pstrParentSessionId)) {
+    if (pair.first != g_pmapChild->end()) {
+      if (pair.first->second == (*p_pstrParentSessionId)) {
+      } else {
+        UTL_LOG_N(*g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str());
+        pcrf_session_cache_rm_parent2child_link(p_strSessionId, pair.first->second);
+        pair.first->second = *p_pstrParentSessionId;
+        pcrf_session_cache_mk_parent2child(p_strSessionId, *p_pstrParentSessionId);
+      }
     } else {
-      UTL_LOG_N( *g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str() );
-      pcrf_session_cache_rm_parent2child_link (p_strSessionId, pair.first->second);
-      pair.first->second = *p_pstrParentSessionId;
-      pcrf_session_cache_mk_parent2child (p_strSessionId, *p_pstrParentSessionId);
+      UTL_LOG_E(*g_pcoLog, "insertion of child2parent link failed: map: size: '%u'; max size: '%u'", g_pmapChild->size(), g_pmapChild->max_size());
     }
   }
 }
@@ -259,10 +234,11 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
     for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
       /* ищем и удаляем дочернюю сессию */
       iterChild = g_pmapChild->find (*iterList);
-      if (iterChild != g_pmapChild->end()) {
+      if (iterChild != g_pmapChild->end() && iterChild->second == p_strSessionId) {
         g_pmapChild->erase (iterChild);
       }
     }
+    g_pmapParent->erase(iterParent);
   } else {
     iterChild = g_pmapChild->find (p_strSessionId);
     /* если сессия дочерняя */
@@ -285,21 +261,25 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
   pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WR_WAIT);
 
-  /* дожадаемся завершения всех операций */
+  /* дожидаемся завершения всех операций */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
-
-  /* сохраняем связку между сессиями */
-  pcrf_session_cache_mk_link2parent (p_strSessionId, p_pstrParentSessionId);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
   if (! insertResult.second) {
-    stat_measure (g_psoSessionCacheStat, "session updated", NULL);
-    insertResult.first->second = p_soSessionInfo;
-    pcrf_session_cache_update_child (p_strSessionId, p_soSessionInfo);
+    if (insertResult.first != g_pmapSessionCache->end()) {
+      insertResult.first->second = p_soSessionInfo;
+      pcrf_session_cache_update_child(p_strSessionId, p_soSessionInfo);
+      stat_measure(g_psoSessionCacheStat, "session updated", NULL);
+    } else {
+      UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
+    }
   } else {
     stat_measure (g_psoSessionCacheStat, "session inserterd", NULL);
   }
+
+  /* сохраняем связку между сессиями */
+  pcrf_session_cache_mk_link2parent(p_strSessionId, p_pstrParentSessionId);
 
   CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
 
@@ -308,8 +288,14 @@ clean_and_exit:
   return;
 }
 
-static inline void pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
+static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
 {
+  if (p_uiDataLen + sizeof(*p_psoPayload) <= p_stMaxSize) {
+    /* все в порядке */
+  } else {
+    /* размера буфера не достаточно */
+    return EINVAL;
+  }
   p_psoPayload->m_vend_id = p_uiVendId;
   p_psoPayload->m_avp_id = p_uiAVPId;
   p_psoPayload->m_padding = 0;
@@ -317,7 +303,9 @@ static inline void pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, s
   memcpy (
     reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload),
     p_pvData,
-    p_uiDataLen + sizeof(*p_psoPayload) > p_stMaxSize ? p_uiDataLen : p_stMaxSize - sizeof(*p_psoPayload));
+    p_uiDataLen + sizeof(*p_psoPayload));
+
+  return 0;
 }
 
 static int pcrf_session_cache_fill_pspack (
@@ -334,13 +322,13 @@ static int pcrf_session_cache_fill_pspack (
   SPayloadHdr *pso_payload_hdr;
   char mc_attr[256];
 
-  CHECK_FCT_DO( ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType), return -1 );
+  CHECK_FCT(ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType));
 
   /* связываем заголовок с буфером */
   pso_payload_hdr = reinterpret_cast<SPayloadHdr*>(mc_attr);
 
   /* добавляем SessionId */
-  pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length());
+  CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length()));
   iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
   if (0 < iRetVal) {
   } else {
@@ -360,7 +348,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PS_SUBSCR;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Framed-IP-Address */
@@ -368,7 +356,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 8;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Called-Station-Id */
@@ -376,20 +364,20 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 30;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем IP-CAN-Type */
     vend_id = 10415;
     avp_id = 1027;
-    pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType));
+    CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType)));
     iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     /* добавляем IP-CAN-Type (в текстовом виде) */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
     if (!pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IPCANTYPE;
-      pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length());
+      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length()));
       iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем SGSN-IP-Address */
@@ -397,7 +385,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 6;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем RAT-Type */
@@ -405,7 +393,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 1032;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Origin-Host */
@@ -413,7 +401,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 264;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Origin-Realm */
@@ -421,7 +409,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 0;
       avp_id = 296;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем CGI */
@@ -429,7 +417,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_CGI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем ECGI */
@@ -437,7 +425,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_ECGI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем IMEI-SV */
@@ -445,7 +433,7 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMEI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем End-User-IMSI */
@@ -453,14 +441,14 @@ static int pcrf_session_cache_fill_pspack (
     if (! pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMSI;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
     /* добавляем Parent-Session-Id (по необходимости) */
     if (NULL != p_pstrParentSessionId) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_PSES;
-      pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, p_pstrParentSessionId->data(), p_pstrParentSessionId->length ());
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, p_pstrParentSessionId->data(), p_pstrParentSessionId->length ()));
       iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     }
   } else if (static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION) == p_uiReqType) {
@@ -531,9 +519,9 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
   soTmp.m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   soTmp.m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
-  pcrf_session_cache_cmd2remote (p_strSessionId, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
-
   pcrf_session_cache_insert_local (p_strSessionId, soTmp, p_pstrParentSessionId);
+
+  pcrf_session_cache_cmd2remote (p_strSessionId, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
 
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 
@@ -552,7 +540,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   /* готовим таймер мьютекса */
   CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return errno );
   pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RD_WAIT);
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
@@ -620,9 +608,9 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
 
-  pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
-
   pcrf_session_cache_remove_local (p_strSessionId);
+
+  pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 }
@@ -645,11 +633,9 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
 
   /* парсинг запроса */
   CHECK_FCT( coPSPack.Parse (reinterpret_cast<const SPSRequest*>(p_pmucBuf), static_cast<size_t>(p_stMsgLen), uiPackNum, uiReqType, uiPackLen, mmap) );
-  UTL_LOG_D( *g_pcoLog, "packet number: '%u'; packet type: '%#x'; packet length: '%u'; attibute count: '%d'", uiPackNum, uiReqType, uiPackLen, mmap.size() );
 
   /* обходим все атрибуты запроса */
   for (iter = mmap.begin(); iter != mmap.end(); ++iter) {
-    UTL_LOG_D( *g_pcoLog, "attribute: key value: '%#x'; type: '%#x'; length: '%u'", iter->first, iter->second.m_usAttrType, iter->second.m_usDataLen );
     /* проверяем размр буфера */
     if (stBufSize < iter->second.m_usDataLen) {
       /* выделяем дополнительную память с запасом на будущее */
@@ -661,7 +647,6 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     }
     psoPayload = reinterpret_cast<SPayloadHdr*>(pmucBuf);
     memcpy (psoPayload, iter->second.m_pvData, iter->second.m_usDataLen);
-    UTL_LOG_D( *g_pcoLog, "payload: vendor id: '%u'; avp id: '%#x'; length: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id, psoPayload->m_payload_len );
     switch (psoPayload->m_vend_id) {
     case 0:     /* Dimeter */
       switch (psoPayload->m_avp_id) {
@@ -780,7 +765,6 @@ clean_and_exit:
 
 static void * pcrf_session_cache_receiver (void *p_vParam)
 {
-  UTL_LOG_D( *g_pcoLog, "receiver thread is started" );
   int iRecvSock;
   uint8_t *pmucBuf = NULL;
   sockaddr_in soAddr;
@@ -799,17 +783,14 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
     goto clean_and_exit;
   }
 
-  UTL_LOG_D( *g_pcoLog, "receiver thread is waiting for module initialization completion" );
   /* ждем пока модуль не инициализируется полностью */
   while (! g_module_is_initialized && g_lets_work) {
     sleep (0);
   }
-  UTL_LOG_D( *g_pcoLog, "module initialization completed, receiver thread has continued work" );
 
   /* привязываемся к локальному адресу */
   soAddr.sin_family = AF_INET;
   if (0 != inet_aton (g_strLocalIPAddress.c_str(), &soAddr.sin_addr)) {
-    UTL_LOG_D( *g_pcoLog, "inet address converted successfully: %s -> %#x", g_strLocalIPAddress.c_str(), soAddr.sin_addr.s_addr );
   } else {
     UTL_LOG_E( *g_pcoLog, "inet_aton can not convert local address: '%s'", g_strLocalIPAddress.c_str());
     goto clean_and_exit;
@@ -829,7 +810,6 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
         if (sizeof(soAddr) >= stAddrLen) {
           /* в этом случае мы имеем корректно сформированный адрес пира */
           /* использование inet_ntoa в этом случае не опасно, т.к. обрабатываем по одному пакету за цикл */
-          UTL_LOG_D( *g_pcoLog, "receved packet: length: '%d'; from: '%s:%u'", stRecv, inet_ntoa (soAddr.sin_addr), ntohs (soAddr.sin_port) );
         }
         if (0 < stRecv) {
           pcrf_session_cache_process_request (reinterpret_cast<char*>(pmucBuf), stRecv);
@@ -839,7 +819,6 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
   }
 
 clean_and_exit:
-  UTL_LOG_D( *g_pcoLog, "error code: '%d'; description: '%s'", errno, strerror(errno) );
   if (-1 != iRecvSock) {
     shutdown (iRecvSock, SHUT_RDWR);
     close (iRecvSock);
@@ -884,7 +863,7 @@ static int pcrf_session_cache_init_node ()
         >> coReal
         >> coIPAddress
         >> coPort;
-      UTL_LOG_D( *g_pcoLog, "node information loaded: host: '%s'; realm: '%s'; ip-address: '%s'; port: '%u'", coHost.v.c_str(), coReal.v.c_str(), coIPAddress.v.c_str(), coPort.v );
+      UTL_LOG_D(*g_pcoLog, "node information loaded: host: '%s'; realm: '%s'; ip-address: '%s'; port: '%u'", coHost.v.c_str(), coReal.v.c_str(), coIPAddress.v.c_str(), coPort.v );
       if (! coHost.is_null () && coHost.v.length() == fd_g_config->cnf_diamid_len && 0 == coHost.v.compare (0, fd_g_config->cnf_diamid_len, reinterpret_cast<const char*>(fd_g_config->cnf_diamid))
         && ! coReal.is_null() && coReal.v.length() == fd_g_config->cnf_diamrlm_len && 0 == coReal.v.compare (0, fd_g_config->cnf_diamrlm_len, reinterpret_cast<const char*>(fd_g_config->cnf_diamrlm))) {
           if (! coIPAddress.is_null ()) {
@@ -893,7 +872,7 @@ static int pcrf_session_cache_init_node ()
           if (! coPort.is_null ()) {
             g_uiLocalPort = static_cast<uint16_t>(coPort.v);
           }
-          UTL_LOG_D( *g_pcoLog, "home node detected: set local ip-address to '%s'; set local port to '%u'", g_strLocalIPAddress.c_str(), g_uiLocalPort );
+          UTL_LOG_D(*g_pcoLog, "home node detected: set local ip-address to '%s'; set local port to '%u'", g_strLocalIPAddress.c_str(), g_uiLocalPort );
           continue;
       }
       if (! coHost.is_null()) {

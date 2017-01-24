@@ -1,4 +1,4 @@
-#include "utils/log/log.h"
+﻿#include "utils/log/log.h"
 #include "utils/timemeasurer/timemeasurer.h"
 #include "utils/stat/stat.h"
 
@@ -24,6 +24,12 @@
 #define OTL_UBIGINT long unsigned int
 #define OTL_STREAM_NO_PRIVATE_UNSIGNED_LONG_OPERATORS
 #include "utils/otlv4.h"
+
+/* идентификаторы диалектов */
+#define GX_UNDEF      0
+#define GX_3GPP       1
+#define GX_CISCO_SCE  2
+#define GX_PROCERA    3
 
 #ifdef __cplusplus
 extern "C" {	/* функции, реализованные на C++ */
@@ -66,7 +72,7 @@ struct SSessionInfo {
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
-	SSessionInfo () { m_uiPeerDialect = 0; };
+	SSessionInfo () { m_uiPeerDialect = GX_UNDEF; };
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;
@@ -130,7 +136,7 @@ struct SPeerInfo {
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = 0; }
+	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = GX_UNDEF; }
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
@@ -189,7 +195,6 @@ struct SRefQueue {
 	std::string m_strIdentifier;
 	std::string m_strIdentifierType;
 	otl_value<std::string> m_coAction;
-	otl_datetime m_coRefreshDate;
 };
 
 /* формирование полного списка правил */
@@ -228,7 +233,7 @@ int pcrf_server_db_load_subscriber_id (
 int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo, SStat *p_psoStat);
 /* загрузка списка активных правил абонента */
 int pcrf_server_db_load_active_rules (
-	otl_connect &p_coDBConn,
+	otl_connect *p_pcoDBConn,
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectActive,
 	SStat *p_psoStat);
@@ -286,10 +291,14 @@ int pcrf_make_UMI (
 	msg_or_avp *p_psoMsgOrAVP,
 	SSessionInfo &p_soSessInfo,
 	bool p_bFull = true);
+/* запись TETHERING_REPORT в БД */
+int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo);
 /* задает значение Event-Trigger RAT_CHANGE */
 int set_RAT_CHANGE_event_trigger (
 	SSessionInfo &p_soSessInfo,
 	msg_or_avp *p_psoMsgOrAVP);
+/* задает значение Event-Trigger TETHERING_REPORT */
+int set_TETHERING_REPORT_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
 /* задает значение Event-Trigger 777 */
 int set_777_event_trigger (
 	SSessionInfo &p_soSessInfo,
@@ -311,15 +320,13 @@ int pcrf_server_db_insert_refqueue (
 int pcrf_client_db_delete_refqueue (
 	otl_connect &p_coDBConn,
 	SRefQueue &p_soRefQueue);
+
 /* функция определяет протокол пира */
 int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
 /* определяет подключен ли пер */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 /* определяет есть ли подключенные пиры заданного диалекта */
 int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
-
-/* функция для посылки команды на завершение сессии */
-int pcrf_client_ASR (SSessionInfo &p_soSessInfo);
 
 /* функция для посылки RAR */
 int pcrf_client_RAR (otl_connect *p_pcoDBConn,
@@ -342,6 +349,9 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
 int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
 /* удаление данных из кеша */
 void pcrf_session_cache_remove (std::string &p_strSessionId);
+
+/* функция для добавления элемента в локальную очередь обновления политик */
+void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */
