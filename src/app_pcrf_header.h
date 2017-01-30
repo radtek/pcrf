@@ -1,6 +1,8 @@
-﻿#include "utils/log/log.h"
+﻿#include "pcrf_otl.h"
+#include "utils/log/log.h"
 #include "utils/timemeasurer/timemeasurer.h"
 #include "utils/stat/stat.h"
+#include "app_rx/app_rx_data_types.h"
 
 #include <freeDiameter/extension.h>
 #include <stdint.h>
@@ -18,12 +20,6 @@
 	typedef unsigned __int32 uint32_t;
 	typedef unsigned __int64 uint64_t;
 #endif
-
-#define OTL_ORA11G_R2
-#define OTL_STL
-#define OTL_UBIGINT long unsigned int
-#define OTL_STREAM_NO_PRIVATE_UNSIGNED_LONG_OPERATORS
-#include "utils/otlv4.h"
 
 /* идентификаторы диалектов */
 #define GX_UNDEF      0
@@ -130,6 +126,7 @@ struct SRequestInfo {
 struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
 	struct SRequestInfo *m_psoReqInfo;
+  SMsgDataForDB() : m_psoSessInfo(NULL), m_psoReqInfo(NULL) {}
 };
 struct SPeerInfo {
 	otl_value<std::string> m_coHostName;
@@ -246,7 +243,9 @@ int pcrf_db_load_rule_info(
 /* поиск сессии UGW для загрузки данных для SCE */
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat);
 /* поиск сессии UGW для загрузки данных для Procera */
-int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat);
+int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo, SStat *p_psoStat);
+/* поиск IP-CAN сессии */
+int pcrf_server_find_IPCAN_session_byframedip(otl_connect &p_coDBConn, otl_value<SFramedIPAddress> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo, SStat *p_psoStat);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,
@@ -328,11 +327,34 @@ int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 /* определяет есть ли подключенные пиры заданного диалекта */
 int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
 
+struct SRARResult {
+  pthread_mutex_t m_mutexWait;
+  int m_iResultCode;
+  bool m_bInit;
+  SRARResult() : m_bInit(false)
+  {
+    /* инициализируем мьютекс */
+    CHECK_FCT_DO(pthread_mutex_init(&m_mutexWait, NULL), return);
+    m_bInit = true;
+    /* блокируем его, т.к. он создается разблокированным */
+    CHECK_FCT_DO(pthread_mutex_lock(&m_mutexWait), return);
+  }
+  ~SRARResult()
+  {
+    if (m_bInit) {
+      pthread_mutex_destroy(&m_mutexWait);
+      m_bInit = false;
+    }
+  }
+};
+
 /* функция для посылки RAR */
 int pcrf_client_RAR (otl_connect *p_pcoDBConn,
 	SMsgDataForDB p_soReqInfo,
-	std::vector<SDBAbonRule> &p_vectActiveRules,
-	std::vector<SDBAbonRule> &p_vectAbonRules);
+	std::vector<SDBAbonRule> *p_pvectActiveRules,
+	std::vector<SDBAbonRule> &p_vectAbonRules,
+  SRARResult *p_psoRARRes,
+  uint32_t p_uiUsec);
 
 /* функция для Procera - формирование значения правила о локации пользователя */
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
@@ -344,7 +366,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
 
 /* добавление данных о сессии в кеш */
-void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId);
+void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId);
 /* загрузка данных о сессии из кеша */
 int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
 /* удаление данных из кеша */
@@ -352,6 +374,12 @@ void pcrf_session_cache_remove (std::string &p_strSessionId);
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
+
+#define NSEC_PER_USEC   1000L     
+#define USEC_PER_SEC    1000000L
+#define NSEC_PER_SEC    1000000000L
+/* функция добавляет заданное значение p_uiAddUSec (мксек) к p_soTimeVal и записывает полученное значние в p_soTimeSpec */
+int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiAddUSec);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

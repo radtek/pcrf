@@ -28,7 +28,7 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
   struct dict_avp_data soAVPInfo;
   CHECK_POSIX (fd_dict_getval (psoDictObj, &soAVPInfo));
 
-  /* структура дл¤ формировани¤ запроса к словарю и выборки из него значени¤ */
+  /* структура для формирования запроса к словарю и выборки из него значения */
   struct dict_enumval_request soEnumReq;
   memset (&soEnumReq, 0, sizeof (soEnumReq));
   /* копируем запрашаваемое значение */

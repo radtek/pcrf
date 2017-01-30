@@ -6,9 +6,7 @@
 #include <string>
 #include <vector>
 
-#define OTL_STL
-#define OTL_ORA11G
-#include "utils/otlv4.h"
+#include "app_pcrf/pcrf_otl.h"
 
 /*
   Media-Sub-Component ::= < AVP Header: 519 >
@@ -461,6 +459,13 @@ struct SRAA {
   otl_value<int32_t> m_coRedirectHostUsage;
   otl_value<uint32_t> m_coRedirectMaxCacheTime;
   std::vector<SProxyInfo> m_vectProxyInfo;
+};
+
+/*
+    STR
+*/
+struct SSTR {
+  otl_value<SFramedIPAddress> m_coFramedIPAddress;
 };
 
 /* получение именованного значения константы */

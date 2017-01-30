@@ -9,7 +9,6 @@ FLEX_FILE(app_pcrf_conf.l)
 
 include_directories(/oracle/orahome/rdbms/public)
 include_directories(~/project/utils/src)
-include_directories(..)
 
 SET_SOURCE_FILES_PROPERTIES(lex.app_pcrf_conf.c app_pcrf_conf.tab.c PROPERTIES COMPILE_FLAGS "-I ${CMAKE_CURRENT_SOURCE_DIR}" )
 SET_SOURCE_FILES_PROPERTIES(pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp pcrf_session_cache.cpp PROPERTIES COMPILE_FLAGS "-I /oracle/orahome/rdbms/public" )

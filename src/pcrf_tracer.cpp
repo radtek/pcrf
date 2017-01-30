@@ -22,7 +22,7 @@ static void pcrf_tracer (
 
 	int iFnRes;
 	CTimeMeasurer coTM;
-	SStat *psoStat = stat_get_branch(__FUNCTION__);
+	SStat *psoStat = stat_get_branch("tracer");
 	const char *pszPeerName = p_psoPeer ? p_psoPeer->info.pi_diamid : "<unknown peer>";
 	char *pmcBuf = NULL;
 	size_t stLen;
@@ -106,7 +106,7 @@ static void pcrf_tracer (
 	} else {
 		strRequestType += 'A';
 	}
-	/* добываем необходимые значени¤ из запроса */
+	/* добываем необходимые значения из запроса */
 	msg_or_avp *psoMsgOrAVP;
 	avp_hdr *psoAVPHdr;
 	avp *psoAVP;
@@ -157,12 +157,12 @@ static void pcrf_tracer (
 		break;
 		}
 	} while (0 == fd_msg_browse_internal (psoAVP, MSG_BRW_NEXT, &psoMsgOrAVP, NULL));
-	/* опционально дл¤ CC определ¤ем тип ——-запроса */
+	/* опционально для CC определяем тип ——-запроса */
 	if (psoMsgHdr->msg_code == 272 && strCCReqType.length ()) {
 		strRequestType += '-';
 		strRequestType += strCCReqType[0];
 	}
-	/* провер¤ем наличие об¤зательных атрибутов */
+	/* проверяем наличие обязательных атрибутов */
 	if (0 == strOriginHost.length ()) {
 		switch (p_eHookType)
 		{
@@ -189,7 +189,7 @@ static void pcrf_tracer (
 			break;
 		}
 	}
-	/* провер¤ем возможность заполнени¤ опциональных атрибутов */
+	/* проверяем возможность заполнения опциональных атрибутов */
 	if (0 == strOriginReal.length ()) {
 		switch (p_eHookType)
 		{
@@ -211,7 +211,11 @@ static void pcrf_tracer (
 	}
 
 	/* пытаемся сохранить данные в БД */
-	iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__, psoStat, 0);
+#ifdef DEBUG
+  iFnRes = pcrf_db_pool_get((void**)&pcoDBConn, __FUNCTION__, psoStat, 1);
+#else
+  iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__, psoStat, 0);
+#endif
 	if (iFnRes)
 		goto free_and_exit;
 	try {

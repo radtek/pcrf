@@ -6,6 +6,7 @@
 #define APP_RX_ID       16777236
 
 #define AAR_CMD_ID      265
+#define STR_CMD_ID      275
 
 #define END_USER_E164     0
 #define END_USER_IMSI     1

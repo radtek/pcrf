@@ -131,15 +131,20 @@ void pcrf_session_cache_fini (void)
   }
 }
 
-static inline void pcrf_session_cache_timespec_add (timespec &p_soTimeSpec, timeval &p_soTimeVal, uint32_t p_uiAddUSec)
+int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiAddUSec)
 {
-  p_soTimeSpec.tv_sec = p_soTimeVal.tv_sec;
-  if (p_soTimeVal.tv_usec + p_uiAddUSec < 1000000) {
-    p_soTimeSpec.tv_nsec = (p_soTimeVal.tv_usec + p_uiAddUSec) * 1000;
+  timeval soTimeVal;
+
+  CHECK_FCT(gettimeofday(&soTimeVal, NULL));
+  p_soTimeSpec.tv_sec = soTimeVal.tv_sec;
+  if ((soTimeVal.tv_usec + p_uiAddUSec) < USEC_PER_SEC) {
+    p_soTimeSpec.tv_nsec = (soTimeVal.tv_usec + p_uiAddUSec) * NSEC_PER_USEC;
   } else {
     ++p_soTimeSpec.tv_sec;
-    p_soTimeSpec.tv_nsec = (p_soTimeVal.tv_usec - 1000000 + p_uiAddUSec) * 1000;
+    p_soTimeSpec.tv_nsec = (soTimeVal.tv_usec - USEC_PER_SEC + p_uiAddUSec) * NSEC_PER_USEC;
   }
+
+  return 0;
 }
 
 static inline void pcrf_session_cache_update_child (std::string &p_strSessionId, SSessionCache &p_soSessionInfo)
@@ -255,11 +260,9 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 {
   std::pair<std::map<std::string,SSessionCache>::iterator,bool> insertResult;
 
-  timeval soTimeVal;
   timespec soTimeSpec;
 
-  CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_WR_WAIT);
+  CHECK_FCT_DO(pcrf_make_timespec_timeout (soTimeSpec, MUTEX_WR_WAIT), return);
 
   /* дожидаемся завершения всех операций */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
@@ -300,10 +303,7 @@ static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, si
   p_psoPayload->m_avp_id = p_uiAVPId;
   p_psoPayload->m_padding = 0;
   p_psoPayload->m_payload_len = p_uiDataLen + sizeof(*p_psoPayload);
-  memcpy (
-    reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload),
-    p_pvData,
-    p_uiDataLen + sizeof(*p_psoPayload));
+  memcpy(reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload), p_pvData, p_uiDataLen);
 
   return 0;
 }
@@ -328,7 +328,7 @@ static int pcrf_session_cache_fill_pspack (
   pso_payload_hdr = reinterpret_cast<SPayloadHdr*>(mc_attr);
 
   /* добавляем SessionId */
-  CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.c_str(), p_strSessionId.length()));
+  CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.data(), p_strSessionId.length()));
   iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
   if (0 < iRetVal) {
   } else {
@@ -345,7 +345,7 @@ static int pcrf_session_cache_fill_pspack (
     uint16_t avp_id;
     /* добавляем Subscriber-Id */
     pco_field = &p_psoSessionInfo->m_coSubscriberId;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PS_SUBSCR;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -353,7 +353,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем Framed-IP-Address */
     pco_field = &p_psoSessionInfo->m_coFramedIPAddr;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 0;
       avp_id = 8;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -361,7 +361,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем Called-Station-Id */
     pco_field = &p_psoSessionInfo->m_coCalledStationId;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 0;
       avp_id = 30;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -374,7 +374,7 @@ static int pcrf_session_cache_fill_pspack (
     iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len);
     /* добавляем IP-CAN-Type (в текстовом виде) */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
-    if (!pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IPCANTYPE;
       CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length()));
@@ -382,7 +382,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем SGSN-IP-Address */
     pco_field = &p_psoSessionInfo->m_coSGSNIPAddr;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 6;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -390,7 +390,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем RAT-Type */
     pco_field = &p_psoSessionInfo->m_coRATType;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 10415;
       avp_id = 1032;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -398,7 +398,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем Origin-Host */
     pco_field = &p_psoSessionInfo->m_coOriginHost;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 0;
       avp_id = 264;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -406,7 +406,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем Origin-Realm */
     pco_field = &p_psoSessionInfo->m_coOriginRealm;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 0;
       avp_id = 296;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -414,7 +414,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем CGI */
     pco_field = &p_psoSessionInfo->m_coCGI;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_CGI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -422,7 +422,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем ECGI */
     pco_field = &p_psoSessionInfo->m_coECGI;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_ECGI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -430,7 +430,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем IMEI-SV */
     pco_field = &p_psoSessionInfo->m_coIMEISV;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMEI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -438,7 +438,7 @@ static int pcrf_session_cache_fill_pspack (
     }
     /* добавляем End-User-IMSI */
     pco_field = &p_psoSessionInfo->m_coEndUserIMSI;
-    if (! pco_field->is_null()) {
+    if (0 == pco_field->is_null()) {
       vend_id = 65535;
       avp_id = PCRF_ATTR_IMSI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
@@ -493,11 +493,11 @@ static inline void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, S
   }
 }
 
-void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId)
+void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId)
 {
   CTimeMeasurer coTM;
   /* проверяем параметры */
-  if (0 != p_strSessionId.length()) {
+  if (0 == p_coSessionId.is_null()) {
   } else {
     return;
   }
@@ -519,9 +519,9 @@ void pcrf_session_cache_insert (std::string &p_strSessionId, SSessionInfo &p_soS
   soTmp.m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   soTmp.m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
-  pcrf_session_cache_insert_local (p_strSessionId, soTmp, p_pstrParentSessionId);
+  pcrf_session_cache_insert_local (p_coSessionId.v, soTmp, p_pstrParentSessionId);
 
-  pcrf_session_cache_cmd2remote (p_strSessionId, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
+  pcrf_session_cache_cmd2remote (p_coSessionId.v, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
 
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 
@@ -534,12 +534,10 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
   int iRetVal = 0;
   std::map<std::string,SSessionCache>::iterator iter;
-  timeval soTimeVal;
   timespec soTimeSpec;
 
   /* готовим таймер мьютекса */
-  CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return errno );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RD_WAIT);
+  CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RD_WAIT), return errno );
   CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
@@ -580,11 +578,9 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   std::map<std::string,SSessionCache>::iterator iter;
 
-  timeval soTimeVal;
   timespec soTimeSpec;
 
-  CHECK_FCT_DO( gettimeofday (&soTimeVal, NULL), return );
-  pcrf_session_cache_timespec_add (soTimeSpec, soTimeVal, MUTEX_RM_WAIT);
+  CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RM_WAIT), return );
   /* дожадаемся освобождения мьютекса */
   CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
 

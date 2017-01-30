@@ -1291,7 +1291,7 @@ static int dict_rx_entry (char *conffile)
       *[ Supported-Features ]
       [ Reservation-Priority ]
       [ Framed-IP-Address ]
-      [ Framed-IPv6-Prefix ]            // conflict with RFC-7155, there is definition: *[ Framed-IPv6-Prefix ]
+      [ Framed-IPv6-Prefix ]
       [ Called-Station-Id ]
       [ Service-URN ]
       [ Sponsored-Connectivity-Data ]
