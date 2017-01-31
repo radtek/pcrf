@@ -477,7 +477,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				goto clear_and_continue;
 			}
 			/* посылаем RAR-запрос */
-			CHECK_POSIX_DO(pcrf_client_RAR(p_pcoDBConn, soSessInfo, &vectActive, vectAbonRules, NULL, 0), /* continue */ );
+			CHECK_POSIX_DO(pcrf_client_RAR(p_pcoDBConn, soSessInfo, &vectActive, vectAbonRules, NULL, USEC_PER_SEC), /* continue */ );
 			/* освобождаем ресуры*/
 		clear_and_continue:
 			pcrf_server_DBStruct_cleanup(&soSessInfo);
