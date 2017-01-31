@@ -20,8 +20,6 @@ static int app_rx_extract_mcd (avp *p_psoAVP, std::vector<SMCD> &p_vectMCD);
 static int app_rx_extract_msc (avp *p_psoAVP, std::vector<SMSC> &p_vectMSC);
 /* выборка из Subscription-Id */
 static int app_rx_extract_si (avp *p_psoAVP, SSId &p_soSI);
-/* выборка данных из OC-Supported-Features */
-static int app_rx_extract_ocsf (avp *p_psoAVP, otl_value<SOCSF> &p_coOCSF);
 /* выборка данных из Supported-Features */
 static int app_rx_extract_sf (avp *p_psoAVP, SSF &p_soSF);
 /* выборка данных из Sponsored-Connectivity-Data */
@@ -34,8 +32,6 @@ static int app_rx_extract_usu (avp *p_psoAVP, otl_value<SUSU> &p_coUSU);
 static int app_rx_extract_ccm (avp *p_psoAVP, otl_value<SCCMoney> &p_coCCMoney);
 /* выборка данных из Unit-Value */
 static int app_rx_extract_uv (avp *p_psoAVP, otl_value<SUnitValue> &p_coUV);
-/* выбрка данных из Proxy-Info */
-static int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI);
 
 /* сохраняем сессию в БД */
 static int app_rx_store_req(SAAR &p_soAAR, SMsgDataForDB &p_soIPCANSess, otl_connect *p_pcoDBConn);

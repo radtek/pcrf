@@ -482,20 +482,24 @@ struct SSTR {
   otl_value<std::string>    m_coOriginHost;
   otl_value<std::string>    m_coOriginRealm;
   otl_value<std::string>    m_coDestRealm;
-  otl_value<std::string>    m_coSessionId;
   otl_value<uint32_t>       m_coAuthApplicationId;
   otl_value<std::string>    m_coTermCause;
   otl_value<std::string>    m_coDestHost;
-  SOCSF                     m_soOCSuppFeat;
+  otl_value<SOCSF>          m_soOCSuppFeat;
   std::vector<int32_t>      m_vectRequiredAccessInfo;
   std::vector<std::string>  m_vectClass;
   otl_value<uint32_t>       m_coOriginStateId;
   std::vector<SProxyInfo>   m_vectProxyInfo;
-  std::vector<std::string>    m_vectRouteRecord;
+  std::vector<std::string>  m_vectRouteRecord;
 };
 
 /* получение именованного значения константы */
 void app_rx_get_enum_val (vendor_id_t p_tVendId, avp_code_t p_tAVPCode, int32_t p_iVal, otl_value<std::string> &p_coValue);
 void app_rx_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
+
+/* выборка данных из OC-Supported-Features */
+int app_rx_extract_ocsf(avp *p_psoAVP, otl_value<SOCSF> &p_coOCSF);
+/* выбрка данных из Proxy-Info */
+int app_rx_extract_pi(avp *p_psoAVP, SProxyInfo &p_soPI);
 
 #endif /* _APP_RX_DATA_TYPES_H_ */
