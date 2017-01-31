@@ -32,7 +32,7 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 		p_psoMsgToDB->m_psoSessInfo = new SSessionInfo;
 		p_psoMsgToDB->m_psoReqInfo = new SRequestInfo;
 	} catch (std::bad_alloc &coBadAlloc) {
-		UTL_LOG_F(*g_pcoLog, "memory allocation error: '%s';", coBadAlloc.what());
+		UTL_LOG_F(*g_pcoLog, "memory allocation error: '%s'", coBadAlloc.what());
 		iRetVal = ENOMEM;
 	}
 
@@ -190,7 +190,6 @@ void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo)
 {
 	/* освобождаем занятую память */
 	if (p_psoMsgInfo->m_psoSessInfo) {
-		p_psoMsgInfo->m_psoSessInfo->m_vectCRR.clear ();
 		delete p_psoMsgInfo->m_psoSessInfo;
 		p_psoMsgInfo->m_psoSessInfo = NULL;
 	}
@@ -953,7 +952,7 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 	return iRetVal;
 }
 
-int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId, SStat *p_psoStat)
+int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo, SStat *p_psoStat)
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
@@ -963,18 +962,21 @@ int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::strin
     coStream.open (
       1,
       "select "
-        "sl.session_id "
+        "sl.session_id,"
+        "sl.origin_host,"
+        "sl.origin_realm "
       "from "
         "ps.sessionList sl "
         "inner join ps.peer p on sl.origin_host = p.host_name "
       "where "
         "sl.framed_ip_address = :framed_ip_address /*char[16]*/ "
-        "and p.protocol_id = 1 "
+        "and p.protocol_id = :dialect_id /*int*/"
       "order by sl.time_start desc",
       p_coDBConn);
     coStream
-      << p_strFramedIPAddress;
-    if (coStream >> p_strUGWSessionId) {
+      << p_strFramedIPAddress
+      << GX_3GPP;
+    if (coStream >> p_soSessInfo.m_coSessionId >> p_soSessInfo.m_coOriginHost >> p_soSessInfo.m_coOriginRealm) {
     } else {
       UTL_LOG_E (
         *g_pcoLog,
@@ -1309,11 +1311,12 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
         "sl2.session_id = :session_id/*char[255]*/ "
         "and p.host_name = sl.origin_host and p.realm = sl.origin_realm "
         "and sl.framed_ip_address = sl2.framed_ip_address "
-        "and p.protocol_id = 3 "
+        "and p.protocol_id = :dialect_id /*int*/ "
         "and sl.time_end is null",
 			p_coDBConn);
 		coStream
-			<< p_coUGWSessionId;
+			<< p_coUGWSessionId
+      << GX_PROCERA;
     while (! coStream.eof()) {
       coStream
         >> soSessInfo.m_coSessionId
