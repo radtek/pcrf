@@ -245,7 +245,7 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 /* поиск сессии UGW для загрузки данных для Procera */
 int pcrf_server_find_ugw_session_byframedip (otl_connect &p_coDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo, SStat *p_psoStat);
 /* поиск IP-CAN сессии */
-int pcrf_server_find_IPCAN_session_byframedip(otl_connect &p_coDBConn, otl_value<SFramedIPAddress> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo, SStat *p_psoStat);
+int pcrf_server_find_IPCAN_session_byframedip(otl_connect &p_coDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo, SStat *p_psoStat);
 /* загрузка идентификатора абонента по Session-Id */
 int pcrf_server_db_load_session_info (
 	otl_connect &p_coDBConn,

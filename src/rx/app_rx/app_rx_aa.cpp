@@ -5,6 +5,10 @@
 #include "utils/dbpool/dbpool.h"
 #include "app_pcrf/app_pcrf_header.h"
 
+#include "utils/log/log.h"
+
+extern CLog *g_pcoLog;
+
 static disp_hdl * app_rx_aar_cb_hdl = NULL;
 static int app_rx_aar_cb ( struct msg **, struct avp *, struct session *, void *, enum disp_action *);
 
@@ -33,6 +37,9 @@ static int app_rx_extract_uv (avp *p_psoAVP, otl_value<SUnitValue> &p_coUV);
 /* выбрка данных из Proxy-Info */
 static int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI);
 
+/* сохраняем сессию в БД */
+static int app_rx_store_req(SAAR &p_soAAR, SMsgDataForDB &p_soIPCANSess, otl_connect *p_pcoDBConn);
+
 int app_rx_register_aar_cb ()
 {
   struct disp_when data;
@@ -47,34 +54,15 @@ int app_rx_register_aar_cb ()
   return 0;
 }
 
-int pcrf_server_find_IPCAN_session_byframedip(otl_connect &p_coDBConn, otl_value<SFramedIPAddress> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo, SStat *p_psoStat)
+int pcrf_server_find_IPCAN_session_byframedip(otl_connect &p_coDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo, SStat *p_psoStat)
 {
-  char mcAddr[16];
-  int iFnRes;
-
   if (0 == p_coIPAddr.is_null()) {
-    iFnRes = snprintf(
-      mcAddr, sizeof(mcAddr),
-      "%u.%u.%u.%u",
-      p_coIPAddr.v.m_uAddr.m_soAddr.b1, p_coIPAddr.v.m_uAddr.m_soAddr.b2, p_coIPAddr.v.m_uAddr.m_soAddr.b3, p_coIPAddr.v.m_uAddr.m_soAddr.b4);
-    if (0 < iFnRes) {
-      if (static_cast<size_t>(iFnRes) < sizeof(mcAddr)) {
-        std::string strAddr = mcAddr;
-        iFnRes = pcrf_server_find_ugw_session_byframedip(p_coDBConn, strAddr, p_soIPCANSessInfo, p_psoStat);
-        LOG_D("Framed-IP-Address: '%s'; Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
-          mcAddr,
-          p_soIPCANSessInfo.m_coSessionId.is_null() ? "<null>" : p_soIPCANSessInfo.m_coSessionId.v.c_str(),
-          p_soIPCANSessInfo.m_coOriginHost.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginHost.v.c_str(),
-          p_soIPCANSessInfo.m_coOriginRealm.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginRealm.v.c_str());
-        return iFnRes;
-      } else {
-        LOG_D("snprintf: buffer is too small: %u < %u", sizeof(mcAddr), iFnRes);
-        return EINVAL;
-      }
-    } else {
-      LOG_D("snprintf: %s", strerror(errno));
-      return EINVAL;
-    }
+    LOG_D("Framed-IP-Address: '%s'; Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
+      p_coIPAddr.v.c_str(),
+      p_soIPCANSessInfo.m_coSessionId.is_null() ? "<null>" : p_soIPCANSessInfo.m_coSessionId.v.c_str(),
+      p_soIPCANSessInfo.m_coOriginHost.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginHost.v.c_str(),
+      p_soIPCANSessInfo.m_coOriginRealm.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginRealm.v.c_str());
+    return (pcrf_server_find_ugw_session_byframedip(p_coDBConn, p_coIPAddr.v, p_soIPCANSessInfo, p_psoStat));
   } else {
     LOG_D("Framed-IP-Address is empty");
     return EINVAL;
@@ -152,9 +140,9 @@ int app_rx_aar_cb ( struct msg **p_ppMsg, struct avp *p_avp, struct session *p_s
   avp_value soAVPVal;
   int iResultCode = 2001; /*  DIAMETER_SUCCESS */
   otl_connect *pcoDBConn = NULL;
-  SMsgDataForDB soReqInfo;
+  SMsgDataForDB soIPCANSess;
 
-  CHECK_FCT(pcrf_server_DBstruct_init(&soReqInfo));
+  CHECK_FCT(pcrf_server_DBstruct_init(&soIPCANSess));
   avp_value soAVPValue;
 
   CHECK_FCT_DO( app_rx_extract_aar (pMsg, soAAR), /* continue */ );
@@ -167,24 +155,28 @@ int app_rx_aar_cb ( struct msg **p_ppMsg, struct avp *p_avp, struct session *p_s
 
   /* обработка запроса */
   /* поиск активной Интернет-сессии */
-  CHECK_FCT_DO(pcrf_server_find_IPCAN_session_byframedip(*pcoDBConn, soAAR.m_coFramedIPAddress, *soReqInfo.m_psoSessInfo, NULL), iResultCode = 5065; goto answer);
+  CHECK_FCT_DO(pcrf_server_find_IPCAN_session_byframedip(*pcoDBConn, soAAR.m_coFramedIPAddress, *soIPCANSess.m_psoSessInfo, NULL), iResultCode = 5065; goto answer);
   /* загружаем дополнительные сведения о сессии */
-  CHECK_FCT_DO(pcrf_server_db_load_session_info(*pcoDBConn, soReqInfo, soReqInfo.m_psoSessInfo->m_coSessionId.v, NULL), iResultCode = 5065; goto answer);
-  CHECK_FCT_DO(pcrf_peer_dialect(*soReqInfo.m_psoSessInfo), iResultCode = 5065; goto answer);
+  CHECK_FCT_DO(pcrf_server_db_load_session_info(*pcoDBConn, soIPCANSess, soIPCANSess.m_psoSessInfo->m_coSessionId.v, NULL), iResultCode = 5065; goto answer);
+  CHECK_FCT_DO(pcrf_peer_dialect(*soIPCANSess.m_psoSessInfo), iResultCode = 5065; goto answer);
   LOG_D("session info: '%s', '%s', '%s', '%s', '%d', '%d'",
-    soReqInfo.m_psoSessInfo->m_coSessionId.is_null() ? "<null>" : soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str(),
-    soReqInfo.m_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : soReqInfo.m_psoSessInfo->m_coOriginHost.v.c_str(),
-    soReqInfo.m_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : soReqInfo.m_psoSessInfo->m_coOriginRealm.v.c_str(),
-    soReqInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null() ? "<null>" : soReqInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.v.c_str(),
-    soReqInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType,
-    soReqInfo.m_psoSessInfo->m_uiPeerDialect);
+    soIPCANSess.m_psoSessInfo->m_coSessionId.is_null() ? "<null>" : soIPCANSess.m_psoSessInfo->m_coSessionId.v.c_str(),
+    soIPCANSess.m_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : soIPCANSess.m_psoSessInfo->m_coOriginHost.v.c_str(),
+    soIPCANSess.m_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : soIPCANSess.m_psoSessInfo->m_coOriginRealm.v.c_str(),
+    soIPCANSess.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null() ? "<null>" : soIPCANSess.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.v.c_str(),
+    soIPCANSess.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType,
+    soIPCANSess.m_psoSessInfo->m_uiPeerDialect);
 
+  /* сохраняем информацию о сессии в БД */
+  CHECK_FCT_DO(app_rx_store_req(soAAR, soIPCANSess, pcoDBConn), /* continue */ );
+
+  /* в случае необходимости инсталлируем правило */
   if (soAAR.m_vectMediaComponentDescription.size()
       && soAAR.m_vectMediaComponentDescription.at(0).m_vectMediaSubComponent.size()
       && 0 == soAAR.m_vectMediaComponentDescription.at(0).m_vectMediaSubComponent.at(0).m_coFlowUsage.is_null()
       && soAAR.m_vectMediaComponentDescription.at(0).m_vectMediaSubComponent.at(0).m_coFlowUsage.v != 2) {
     /* посылаем запрос на инсталляцию нового правила */
-    CHECK_FCT_DO(app_rx_install_QoS(soReqInfo, soAAR.m_vectMediaComponentDescription, *pcoDBConn), iResultCode = 5063; goto answer);
+    CHECK_FCT_DO(app_rx_install_QoS(soIPCANSess, soAAR.m_vectMediaComponentDescription, *pcoDBConn), iResultCode = 5063; goto answer);
   }
 
 answer:
@@ -206,7 +198,7 @@ answer:
     /* IP-CAN-Type */
     {
       CHECK_FCT_DO(fd_msg_avp_new(g_psoDictAVPIPCANType, 0, &psoAVP), goto cleanup_and_exit);
-      soAVPValue.i32 = soReqInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType;
+      soAVPValue.i32 = soIPCANSess.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType;
       CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVP, &soAVPValue), goto cleanup_and_exit);
       CHECK_FCT_DO(fd_msg_avp_add(psoAns, MSG_BRW_LAST_CHILD, psoAVP), goto cleanup_and_exit);
     }
@@ -256,7 +248,7 @@ answer:
   }
 
   cleanup_and_exit:
-  pcrf_server_DBStruct_cleanup(&soReqInfo);
+  pcrf_server_DBStruct_cleanup(&soIPCANSess);
   if (pcoDBConn) {
     pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
     pcoDBConn = NULL;
@@ -265,7 +257,7 @@ answer:
   return 0;
 }
 
-int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR)
+static int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR)
 {
   int iRetVal = 0;
 
@@ -290,8 +282,7 @@ int app_rx_extract_aar (msg_or_avp *p_psoMsg, SAAR &p_soAAR)
       switch (psoAVPHdr->avp_code) {
       case 8: /* Framed-IP-Address */
         LOG_D("AVP code: %u; Vendor Id: %u", psoAVPHdr->avp_code, tVenId );
-        memcpy(&p_soAAR.m_coFramedIPAddress.v.m_uAddr, psoAVPHdr->avp_value->os.data, sizeof(p_soAAR.m_coFramedIPAddress.v.m_uAddr) >= psoAVPHdr->avp_value->os.len ? psoAVPHdr->avp_value->os.len : sizeof(p_soAAR.m_coFramedIPAddress.v.m_uAddr));
-        p_soAAR.m_coFramedIPAddress.set_non_null();
+        app_rx_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_soAAR.m_coFramedIPAddress);
         break; /* Framed-IP-Address */
       case 30: /* Called-Station-Id */
         LOG_D("AVP code: %u; Vendor Id: %u", psoAVPHdr->avp_code, tVenId);
@@ -1114,6 +1105,32 @@ int app_rx_extract_pi (avp *p_psoAVP, SProxyInfo &p_soPI)
       break; /* 3GPP */
     }
   } while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP2, NULL) && NULL != psoAVP2);
+
+  return iRetVal;
+}
+
+static int app_rx_store_req(SAAR &p_soAAR, SMsgDataForDB &p_soIPCANSess, otl_connect *p_pcoDBConn)
+{
+  if (NULL == p_pcoDBConn) {
+    return EINVAL;
+  }
+
+  int iRetVal = 0;
+  try {
+    otl_nocommit_stream coStream;
+
+    coStream.open(
+      1,
+      "insert into ps.sessionList_RX (session_id, framed_ip_address, ip_can_session_id) values (:session_id/*char[255]*/,:ip_addr/*char[16]*/,:ip_can_session/*char[255]*/)",
+      *p_pcoDBConn);
+    coStream
+      << p_soAAR.m_coSessionId
+      << p_soAAR.m_coFramedIPAddress
+      << p_soIPCANSess.m_psoSessInfo->m_coSessionId;
+  } catch (otl_exception &coExcept) {
+    UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    iRetVal = coExcept.code;
+  }
 
   return iRetVal;
 }

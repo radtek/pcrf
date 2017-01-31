@@ -1,5 +1,7 @@
 #include "app_rx_data_types.h"
 
+#include <errno.h>
+
 void app_rx_get_enum_val (vendor_id_t p_tVendId, avp_code_t p_tAVPCode, int32_t p_iVal, otl_value<std::string> &p_coValue)
 {
   dict_avp_request soAVPReq = { p_tVendId, p_tAVPCode, NULL};
@@ -32,5 +34,33 @@ void app_rx_get_enum_val (vendor_id_t p_tVendId, avp_code_t p_tAVPCode, int32_t 
       }
       delete [] pszStr;
     }
+  }
+}
+
+void app_rx_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress)
+{
+  if (p_stLen != sizeof(unsigned int)) {
+    LOG_D("invalid size of ip-address: '%u' != '%u'", p_stLen, sizeof(unsigned int));
+    return;
+  }
+
+  int iFnRes;
+  char mcAddr[16];
+  SFramedIPAddress soAddr;
+
+  soAddr.m_uAddr.m_uiAddr = *reinterpret_cast<unsigned int*>(p_puiIPAddress);
+
+  iFnRes = snprintf(
+    mcAddr, sizeof(mcAddr),
+    "%u.%u.%u.%u",
+    soAddr.m_uAddr.m_soAddr.b1, soAddr.m_uAddr.m_soAddr.b2, soAddr.m_uAddr.m_soAddr.b3, soAddr.m_uAddr.m_soAddr.b4);
+  if (0 < iFnRes) {
+    if (sizeof(mcAddr) > iFnRes) {
+      p_coIPAddress = mcAddr;
+    } else {
+      LOG_D("buffer is too small to store a ip-address");
+    }
+  } else {
+    LOG_D("snrpintf error: %s", strerror(errno));
   }
 }

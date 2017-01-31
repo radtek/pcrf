@@ -296,7 +296,7 @@ struct SAAR {
   otl_value<SOCSF>            m_coOCSupportedFeatures;
   std::vector<SSF>            m_vectSupportedFeatures;
   otl_value<int32_t>          m_coReservationPriority;
-  otl_value<SFramedIPAddress> m_coFramedIPAddress;
+  otl_value<std::string>      m_coFramedIPAddress;
   otl_value<std::string>      m_coFramedIpv6Prefix;
   otl_value<std::string>      m_coCalledStationId;
   otl_value<std::string>      m_coServiceURN;
@@ -340,32 +340,32 @@ struct SAAR {
     *[ Proxy-Info ]
 */
 struct SAAA {
-  otl_value<std::string> m_coSessionId;
-  otl_value<uint32_t> m_coAuthApplicationId;
-  otl_value<std::string> m_coOriginHost;
-  otl_value<std::string> m_coOriginRealm;
-  otl_value<uint32_t> m_coResultCode;
-  otl_value<uint32_t> m_coExperimentalResult;
-  otl_value<int32_t> m_coAuthSessionState;
-  std::vector<SANCI> m_vectAccessNetworkChargingIdentifier;
-  otl_value<std::string> m_coAccessNetworkChargingAddress;
-  otl_value<SASI> m_coAcceptableServiceInfo;
-  otl_value<int32_t> m_coIPCANType;
-  otl_value<uint32_t> m_coNetLocAccessSupport;
-  otl_value<int32_t> m_coRATType;
-  std::vector<SFlows> m_vectFlows;
-  otl_value<uint64_t> m_coOCSupportedFeatures;
-  otl_value<SOCOLR> m_coOCOLR;
-  std::vector<SSF> m_vectSupportedFeatures;
-  otl_value<std::string> m_coClass;
-  otl_value<std::string> m_coErrorMessage;
-  otl_value<std::string> m_coErrorReportingHost;
-  otl_value<SFailedAVP> m_coFailedAVP;
-  otl_value<uint32_t> m_coOriginStateId;
-  std::vector<std::string> m_vectRedirectHost;
-  otl_value<int32_t> m_coRedirectHostUsage;
-  otl_value<uint32_t> m_coRedirectMaxCacheTime;
-  std::vector<SProxyInfo> m_vectProxyInfo;
+  otl_value<std::string>    m_coSessionId;
+  otl_value<uint32_t>       m_coAuthApplicationId;
+  otl_value<std::string>    m_coOriginHost;
+  otl_value<std::string>    m_coOriginRealm;
+  otl_value<uint32_t>       m_coResultCode;
+  otl_value<uint32_t>       m_coExperimentalResult;
+  otl_value<int32_t>        m_coAuthSessionState;
+  std::vector<SANCI>        m_vectAccessNetworkChargingIdentifier;
+  otl_value<std::string>    m_coAccessNetworkChargingAddress;
+  otl_value<SASI>           m_coAcceptableServiceInfo;
+  otl_value<int32_t>        m_coIPCANType;
+  otl_value<uint32_t>       m_coNetLocAccessSupport;
+  otl_value<int32_t>        m_coRATType;
+  std::vector<SFlows>       m_vectFlows;
+  otl_value<uint64_t>       m_coOCSupportedFeatures;
+  otl_value<SOCOLR>         m_coOCOLR;
+  std::vector<SSF>          m_vectSupportedFeatures;
+  std::vector<std::string>  m_vectClass;
+  otl_value<std::string>    m_coErrorMessage;
+  otl_value<std::string>    m_coErrorReportingHost;
+  otl_value<SFailedAVP>     m_coFailedAVP;
+  otl_value<uint32_t>       m_coOriginStateId;
+  std::vector<std::string>  m_vectRedirectHost;
+  otl_value<int32_t>        m_coRedirectHostUsage;
+  otl_value<uint32_t>       m_coRedirectMaxCacheTime;
+  std::vector<SProxyInfo>   m_vectProxyInfo;
 };
 
 /*  RAR
@@ -403,7 +403,7 @@ struct SAAA {
 */
 
 
-/* RAA
+/*  RAA
   <AA-Answer> ::= < Diameter Header: 265, PXY >
   < Session-Id >
   { Auth-Application-Id }
@@ -433,42 +433,69 @@ struct SAAA {
   *[ Proxy-Info ]
 */
 struct SRAA {
-  otl_value<std::string> m_coSessionId;
-  otl_value<uint32_t> m_coAuthApplicationId;
-  otl_value<std::string> m_coOriginHost;
-  otl_value<std::string> m_coOriginRealm;
-  otl_value<uint32_t> m_coResultCode;
-  otl_value<uint32_t> m_coExperimentalResult;
-  otl_value<int32_t> m_coAuthSessionState;
-  std::vector<SANCI> m_vectAccessNetworkChargingIdentifier;
-  otl_value<std::string> m_coAccessNetworkChargingAddress;
-  otl_value<SASI> m_coAcceptableServiceInfo;
-  otl_value<int32_t> m_coIPCANType;
-  otl_value<uint32_t> m_coNetLocAccessSupport;
-  otl_value<int32_t> m_coRATType;
-  std::vector<SFlows> m_vectFlows;
-  otl_value<uint64_t> m_coOCSupportedFeatures;
-  otl_value<SOCOLR> m_coOCOLR;
-  std::vector<SSF> m_vectSupportedFeatures;
-  otl_value<std::string> m_coClass;
-  otl_value<std::string> m_coErrorMessage;
-  otl_value<std::string> m_coErrorReportingHost;
-  otl_value<SFailedAVP> m_coFailedAVP;
-  otl_value<uint32_t> m_coOriginStateId;
-  std::vector<std::string> m_vectRedirectHost;
-  otl_value<int32_t> m_coRedirectHostUsage;
-  otl_value<uint32_t> m_coRedirectMaxCacheTime;
-  std::vector<SProxyInfo> m_vectProxyInfo;
+  otl_value<std::string>    m_coSessionId;
+  otl_value<uint32_t>       m_coAuthApplicationId;
+  otl_value<std::string>    m_coOriginHost;
+  otl_value<std::string>    m_coOriginRealm;
+  otl_value<uint32_t>       m_coResultCode;
+  otl_value<uint32_t>       m_coExperimentalResult;
+  otl_value<int32_t>        m_coAuthSessionState;
+  std::vector<SANCI>        m_vectAccessNetworkChargingIdentifier;
+  otl_value<std::string>    m_coAccessNetworkChargingAddress;
+  otl_value<SASI>           m_coAcceptableServiceInfo;
+  otl_value<int32_t>        m_coIPCANType;
+  otl_value<uint32_t>       m_coNetLocAccessSupport;
+  otl_value<int32_t>        m_coRATType;
+  std::vector<SFlows>       m_vectFlows;
+  otl_value<uint64_t>       m_coOCSupportedFeatures;
+  otl_value<SOCOLR>         m_coOCOLR;
+  std::vector<SSF>          m_vectSupportedFeatures;
+  otl_value<std::string>    m_coClass;
+  otl_value<std::string>    m_coErrorMessage;
+  otl_value<std::string>    m_coErrorReportingHost;
+  otl_value<SFailedAVP>     m_coFailedAVP;
+  otl_value<uint32_t>       m_coOriginStateId;
+  std::vector<std::string>  m_vectRedirectHost;
+  otl_value<int32_t>        m_coRedirectHostUsage;
+  otl_value<uint32_t>       m_coRedirectMaxCacheTime;
+  std::vector<SProxyInfo>   m_vectProxyInfo;
 };
 
-/*
-    STR
+/*  STR
+  <ST-Request> ::= < Diameter Header: 275, REQ, PXY >
+  < Session-Id >
+  { Origin-Host }
+  { Origin-Realm }
+  { Destination-Realm }
+  { Auth-Application-Id }
+  { Termination-Cause }
+  [ Destination-Host ]
+  [ OC-Supported-Features ]
+  *[ Required-Access-Info ]
+  *[ Class ]
+  [ Origin-State-Id ]
+  *[ Proxy-Info ]
+  *[ Route-Record ]
 */
 struct SSTR {
-  otl_value<SFramedIPAddress> m_coFramedIPAddress;
+  otl_value<std::string>    m_coSessionId;
+  otl_value<std::string>    m_coOriginHost;
+  otl_value<std::string>    m_coOriginRealm;
+  otl_value<std::string>    m_coDestRealm;
+  otl_value<std::string>    m_coSessionId;
+  otl_value<uint32_t>       m_coAuthApplicationId;
+  otl_value<std::string>    m_coTermCause;
+  otl_value<std::string>    m_coDestHost;
+  SOCSF                     m_soOCSuppFeat;
+  std::vector<int32_t>      m_vectRequiredAccessInfo;
+  std::vector<std::string>  m_vectClass;
+  otl_value<uint32_t>       m_coOriginStateId;
+  std::vector<SProxyInfo>   m_vectProxyInfo;
+  std::vector<std::string>    m_vectRouteRecord;
 };
 
 /* получение именованного значения константы */
 void app_rx_get_enum_val (vendor_id_t p_tVendId, avp_code_t p_tAVPCode, int32_t p_iVal, otl_value<std::string> &p_coValue);
+void app_rx_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
 
 #endif /* _APP_RX_DATA_TYPES_H_ */
