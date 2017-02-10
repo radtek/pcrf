@@ -15,18 +15,81 @@ static void pcrf_tracer (
 	fd_hook_permsgdata *p_psoPMD,
 	void * p_pRegData)
 {
-	if (0 == g_psoConf->m_iTraceReq) {
-		/* если нет необходимости трассировки */
-		return;
-	}
+  if (NULL == p_psoMsg) {
+    UTL_LOG_E(*g_pcoLog, "NULL pointer to message structure");
+    return;
+  }
 
-	int iFnRes;
+  msg_hdr *psoMsgHdr;
+
+  CHECK_FCT_DO(fd_msg_hdr(p_psoMsg, &psoMsgHdr), return);
+
+  int iFnRes;
+  std::string strRequestType;
+
+  /* формируем Request Type */
+  /* тип команды */
+  switch (psoMsgHdr->msg_code) {
+  case 257: /* Capabilities-Exchange */
+    strRequestType += "CE";
+    break;
+  case 258: /* Re-Auth */
+    strRequestType += "RA";
+    break;
+  case 265: /* AA */
+    strRequestType += "AA";
+    break;
+  case 271: /* Accounting */
+    strRequestType += "A";
+    break;
+  case 272: /* Credit-Control */
+    strRequestType += "CC";
+    break;
+  case 274: /* Abort-Session */
+    strRequestType += "AS";
+    break;
+  case 275: /* Session-Termination */
+    strRequestType += "ST";
+    break;
+  case 280: /* Device-Watchdog */
+    strRequestType += "DW";
+    break;
+  case 282: /* Disconnect-Peer */
+    strRequestType += "DP";
+    break;
+  default:
+  {
+    char mcCode[256];
+    iFnRes = snprintf(mcCode, sizeof(mcCode), "%u", psoMsgHdr->msg_code);
+    if (0 < iFnRes) {
+      if (sizeof(mcCode) > static_cast<size_t>(iFnRes)) {
+      } else {
+        mcCode[sizeof(mcCode) - 1] = '\0';
+      }
+      strRequestType += mcCode;
+    }
+  }
+  break;
+  }
+  /* тип запроса */
+  if (psoMsgHdr->msg_flags & CMD_FLAG_REQUEST) {
+    strRequestType += 'R';
+  } else {
+    strRequestType += 'A';
+  }
+
+  SStat *psoStat = stat_get_branch("req stat");
+  stat_measure(psoStat, strRequestType.c_str(), NULL);
+
+  /* если нет необходимости трассировки */
+  if (0 == g_psoConf->m_iTraceReq) {
+    return;
+  }
+
 	CTimeMeasurer coTM;
-	SStat *psoStat = stat_get_branch("tracer");
 	const char *pszPeerName = p_psoPeer ? p_psoPeer->info.pi_diamid : "<unknown peer>";
 	char *pmcBuf = NULL;
 	size_t stLen;
-	msg_hdr *psoMsgHdr;
 	otl_nocommit_stream coStream;
 	char mcEnumValue[256];
 	otl_connect *pcoDBConn = NULL;
@@ -34,78 +97,19 @@ static void pcrf_tracer (
   /* suppress compiler warning */
   p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
 
-	if (NULL == p_psoMsg) {
-		UTL_LOG_E (*g_pcoLog, "NULL pointer to message structure");
-		return;
-	}
-
-	CHECK_FCT_DO (fd_msg_hdr (p_psoMsg, &psoMsgHdr), return);
-
-	if (p_psoMsg) {
+  if (p_psoMsg) {
 		CHECK_MALLOC_DO (
 			fd_msg_dump_treeview (&pmcBuf, &stLen, NULL, p_psoMsg, fd_g_config->cnf_dict, 1, 1),
 			{ UTL_LOG_E (*g_pcoLog, "Error while dumping a message"); return; });
 	}
 
 	std::string strSessionId;
-	std::string strRequestType;
 	std::string strCCReqType;
 	std::string strOriginHost;
 	std::string strOriginReal;
 	std::string strDestinHost;
 	std::string strDestinReal;
 	std::string strResultCode;
-
-	/* формируем Request Type */
-	/* тип команды */
-	switch (psoMsgHdr->msg_code) {
-	case 257: /* Capabilities-Exchange */
-		strRequestType += "CE";
-		break;
-	case 258: /* Re-Auth */
-		strRequestType += "RA";
-		break;
-	case 265: /* AA */
-		strRequestType += "AA";
-		break;
-	case 271: /* Accounting */
-		strRequestType += "A";
-		break;
-	case 272: /* Credit-Control */
-		strRequestType += "CC";
-		break;
-	case 274: /* Abort-Session */
-		strRequestType += "AS";
-		break;
-	case 275: /* Session-Termination */
-		strRequestType += "ST";
-		break;
-	case 280: /* Device-Watchdog */
-		strRequestType += "DW";
-		break;
-	case 282: /* Disconnect-Peer */
-		strRequestType += "DP";
-		break;
-	default:
-	{
-		char mcCode[256];
-		iFnRes = snprintf (mcCode, sizeof (mcCode), "%u", psoMsgHdr->msg_code);
-    if (0 < iFnRes) {
-			if (sizeof (mcCode) > static_cast<size_t>(iFnRes)) {
-      } else {
-  			mcCode[sizeof(mcCode) - 1] = '\0';
-      }
-			strRequestType += mcCode;
-    }
-	}
-	break;
-	}
-	/* тип запроса */
-	if (psoMsgHdr->msg_flags & CMD_FLAG_REQUEST) {
-		strRequestType += 'R';
-	} else {
-		strRequestType += 'A';
-	}
 	/* добываем необходимые значения из запроса */
 	msg_or_avp *psoMsgOrAVP;
 	avp_hdr *psoAVPHdr;
@@ -212,12 +216,13 @@ static void pcrf_tracer (
 
 	/* пытаемся сохранить данные в БД */
 #ifdef DEBUG
-  iFnRes = pcrf_db_pool_get((void**)&pcoDBConn, __FUNCTION__, psoStat, 1);
+  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 1);
 #else
-  iFnRes = pcrf_db_pool_get ((void**)&pcoDBConn, __FUNCTION__, psoStat, 0);
+  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 0);
 #endif
-	if (iFnRes)
-		goto free_and_exit;
+  if (0 != iFnRes || NULL == pcoDBConn) {
+    goto free_and_exit;
+  }
 	try {
 		otl_null coNull;
 		otl_value<std::string> coOTLOriginReal;
@@ -260,9 +265,6 @@ free_and_exit:
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);
 	}
-
-	stat_measure (psoStat, strRequestType.c_str (), &coTM);
-	stat_measure (psoStat, __FUNCTION__, &coTM);
 }
 
 fd_hook_hdl *psoHookHandle = NULL;

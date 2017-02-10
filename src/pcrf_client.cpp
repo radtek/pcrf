@@ -14,12 +14,12 @@ extern CLog *g_pcoLog;
 
 static session_handler *g_psoSessionHandler;
 static pthread_mutex_t g_tDBReqMutex;
-static pthread_t g_tThreadId = -1;
+static pthread_t g_tThreadId;
 static int g_iStop;
 
 struct sess_state {
-	char *m_pszSessionId; /* Session-Id */
   SRARResult *m_psoRARResult;
+  sess_state() : m_psoRARResult(NULL) {}
 };
 
 extern "C"
@@ -29,85 +29,94 @@ static pthread_mutex_t g_tLocalQueueMutex;
 static std::list<SSessionInfo> g_listLocalRefQueue;
 
 /* функция для обработки просроченного запроса */
-void pcrf_client_req_expire (void *p_pvData, DiamId_t p_pDiamId, size_t p_stDiamIdLen, msg **p_ppMsg)
+static void pcrf_client_req_expire (void *p_pvData, DiamId_t p_pDiamId, size_t p_stDiamIdLen, msg **p_ppMsg)
 {
   std::string strDiamId;
   std::string strSessionId;
-  sess_state *psoSessState;
-  session *psoSess;
-  os0_t pszSessId;
-  size_t stSessIdLen;
+  sess_state  *psoSessState = NULL;
+  session     *psoSess      = NULL;
+  os0_t       pszSessId     = NULL;
+  size_t      stSessIdLen   = 0;
 
   /* получаем сохраненное состояние сессии */
-  {
+  if (NULL != *p_ppMsg) {
     int iIsNew;
 
     /* получаем дескриптор о сессии */
-    CHECK_FCT_DO(fd_msg_sess_get(fd_g_config->cnf_dict, *p_ppMsg, &psoSess, &iIsNew), return);
-    /* сессия уже должна существовать, новая сессия нам не нужна. проверим это... */
-    ASSERT(iIsNew == 0);
+    CHECK_FCT_DO(fd_msg_sess_get(fd_g_config->cnf_dict, *p_ppMsg, &psoSess, &iIsNew), goto clean_and_exit );
 
     /* получаем идентификатор сессии */
-    CHECK_FCT_DO(fd_sess_getsid(psoSess, &pszSessId, &stSessIdLen), return);
+    CHECK_FCT_DO(fd_sess_getsid(psoSess, &pszSessId, &stSessIdLen), goto clean_and_exit);
+    strSessionId.insert(0, reinterpret_cast<char*>(pszSessId), stSessIdLen);
 
     /* получаем данные, ассоциированные с сессией */
-    CHECK_FCT_DO(fd_sess_state_retrieve(g_psoSessionHandler, psoSess, &psoSessState), return);
+    psoSessState = reinterpret_cast<sess_state*>(p_pvData);
   }
 
-  if (NULL != psoSessState && NULL != psoSessState->m_psoRARResult) {
+  if (NULL != psoSessState && NULL != psoSessState->m_psoRARResult && psoSessState->m_psoRARResult->m_bInit) {
     psoSessState->m_psoRARResult->m_iResultCode = ETIMEDOUT;
     pthread_mutex_unlock(&psoSessState->m_psoRARResult->m_mutexWait);
   }
 
   /* готовимся к формированию корректной c-style строки */
-  strDiamId.insert(0, reinterpret_cast<char*>(p_pDiamId), p_stDiamIdLen);
-  strSessionId.insert(0, reinterpret_cast<char*>(pszSessId), stSessIdLen);
+  if (NULL != p_pDiamId && 0 != p_stDiamIdLen) {
+    strDiamId.insert(0, reinterpret_cast<char*>(p_pDiamId), p_stDiamIdLen);
+  }
   /* сообщаем об истечении таймаута */
-  UTL_LOG_E(*g_pcoLog, "request expired: peer: '%s'", strDiamId.c_str());
+  LOG_E("request expired: peer: '%s'; session-id: '%s'", strDiamId.c_str(), strSessionId.c_str());
 
+  clean_and_exit:
   /* Free the message */
-  CHECK_FCT_DO(fd_msg_free(*p_ppMsg), /*continue*/);
-  *p_ppMsg = NULL;
+  if (NULL != *p_ppMsg) {
+    CHECK_FCT_DO(fd_msg_free(*p_ppMsg), /*continue*/);
+    *p_ppMsg = NULL;
+  }
+
+  return;
 }
 
 /* получение ответа на Re-Auth/Abort-Session сообщение */
-static void pcrf_client_XXA (void * data, struct msg ** msg)
+static void pcrf_client_raa (void *p_pData, struct msg **p_ppMsg)
 {
-	int iFnRes;
-	struct sess_state * psoMsgState = NULL;
-	struct session * psoSess;
-	struct avp * avp;
-	struct avp_hdr * hdr;
-	int iRC;
+  CTimeMeasurer     coTM;
+	struct sess_state *psoMsgState = NULL;
+	struct session    *psoSess = NULL;
+  std::string       strSessionId;
+  os0_t             pszSessId = NULL;
+  size_t            stSessIdLen = 0;
+	int               iRC;
 
 	/* Search the session, retrieve its data */
-	{
+	if (NULL != *p_ppMsg) {
 		int iIsNew;
-		CHECK_FCT_DO (fd_msg_sess_get (fd_g_config->cnf_dict, *msg, &psoSess, &iIsNew), return);
-		ASSERT (iIsNew == 0);
+		CHECK_FCT_DO (fd_msg_sess_get (fd_g_config->cnf_dict, *p_ppMsg, &psoSess, &iIsNew), goto clean_and_exit );
 
-		CHECK_FCT_DO (fd_sess_state_retrieve (g_psoSessionHandler, psoSess, &psoMsgState), return);
-    LOG_D("session info: '%p'; data pointer: '%p'", psoSess, data);
+    /* получаем идентификатор сессии */
+    CHECK_FCT_DO(fd_sess_getsid(psoSess, &pszSessId, &stSessIdLen), goto clean_and_exit);
+    strSessionId.insert(0, reinterpret_cast<char*>(pszSessId), stSessIdLen);
+
+    psoMsgState = reinterpret_cast<sess_state*>(p_pData);
 	}
 
   if (NULL != psoMsgState) {
-    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", psoMsgState->m_pszSessionId, psoMsgState->m_psoRARResult);
+    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", strSessionId.c_str(), psoMsgState->m_psoRARResult);
   } else {
     LOG_D("message state: <empty pointer>");
   }
   LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
 
 	/* Value of Result Code */
-	CHECK_FCT_DO (fd_msg_search_avp (*msg, g_psoDictRC, &avp), return);
-	if (avp) {
-		CHECK_FCT_DO (fd_msg_avp_hdr (avp, &hdr), return);
-		iRC = hdr->avp_value->i32;
-	} else {
-		iRC = -1;
-	}
+  {
+    struct avp      *psoAVP;
+    struct avp_hdr  *psoAVPHdr;
 
-  if (psoMsgState && psoMsgState->m_psoRARResult) {
+    CHECK_FCT_DO(fd_msg_search_avp(*p_ppMsg, g_psoDictRC, &psoAVP), goto clean_and_exit);
+    CHECK_FCT_DO(fd_msg_avp_hdr(psoAVP, &psoAVPHdr), goto clean_and_exit);
+    iRC = psoAVPHdr->avp_value->i32;
     LOG_D("Result-Code: '%d'", iRC);
+  }
+
+  if (NULL != psoMsgState && NULL != psoMsgState->m_psoRARResult && psoMsgState->m_psoRARResult->m_bInit) {
     psoMsgState->m_psoRARResult->m_iResultCode = iRC;
     CHECK_FCT_DO(pthread_mutex_unlock(&psoMsgState->m_psoRARResult->m_mutexWait), /* continue */);
   }
@@ -115,19 +124,20 @@ static void pcrf_client_XXA (void * data, struct msg ** msg)
 	/* обрабатываем Result-Code */
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-		CHECK_FCT_DO((iFnRes = pcrf_client_db_fix_staled_sess (psoMsgState->m_pszSessionId)), /*continue*/ );
+		CHECK_FCT_DO(pcrf_client_db_fix_staled_sess (strSessionId.c_str()), /*continue*/ );
 		break;
 	}
 
+  clean_and_exit:
 	/* Free the message */
-	CHECK_FCT_DO (fd_msg_free (*msg), /*continue*/);
-	*msg = NULL;
+	CHECK_FCT_DO(fd_msg_free (*p_ppMsg), return);
+	*p_ppMsg = NULL;
 
 	return;
 }
 
 /* отправка Re-Auth сообщения */
-int pcrf_client_RAR (
+int pcrf_client_rar (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB p_soReqInfo,
 	std::vector<SDBAbonRule> *p_pvectActiveRules,
@@ -135,14 +145,12 @@ int pcrf_client_RAR (
   SRARResult *p_psoRARRes,
   uint32_t p_uiUsec)
 {
-	int iRetVal = 0;
+	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
-	SStat *psoStat = stat_get_branch ("gx client");
-	struct msg * psoReq = NULL;
-	struct avp * psoAVP;
-	union avp_value soAVPValue;
-	struct sess_state * psoMsgState;
-	struct session *psoSess = NULL;
+	SStat         *psoStat      = stat_get_branch("gx client");
+	msg           *psoReq       = NULL;
+	sess_state    *psoMsgState  = NULL, *psoMsgStFnParam = NULL;
+	session       *psoSess      = NULL;
 
 	/* Create the request */
 	CHECK_FCT_DO (iRetVal = fd_msg_new (g_psoDictRAR, MSGFL_ALLOC_ETEID, &psoReq), goto out);
@@ -156,20 +164,16 @@ int pcrf_client_RAR (
 	/* задаем номер сессии */
 	{
 		int iIsNew;
-		CHECK_FCT_DO (iRetVal = fd_sess_fromsid_msg ((uint8_t *)p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str (), p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length (), &psoSess, &iIsNew), goto out);
+    avp_value soAVPValue;
+    avp *psoAVP;
+
+    CHECK_FCT_DO (iRetVal = fd_sess_fromsid_msg ((uint8_t *)p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str (), p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length (), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictSessionID, 0, &psoAVP), goto out);
 		soAVPValue.os.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(p_soReqInfo.m_psoSessInfo->m_coSessionId.v.data ()));
 		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_FIRST_CHILD, psoAVP), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_sess_set (psoReq, psoSess), goto out);
-	}
-
-	/* выделяем память для структуры, хранящей состояние сессии (запроса) */
-	psoMsgState = reinterpret_cast<sess_state *>(malloc (sizeof (struct sess_state)));
-	if (psoMsgState == NULL) {
-		LOG_D ("malloc failed: %s", strerror (errno));
-		goto out;
 	}
 
 	/* Now set all AVPs values */
@@ -179,7 +183,10 @@ int pcrf_client_RAR (
 
 	/* Set the Destination-Host AVP */
 	{
-		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
+    avp_value soAVPValue;
+    avp *psoAVP;
+
+    CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
 		soAVPValue.os.data = reinterpret_cast<uint8_t*>(const_cast<char*>(p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.data()));
 		soAVPValue.os.len  = p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
@@ -188,6 +195,9 @@ int pcrf_client_RAR (
 
 	/* Set the Destination-Realm AVP */
 	{
+    avp_value soAVPValue;
+    avp *psoAVP;
+
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
 		soAVPValue.os.data = reinterpret_cast<uint8_t *>(const_cast<char*>(p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.data()));
 		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.length ();
@@ -197,6 +207,9 @@ int pcrf_client_RAR (
 
   /* Set the Auth-Application-Id */
   {
+    avp_value soAVPValue;
+    avp *psoAVP;
+
     CHECK_FCT_DO(iRetVal = fd_msg_avp_new(g_psoDictAuthApplicationId, 0, &psoAVP), goto out);
     soAVPValue.u32 = 16777238;
     CHECK_FCT_DO(iRetVal = fd_msg_avp_setvalue(psoAVP, &soAVPValue), goto out);
@@ -205,6 +218,9 @@ int pcrf_client_RAR (
 
 	/* Set Re-Auth-Request-Type AVP */
 	{
+    avp_value soAVPValue;
+    avp *psoAVP;
+
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictRARType, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 0; /* AUTHORIZE_ONLY */
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
@@ -222,7 +238,9 @@ int pcrf_client_RAR (
 
 	/* Charging-Rule-Remove */
   if (NULL != p_pvectActiveRules) {
-    psoAVP = pcrf_make_CRR(p_pcoDBConn, *(p_soReqInfo.m_psoSessInfo), *p_pvectActiveRules, psoStat);
+    avp *psoAVP;
+
+    psoAVP = pcrf_make_CRR(p_pcoDBConn, *(p_soReqInfo.m_psoSessInfo), *p_pvectActiveRules);
     if (psoAVP) {
       /* put 'Charging-Rule-Remove' into request */
       CHECK_FCT_DO(iRetVal = fd_msg_avp_add(psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
@@ -230,36 +248,45 @@ int pcrf_client_RAR (
   }
 
 	/* Charging-Rule-Install */
-	psoAVP = pcrf_make_CRI (p_pcoDBConn, &p_soReqInfo, p_vectAbonRules, psoReq, psoStat);
-	if (psoAVP) {
-		/* put 'Charging-Rule-Install' into request */
-		CHECK_FCT_DO ((iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP)), /* continue */ );
-	}
+  {
+    avp *psoAVP;
+
+    psoAVP = pcrf_make_CRI(p_pcoDBConn, &p_soReqInfo, p_vectAbonRules, psoReq);
+    if (psoAVP) {
+      /* put 'Charging-Rule-Install' into request */
+      CHECK_FCT_DO((iRetVal = fd_msg_avp_add(psoReq, MSG_BRW_LAST_CHILD, psoAVP)), /* continue */);
+    }
+  }
 
   LOG_D("Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
     p_soReqInfo.m_psoSessInfo->m_coSessionId.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str(),
     p_soReqInfo.m_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.c_str(),
     p_soReqInfo.m_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.c_str());
 
-  psoMsgState->m_pszSessionId = strdup (p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
-  psoMsgState->m_psoRARResult = p_psoRARRes;
 
-  LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", psoMsgState->m_pszSessionId, psoMsgState->m_psoRARResult);
-  LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
+  /* выделяем память для структуры, хранящей состояние сессии (запроса) */
+  if (NULL != p_psoRARRes) {
+    psoMsgState = new sess_state;
+    psoMsgState->m_psoRARResult = p_psoRARRes;
 
-	/* Store this value in the session */
-	CHECK_FCT_DO ((iRetVal = fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState)), goto out);
+    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str(), psoMsgState->m_psoRARResult);
+    LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
 
-  LOG_D("message state: '%p'", psoMsgState);
+    /* Store this value in the session */
+    CHECK_FCT_DO((iRetVal = fd_sess_state_store(g_psoSessionHandler, psoSess, &psoMsgState)), delete psoMsgState; psoMsgState = NULL; goto out);
+
+    LOG_D("message state: '%p'", psoMsgState);
+    psoMsgStFnParam = psoMsgState;
+  }
 
 	/* Send the request */
   if (0 == p_uiUsec) {
-    CHECK_FCT_DO((iRetVal = fd_msg_send(&psoReq, pcrf_client_XXA, psoMsgState)), goto out);
+    CHECK_FCT_DO((iRetVal = fd_msg_send(&psoReq, pcrf_client_raa, psoMsgStFnParam)), goto out);
   } else {
     timespec soTimeSpec;
 
     CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, p_uiUsec)), goto out);
-    CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_XXA, psoMsgState, pcrf_client_req_expire, &soTimeSpec)), goto out);
+    CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_raa, psoMsgStFnParam, pcrf_client_req_expire, &soTimeSpec)), goto out);
   }
 
 out:
@@ -269,16 +296,13 @@ out:
 }
 
 /* отправка RAR сообщения, содержащего Session-Release-Cause */
-int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
+int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 {
-	int iRetVal = 0;
+	int           iRetVal     = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("gx client");
-  struct msg * psoReq = NULL;
-	struct avp * psoAVP;
-	union avp_value soAVPValue;
-	struct sess_state * psoMsgState;
-	struct session *psoSess = NULL;
+  SStat         *psoStat    = stat_get_branch("gx client");
+  msg           *psoReq     = NULL;
+  session       *psoSess    = NULL;
 
 	/* Create the request */
 	CHECK_FCT_DO (fd_msg_new (g_psoDictRAR, MSGFL_ALLOC_ETEID, &psoReq), goto out);
@@ -293,7 +317,10 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 	/* задаем номер сессии */
 	{
 		int iIsNew;
-		CHECK_FCT_DO(fd_sess_fromsid_msg((uint8_t *)p_soSessInfo.m_coSessionId.v.data(), p_soSessInfo.m_coSessionId.v.length(), &psoSess, &iIsNew), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO(fd_sess_fromsid_msg((uint8_t *)p_soSessInfo.m_coSessionId.v.data(), p_soSessInfo.m_coSessionId.v.length(), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSessionID, 0, &psoAVP), goto out);
 		soAVPValue.os.data = (uint8_t *)p_soSessInfo.m_coSessionId.v.data();
 		soAVPValue.os.len = p_soSessInfo.m_coSessionId.v.length();
@@ -302,18 +329,14 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 		CHECK_FCT_DO(fd_msg_sess_set(psoReq, psoSess), goto out);
 	}
 
-	/* выделяем память для хранения инфомрации о состоянии сессии (запроса) */
-	psoMsgState = reinterpret_cast<sess_state *>(malloc (sizeof (struct sess_state)));
-	if (psoMsgState == NULL) {
-		fd_log_debug ("malloc failed: %s", strerror (errno));
-		goto out;
-	}
-
 	/* Now set all AVPs values */
 
 	/* Set the Auth-Application-Id */
 	{
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictAuthApplicationId, 0, &psoAVP), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO (fd_msg_avp_new (g_psoDictAuthApplicationId, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 16777238;
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue ), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
@@ -324,7 +347,10 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 
 	/* Set the Destination-Host AVP */
 	{
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
 		soAVPValue.os.data = (uint8_t *) p_soSessInfo.m_coOriginHost.v.c_str ();
 		soAVPValue.os.len  = p_soSessInfo.m_coOriginHost.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
@@ -333,7 +359,10 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 
 	/* Set the Destination-Realm AVP */
 	{
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO (fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
 		soAVPValue.os.data = (uint8_t *) p_soSessInfo.m_coOriginRealm.v.c_str ();
 		soAVPValue.os.len = p_soSessInfo.m_coOriginRealm.v.length ();
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
@@ -342,7 +371,10 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 
 	/* Set Re-Auth-Request-Type AVP */
 	{
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictRARType, 0, &psoAVP), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO (fd_msg_avp_new (g_psoDictRARType, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 0;
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
@@ -350,19 +382,17 @@ int pcrf_client_RAR_W_SRCause (SSessionInfo &p_soSessInfo)
 
 	/* Set Session-Release-Cause AVP */
 	{
-		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSessionReleaseCause, 0, &psoAVP), goto out);
+    avp           *psoAVP;
+    avp_value     soAVPValue;
+
+    CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSessionReleaseCause, 0, &psoAVP), goto out);
 		soAVPValue.u32 = 0; /* UNSPECIFIED_REASON */
 		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
 
-	psoMsgState->m_pszSessionId = strdup (p_soSessInfo.m_coSessionId.v.c_str ());
-
-	/* Store this value in the session */
-	CHECK_FCT_DO (fd_sess_state_store (g_psoSessionHandler, psoSess, &psoMsgState), goto out);
-
 	/* Send the request */
-	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_XXA, psoMsgState), goto out);
+	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_raa, NULL), goto out);
 
 out:
   stat_measure(psoStat, __FUNCTION__, &coTM);
@@ -401,8 +431,6 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue)
 {
 	int iRetVal = 0;
-	CTimeMeasurer coTM;
-	SStat *psoStat = stat_get_branch(__FUNCTION__);
 	std::vector<std::string> vectSessionList;
 
 	/* загружаем из БД список сессий абонента */
@@ -427,7 +455,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
         /* ищем информацию о базовой сессии в кеше */
         if (0 != pcrf_session_cache_get(soSessInfo.m_psoSessInfo->m_coSessionId.v, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo)) {
           /* если не находим в кеше - ищем в БД */
-          if (0 != pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v, psoStat)) {
+          if (0 != pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v)) {
             goto clear_and_continue;
           }
         }
@@ -437,12 +465,12 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
         if (GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect) {
           SSessionInfo soUGWSessInfo;
           std::string strUGWSessionId;
-          if (0 == pcrf_server_find_ugw_session_byframedip (*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo, psoStat) && 0 == soUGWSessInfo.m_coSessionId.is_null()) {
+          if (0 == pcrf_server_find_ugw_sess_byframedip (*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo) && 0 == soUGWSessInfo.m_coSessionId.is_null()) {
             strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
             /* ищем информацию о базовой сессии в кеше */
             if (0 != pcrf_session_cache_get(strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo)) {
               /* если не находим в кеше - ищем в БД */
-              pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strUGWSessionId, psoStat);
+              pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strUGWSessionId);
             }
           }
         }
@@ -455,29 +483,29 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 			}
 			/* если в поле action задано значение abort_session */
 			if (!p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare("abort_session")) {
-				CHECK_POSIX_DO(pcrf_client_RAR_W_SRCause(*(soSessInfo.m_psoSessInfo)), );
+				CHECK_POSIX_DO(pcrf_client_rar_w_SRCause(*(soSessInfo.m_psoSessInfo)), );
 				goto clear_and_continue;
 			}
 			/* загружаем из БД правила абонента */
-			CHECK_POSIX_DO(pcrf_server_create_abon_rule_list(*p_pcoDBConn, soSessInfo, vectAbonRules, psoStat), );
+			CHECK_POSIX_DO(pcrf_server_create_abon_rule_list(*p_pcoDBConn, soSessInfo, vectAbonRules), );
 			/* если у абонента нет активных политик завершаем его сессию */
 			if (0 == vectAbonRules.size()) {
-				CHECK_POSIX_DO(pcrf_client_RAR_W_SRCause(*(soSessInfo.m_psoSessInfo)), );
+				CHECK_POSIX_DO(pcrf_client_rar_w_SRCause(*(soSessInfo.m_psoSessInfo)), );
 				goto clear_and_continue;
 			}
 			/* загружаем список активных правил */
-			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive, psoStat), );
+			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive), );
 			/* формируем список неактуальных правил */
 			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */
-			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo), psoStat), /* continue */);
+			CHECK_POSIX_DO(pcrf_server_db_monit_key(*p_pcoDBConn, *(soSessInfo.m_psoSessInfo)), /* continue */);
 			/* проверяем наличие изменений в политиках */
 			if (!pcrf_client_is_any_changes(vectActive, vectAbonRules)) {
 				UTL_LOG_N (*g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str (), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str ());
 				goto clear_and_continue;
 			}
 			/* посылаем RAR-запрос */
-			CHECK_POSIX_DO(pcrf_client_RAR(p_pcoDBConn, soSessInfo, &vectActive, vectAbonRules, NULL, USEC_PER_SEC), /* continue */ );
+			CHECK_POSIX_DO(pcrf_client_rar(p_pcoDBConn, soSessInfo, &vectActive, vectAbonRules, NULL, 0), /* continue */ );
 			/* освобождаем ресуры*/
 		clear_and_continue:
 			pcrf_server_DBStruct_cleanup(&soSessInfo);
@@ -485,8 +513,6 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				break;
 		}
 	}
-
-	stat_measure(psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -537,8 +563,10 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		soWaitTime.tv_nsec = 0;
 
 		/* запрашиваем подключение к БД */
-		if (pcrf_db_pool_get((void**)&(pcoDBConn), __FUNCTION__))
-			continue;
+    if (0 == pcrf_db_pool_get(&(pcoDBConn), __FUNCTION__) && NULL != pcoDBConn) {
+    } else {
+      continue;
+    }
 		/* создаем список обновления политик */
 		CHECK_POSIX_DO(pcrf_client_db_refqueue((*pcoDBConn), vectQueue), goto clear_and_continue);
 
@@ -557,7 +585,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
     iterLocalQueue = g_listLocalRefQueue.begin();
     iterLocalQueueLast = iterLocalQueue;
     for (stCnt = 0; stCnt < stLocalQueueCnt &&iterLocalQueueLast != g_listLocalRefQueue.end(); ++stCnt, ++iterLocalQueueLast) {
-      pcrf_client_RAR_W_SRCause(*iterLocalQueueLast);
+      pcrf_client_rar_w_SRCause(*iterLocalQueueLast);
     }
     /* очищаем локальную очередь */
     CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), goto clear_and_continue);
@@ -578,12 +606,9 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
 {
-  CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("gx client");
   CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
   g_listLocalRefQueue.push_back(p_soSessionInfo);
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
-  stat_measure(psoStat, __FUNCTION__, &coTM);
 }
 
 /* инициализация клиента */
@@ -630,7 +655,9 @@ void pcrf_cli_fini (void)
 	/* отпускаем мьютекс */
 	CHECK_POSIX_DO (pthread_mutex_unlock (&g_tDBReqMutex), /* void */ );
 	/* ждем окончания работы потока */
-	CHECK_POSIX_DO (pthread_join (g_tThreadId, NULL), /* void */ );
+  if (0 != g_tThreadId) {
+    CHECK_POSIX_DO(pthread_join(g_tThreadId, NULL), /* void */);
+  }
   /* освобождаем мьютекс локальной очереди обновления политик */
 	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tLocalQueueMutex), /* void */ );
 	/* освобождение ресурсов, занятых мьютексом */
@@ -645,11 +672,7 @@ void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
   /* suppress compiler warning */
   sid = sid; opaque = opaque;
 
-	if (state->m_pszSessionId) {
-		free (state->m_pszSessionId);
-		state->m_pszSessionId = NULL;
-	}
-	if (state) {
-		free (state);
+  if (NULL != state) {
+		delete state;
 	}
 }

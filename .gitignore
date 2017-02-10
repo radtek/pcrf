@@ -17,9 +17,6 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-src/app_pcrf
-src/app_rx
-
 # =========================
 # Operating System Files
 # =========================

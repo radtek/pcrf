@@ -18,8 +18,8 @@ int app_pcrf_load_peer ()
 	otl_connect *pcoDBConn = NULL;
 
 	do {
-		iRetVal = pcrf_db_pool_get((void **)&pcoDBConn, __FUNCTION__);
-		if (iRetVal) {
+    if (0 == (iRetVal = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__)) && NULL != pcoDBConn) {
+    } else {
 			break;
 		}
 		iRetVal = app_pcrf_load_peer_info (g_vectPeerList, *pcoDBConn);
@@ -156,7 +156,7 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 
 int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 {
-	int iRetVal = -1403;
+	int iRetVal = 1403;
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 
@@ -173,7 +173,7 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 {
-	int iRetVal = -1403;
+	int iRetVal = 1403;
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 

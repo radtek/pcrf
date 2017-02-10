@@ -8,6 +8,8 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 {
 	int iRetVal = 0;
 	SRefQueue soQueueElem;
+  CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -34,17 +36,21 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 		}
 	}
 
+  stat_measure(psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
 int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 {
 	int iRetVal = 0;
+  CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 	otl_connect *pcoDBConn;
 	otl_datetime coDateTime;
 
 	/* запрашиваем указатель на объект подключения к БД */
-	if (0 == pcrf_db_pool_get(reinterpret_cast<void**>(&pcoDBConn), __FUNCTION__)) {
+	if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__) && NULL != pcoDBConn) {
   } else {
 		return -1;
   }
@@ -105,15 +111,16 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
 	}
 
+  stat_measure(psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
-int pcrf_client_db_load_session_list (
-	otl_connect &p_coDBConn,
-	SRefQueue &p_soReqQueue,
-	std::vector<std::string> &p_vectSessionList)
+int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList)
 {
 	int iRetVal = 0;
+  CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 
 	/* очищаем список перед выполнением */
 	p_vectSessionList.clear ();
@@ -149,6 +156,8 @@ int pcrf_client_db_load_session_list (
 		}
 	}
 
+  stat_measure(psoStat, __FUNCTION__, &coTM);
+
 	return iRetVal;
 }
 
@@ -159,6 +168,8 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
   }
 
 	int iRetVal = 0;
+  CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -178,6 +189,8 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 			coStream.close();
 		}
 	}
+
+  stat_measure(psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }

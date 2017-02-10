@@ -123,3 +123,38 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 
   return iRetVal;
 }
+
+void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress)
+{
+  if (p_stLen != sizeof(unsigned int)) {
+    LOG_D("invalid size of ip-address: '%u' != '%u'", p_stLen, sizeof(unsigned int));
+    return;
+  }
+
+  union SIPAddr {
+    struct {
+      unsigned char b1, b2, b3, b4;
+    } m_soAddr;
+    unsigned int m_uiAddr;
+  };
+
+  int iFnRes;
+  char mcAddr[16];
+  SIPAddr soAddr;
+
+  soAddr.m_uiAddr = *reinterpret_cast<unsigned int*>(p_puiIPAddress);
+
+  iFnRes = snprintf(
+    mcAddr, sizeof(mcAddr),
+    "%u.%u.%u.%u",
+    soAddr.m_soAddr.b1, soAddr.m_soAddr.b2, soAddr.m_soAddr.b3, soAddr.m_soAddr.b4);
+  if (0 < iFnRes) {
+    if (sizeof(mcAddr) > iFnRes) {
+      p_coIPAddress = mcAddr;
+    } else {
+      LOG_D("buffer is too small to store a ip-address");
+    }
+  } else {
+    LOG_D("snrpintf error: %s", strerror(errno));
+  }
+}

@@ -46,6 +46,9 @@ static int pcrf_entry (char * conffile)
   /* инициализация кеша сессий */
   CHECK_FCT( pcrf_session_cache_init () );
 
+  /* инициализация кеша правил */
+  CHECK_FCT(pcrf_rule_cache_init());
+
   /* Install the handlers for incoming messages */
 	CHECK_FCT (app_pcrf_serv_init ());
 
@@ -63,6 +66,7 @@ void fd_ext_fini(void)
 {
 	app_pcrf_serv_fini ();
 	pcrf_cli_fini ();
+  pcrf_rule_cache_fini();
   pcrf_session_cache_fini ();
   pcrf_tracer_fini ();
 	pcrf_db_pool_fin ();

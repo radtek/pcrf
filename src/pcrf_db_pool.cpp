@@ -140,10 +140,9 @@ void pcrf_db_pool_fin (void)
 	}
 }
 
-int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_psoStat, int p_iSecWait)
+int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, int p_iWaitSec)
 {
-	CTimeMeasurer coTM;
-	int iRetVal = 0;
+	int iRetVal = -1;
 	int iFnRes;
 	int iWait;
 
@@ -154,35 +153,38 @@ int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_pso
 	timespec soWaitTime;
 
 	/* запрашиваем текущее время */
-	gettimeofday (&soCurTime, NULL);
-	/* задаем время завершения ожидания семафора */
-	if (-1 == p_iSecWait) {
-		iWait = g_psoConf->m_iDBPoolWait ? g_psoConf->m_iDBPoolWait : DB_POOL_WAIT_DEF;
+  if (0 != gettimeofday(&soCurTime, NULL)) {
+    return errno;
+  }
+
+  /* задаем время завершения ожидания семафора */
+	if (-1 == p_iWaitSec) {
+		iWait = ((0 == g_psoConf->m_iDBPoolWait) ? DB_POOL_WAIT_DEF : g_psoConf->m_iDBPoolWait);
 	} else {
-		iWait = p_iSecWait;
+		iWait = p_iWaitSec;
 	}
 	soWaitTime.tv_sec = soCurTime.tv_sec + iWait;
 	soWaitTime.tv_nsec = soCurTime.tv_usec * 1000;
 
 	/* ждем когда освободится семафор или истечет таймаут */
-	if (sem_timedwait (&g_tDBPoolSem, &soWaitTime)) {
-		UTL_LOG_F (*g_pcoLog, "failed waiting for a free DB connection: '%s'", p_pszClient);
-		return errno;
+	if (0 != (iFnRes = sem_timedwait(&g_tDBPoolSem, &soWaitTime))) {
+    iFnRes = errno;
+    UTL_LOG_F(*g_pcoLog, "failed waiting for a free DB connection: client: '%s'; error: '%s'", NULL == p_pszClient ? "<nameless>" : p_pszClient, strerror(iFnRes));
+		return iFnRes;
 	}
 
 	/* начинаем поиск свободного подключения */
 	/* блокируем доступ к участку кода для безопасного поиска */
-	/* для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута */
-	iRetVal = pthread_mutex_lock (&g_tMutexMinor);
-	if (iRetVal) {
+	/* ??? для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута ??? */
+  if (0 != (iRetVal = pthread_mutex_lock (&g_tMutexMinor))) {
 		sem_post (&g_tDBPoolSem);
-		UTL_LOG_F (*g_pcoLog, "can not lock minor mutex: error code: '%u'", iRetVal);
+    UTL_LOG_F(*g_pcoLog, "can not lock minor mutex: error code: '%u'; description: '%s'", iRetVal, strerror(iRetVal));
 		return iRetVal;
 	}
-	iRetVal = pthread_mutex_lock (&g_tMutex);
-	if (iRetVal) {
-		sem_post (&g_tDBPoolSem);
-		UTL_LOG_F (*g_pcoLog, "can not lock mutex: error code: '%u'", iRetVal);
+  if (0 != (iRetVal = pthread_mutex_lock (&g_tMutex))) {
+    pthread_mutex_unlock(&g_tMutexMinor);
+    sem_post(&g_tDBPoolSem);
+    UTL_LOG_F(*g_pcoLog, "can not lock mutex: error code: '%u'; description: '%s'", iRetVal, strerror(iRetVal));
 		return iRetVal;
 	}
 
@@ -208,21 +210,20 @@ int pcrf_db_pool_get (void **p_ppcoDBConn, const char *p_pszClient, SStat *p_pso
 			/* помечаем подключение как занятое */
 			psoTmp->m_iIsBusy = 1;
 			psoTmp->m_pcoTM->Set();
-			*p_ppcoDBConn = psoTmp->m_pcoDBConn;
+			(*p_ppcoDBConn) = psoTmp->m_pcoDBConn;
+      iRetVal = 0;
       UTL_LOG_D(*g_pcoLog, "selected DB connection: '%u'; '%x:%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient);
 		}
 	} else {
 		iRetVal = -2222;
 		UTL_LOG_F(*g_pcoLog, "unexpected error: free db connection not found");
 	}
-	iFnRes = pthread_mutex_unlock (&g_tMutex);
-	if (iFnRes)
-		UTL_LOG_F (*g_pcoLog, "can not unlock mutex: error code: '%u'", iFnRes);
-	iFnRes = pthread_mutex_unlock (&g_tMutexMinor);
-	if (iFnRes)
-		UTL_LOG_F (*g_pcoLog, "can not unlock minor mutex: error code: '%u'", iFnRes);
-
-	stat_measure(p_psoStat, __FUNCTION__, &coTM);
+  if (0 != (iFnRes = pthread_mutex_unlock(&g_tMutex))) {
+    UTL_LOG_F(*g_pcoLog, "can not unlock mutex: error code: '%u'", iFnRes);
+  }
+  if (0 != (iFnRes = pthread_mutex_unlock(&g_tMutexMinor))) {
+    UTL_LOG_F(*g_pcoLog, "can not unlock minor mutex: error code: '%u'", iFnRes);
+  }
 
 	return iRetVal;
 }

@@ -74,9 +74,8 @@ static int app_pcrf_ccr_cb (
   p_psoAVP = p_psoAVP; p_psoSess = p_psoSess; opaque = opaque; p_pAct = p_pAct;
 
   CTimeMeasurer coTM;
-	SStat *psoStatFn = stat_get_branch(__FUNCTION__);
+	SStat *psoStatFn = stat_get_branch("gx server");
   SStat *psoStatPr = stat_get_branch("peer stat");
-  SStat *psoStatReq = stat_get_branch("req stat");
 
 	SMsgDataForDB soMsgInfoCache;
 
@@ -148,7 +147,7 @@ static int app_pcrf_ccr_cb (
   SSessionInfo *psoSessShouldBeTerm = NULL;
 
   /* запрашиваем объект класса для работы с БД */
-  iFnRes = pcrf_db_pool_get (reinterpret_cast<void **>(&pcoDBConn), __FUNCTION__, psoStatFn);
+  iFnRes = pcrf_db_pool_get (&pcoDBConn, __FUNCTION__);
 	if (0 == iFnRes && NULL != pcoDBConn) {
   } else {
     uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
@@ -160,20 +159,20 @@ static int app_pcrf_ccr_cb (
 	case INITIAL_REQUEST: /* INITIAL_REQUEST */
     if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
   		/* загружаем идентификтор абонента из профиля абонента */
-  	  CHECK_POSIX_DO(pcrf_server_db_load_subscriber_id(pcoDBConn, soMsgInfoCache, psoStatFn), /* continue */ );
+  	  pcrf_server_db_load_subscriber_id(pcoDBConn, soMsgInfoCache);
       /* проверка наличия зависших сессий */
       if (g_psoConf->m_iLook4StalledSession) {
-        CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo, psoStatFn), /*continue*/);
+        CHECK_POSIX_DO(pcrf_server_db_look4stalledsession(pcoDBConn, soMsgInfoCache.m_psoSessInfo), /*continue*/);
       }
     } else if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
       /* загружаем идентификтор абонента из профиля абонента */
-      CHECK_POSIX_DO(pcrf_server_db_load_subscriber_id(pcoDBConn, soMsgInfoCache, psoStatFn), /* continue */ );
+      pcrf_server_db_load_subscriber_id(pcoDBConn, soMsgInfoCache);
       pstrUgwSessionId = new std::string;
-      if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStatFn)) {
+      if (0 == pcrf_server_find_ugw_session(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId)) {
         /* ищем сведения о сессии в кеше */
         if (0 != pcrf_session_cache_get(*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
           /* если не находим в кеше - ищем в БД */
-          pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStatFn);
+          pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId);
         }
       } else {
         delete pstrUgwSessionId;
@@ -183,11 +182,11 @@ static int app_pcrf_ccr_cb (
       SSessionInfo soSessInfo;
       /* загрузка данных сессии UGW для обслуживания запроса Procera */
       pstrUgwSessionId = new std::string;
-      if (0 == pcrf_server_find_ugw_session_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo, psoStatFn) && 0 == soSessInfo.m_coSessionId.is_null()) {
+      if (0 == pcrf_server_find_ugw_sess_byframedip (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo) && 0 == soSessInfo.m_coSessionId.is_null()) {
         *pstrUgwSessionId = soSessInfo.m_coSessionId.v;
         if (0 != pcrf_session_cache_get(*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
           /* если не находим в кеше - ищем в БД */
-          pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStatFn);
+          pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId);
         }
       } else {
         delete pstrUgwSessionId;
@@ -223,7 +222,7 @@ static int app_pcrf_ccr_cb (
       int iSessNotFound;
       /* если не находим информацию в кеше */
       /* загружаем идентификатор абонента из списка активных сессий абонента */
-      iSessNotFound = pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, psoStatFn);
+      iSessNotFound = pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
       /* загрузка данных сессии UGW для обслуживания запроса SCE */
       if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
         if (0 != iSessNotFound) {
@@ -236,11 +235,11 @@ static int app_pcrf_ccr_cb (
       } else if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
         pstrUgwSessionId = new std::string;
         /* ищем базовую сессию ugw */
-        if (0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId, psoStatFn)) {
+        if (0 == pcrf_server_find_ugw_session (*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId)) {
             /* ищем информацию о базовой сессии в кеше */
             if (0 != pcrf_session_cache_get (*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
               /* если не находим в кеше - ищем в БД */
-              pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStatFn);
+              pcrf_server_db_load_session_info (*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId);
             }
         } else {
           delete pstrUgwSessionId;
@@ -251,12 +250,12 @@ static int app_pcrf_ccr_cb (
       } else if (GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
         SSessionInfo soSessInfo;
         pstrUgwSessionId = new std::string;
-        if (0 == pcrf_server_find_ugw_session_byframedip(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo, psoStatFn) && 0 == soSessInfo.m_coSessionId.is_null()) {
+        if (0 == pcrf_server_find_ugw_sess_byframedip(*(pcoDBConn), soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo) && 0 == soSessInfo.m_coSessionId.is_null()) {
           *pstrUgwSessionId = soSessInfo.m_coSessionId.v;
           /* ищем информацию о базовой сессии в кеше */
           if (0 != pcrf_session_cache_get(*pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo)) {
             /* если не находим в кеше - ищем в БД */
-            pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId, psoStatFn);
+            pcrf_server_db_load_session_info(*(pcoDBConn), soMsgInfoCache, *pstrUgwSessionId);
           }
         } else {
           delete pstrUgwSessionId;
@@ -272,13 +271,13 @@ static int app_pcrf_ccr_cb (
   }
 
 	/* сохраняем в БД запрос */
-	pcrf_server_req_db_store(*(pcoDBConn), &soMsgInfoCache, psoStatFn);
+	pcrf_server_req_db_store(*(pcoDBConn), &soMsgInfoCache);
 
 	/* загружаем правила из БД */
 	switch (soMsgInfoCache.m_psoReqInfo->m_iCCRequestType) {
 	default: /* DEFAULT */
 		/* загружаем из БД правила абонента */
-		CHECK_POSIX_DO(pcrf_server_create_abon_rule_list(*(pcoDBConn), soMsgInfoCache, vectAbonRules, psoStatFn), /* continue */);
+		CHECK_POSIX_DO(pcrf_server_create_abon_rule_list(*(pcoDBConn), soMsgInfoCache, vectAbonRules), /* continue */);
 		break; /* INITIAL_REQUEST */ /* DEFAULT */
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		break; /* TERMINATION_REQUEST */
@@ -291,7 +290,7 @@ static int app_pcrf_ccr_cb (
 	default: /* DEFAULT */
 	case INITIAL_REQUEST: /* INITIAL_REQUEST */
 		/* загружаем информацию о мониторинге */
-		CHECK_POSIX_DO(pcrf_server_db_monit_key(*(pcoDBConn), *(soMsgInfoCache.m_psoSessInfo), psoStatFn), /* continue */);
+		CHECK_POSIX_DO(pcrf_server_db_monit_key(*(pcoDBConn), *(soMsgInfoCache.m_psoSessInfo)), /* continue */);
 		break; /* DEFAULT */ /* INITIAL_REQUEST */
 	}
 
@@ -372,7 +371,7 @@ static int app_pcrf_ccr_cb (
 		/* Usage-Monitoring-Information */
 		CHECK_FCT_DO (pcrf_make_UMI (ans, *(soMsgInfoCache.m_psoSessInfo)), /* continue */ );
 		/* Charging-Rule-Install */
-		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans, psoStatFn);
+		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans);
 		/* put 'Charging-Rule-Install' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
@@ -380,7 +379,7 @@ static int app_pcrf_ccr_cb (
 		break; /* INITIAL_REQUEST */
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		/* загружаем список активных правил */
-		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive, psoStatFn), /* continue */ );
+		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive), /* continue */ );
 		/* обрабатываем триггеры */
 		{
       bool bCacheUPdated = false;
@@ -488,13 +487,13 @@ static int app_pcrf_ccr_cb (
 		/* формируем список неактуальных правил */
 		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 		/* Charging-Rule-Remove */
-    psoChildAVP = pcrf_make_CRR (pcoDBConn, *soMsgInfoCache.m_psoSessInfo, vectActive, psoStatFn);
+    psoChildAVP = pcrf_make_CRR (pcoDBConn, *soMsgInfoCache.m_psoSessInfo, vectActive);
 		/* put 'Charging-Rule-Remove' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
 		}
 		/* Charging-Rule-Install */
-		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans, psoStatFn);
+		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans);
 		/* put 'Charging-Rule-Install' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
@@ -510,8 +509,6 @@ cleanup_and_exit:
 	/* фиксируем статистику */
   /* статистика по пиру */
 	stat_measure (psoStatPr, soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.c_str(), &coTM);
-  /* статистика по типу запросов */
-	stat_measure (psoStatReq, strReqType.c_str(), &coTM);
 
   /* освобождаем занятые ресурсы */
 	pcrf_server_DBStruct_cleanup (&soMsgInfoCache);
@@ -576,9 +573,7 @@ void pcrf_logger_fini(void)
 	g_pcoLog = NULL;
 }
 
-int pcrf_server_select_notrelevant_active (
-	std::vector<SDBAbonRule> &p_vectAbonRules,
-	std::vector<SDBAbonRule> &p_vectActive)
+int pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive)
 {
 	int iRetVal = 0;
 
@@ -784,11 +779,7 @@ int pcrf_set_CRN (avp *p_pParent, dict_object *p_psoDictObj, std::string &p_strN
   return 0;
 }
 
-avp * pcrf_make_CRR (
-	otl_connect *p_pcoDBConn,
-	SSessionInfo &p_soSessInfo,
-	std::vector<SDBAbonRule> &p_vectActive,
-	SStat *p_psoStat)
+avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vectActive)
 {
 	/* если список пустой выходим ничего не делая */
 	if (0 == p_vectActive.size()) {
@@ -796,6 +787,7 @@ avp * pcrf_make_CRR (
 	}
 
 	CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 	avp *psoAVPCRR = NULL; /* Charging-Rule-Remove */
 	std::vector<SDBAbonRule>::iterator iter = p_vectActive.begin();
 
@@ -837,7 +829,7 @@ avp * pcrf_make_CRR (
 		}
 	}
 
-	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRR;
 }
@@ -846,8 +838,7 @@ avp * pcrf_make_CRI (
 	otl_connect *p_pcoDBConn,
 	SMsgDataForDB *p_psoReqInfo,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
-	msg *p_soAns,
-	SStat *p_psoStat)
+	msg *p_soAns)
 {
 	/* если в списке нет ни одного правила */
 	if (0 == p_vectAbonRules.size ()) {
@@ -855,6 +846,7 @@ avp * pcrf_make_CRI (
 	}
 
 	CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 	avp *psoAVPCRI = NULL; /* Charging-Rule-Install */
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
@@ -935,7 +927,7 @@ avp * pcrf_make_CRI (
 		}
 	}
 
-	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRI;
 }
@@ -1046,10 +1038,10 @@ avp * pcrf_make_CRD (
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRD, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
 		/* Monitoring-Key */
-		if (! p_soAbonRule.m_coMonitKey.is_null()) {
+		if (0 < p_soAbonRule.m_vectMonitKey.size()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMonitoringKey, 0, &psoAVPChild), return NULL);
-			soAVPVal.os.data = (uint8_t *)p_soAbonRule.m_coMonitKey.v.data();
-			soAVPVal.os.len = (size_t)p_soAbonRule.m_coMonitKey.v.length();
+			soAVPVal.os.data = (uint8_t *)p_soAbonRule.m_vectMonitKey[0].data();
+			soAVPVal.os.len = (size_t)p_soAbonRule.m_vectMonitKey[0].length();
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRD, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
@@ -1264,10 +1256,7 @@ int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 	return iRetVal;
 }
 
-int pcrf_make_UMI (
-	msg_or_avp *p_psoMsgOrAVP,
-	SSessionInfo &p_soSessInfo,
-	bool p_bFull)
+int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull)
 {
 	/* если список пуст выходим из функции */
 	if (0 == p_soSessInfo.m_mapMonitInfo.size())
@@ -1534,7 +1523,7 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 
 	struct avp *psoAVP;
 	struct avp_hdr *psoAVPHdr;
-	char mcValue[0x10000];
+	char mcValue[0x100];
 	vendor_id_t tVenId;
 
 	/* ищем первую AVP */
@@ -1554,24 +1543,13 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 		if (AVP_FLAG_VENDOR & psoAVPHdr->avp_flags) {
 			tVenId = psoAVPHdr->avp_vendor;
 		} else {
-			tVenId = (vendor_id_t)-1;
+			tVenId = 0;
 		}
 		switch (tVenId) {
-		case (vendor_id_t)-1: /* vendor undefined */
 		case 0: /* Diameter */
 			switch (psoAVPHdr->avp_code) {
 			case 8: /* Framed-IP-Address */
-				if (4 == psoAVPHdr->avp_value->os.len) {
-					int iStrLen;
-					iStrLen = snprintf(mcValue, sizeof(mcValue), "%u.%u.%u.%u", psoAVPHdr->avp_value->os.data[0], psoAVPHdr->avp_value->os.data[1], psoAVPHdr->avp_value->os.data[2], psoAVPHdr->avp_value->os.data[3]);
-					if (0 < iStrLen) {
-						if (sizeof(mcValue) > static_cast<size_t>(iStrLen)) {
-            } else {
-							mcValue[sizeof(mcValue) - 1] = '\0';
-						}
-						p_psoMsgInfo->m_psoSessInfo->m_coFramedIPAddress = mcValue;
-					}
-				}
+        pcrf_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_psoMsgInfo->m_psoSessInfo->m_coFramedIPAddress);
 				break;
 			case 30: /* Called-Station-Id */
 				p_psoMsgInfo->m_psoSessInfo->m_coCalledStationId.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
@@ -1613,16 +1591,11 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				pcrf_extract_UEI(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
 				break;
 			}
-			break; /* Diameter */ /* vendor undefined */
+			break; /* Diameter */
 		case 10415: /* 3GPP */
 			switch (psoAVPHdr->avp_code) {
 			case 6: /* 3GPP-SGSN-Address */
-			{
-				char mcIPAddr[16];
-				sprintf(mcIPAddr, "%u.%u.%u.%u", psoAVPHdr->avp_value->os.data[0], psoAVPHdr->avp_value->os.data[1], psoAVPHdr->avp_value->os.data[2], psoAVPHdr->avp_value->os.data[3]);
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = mcIPAddr;
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
-			}
+        pcrf_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress);
 			break;
 			case 18: /* 3GPP-SGSN-MCC-MNC */
 				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
@@ -2157,7 +2130,7 @@ int pcrf_procera_change_uli (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqDat
   for (std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter) {
     CHECK_FCT_DO (pcrf_procera_db_load_location_rule (p_pcoDBConn, iter->m_coSessionId, vectOldRule), break);
     *soReqInfo.m_psoSessInfo = *iter;
-    CHECK_FCT_DO (pcrf_client_RAR (p_pcoDBConn, soReqInfo, &vectOldRule, vectNewRule, NULL, USEC_PER_SEC), break);
+    CHECK_FCT_DO (pcrf_client_rar (p_pcoDBConn, soReqInfo, &vectOldRule, vectNewRule, NULL, 0), break);
   }
   pcrf_server_DBStruct_cleanup(&soReqInfo);
 
@@ -2280,20 +2253,17 @@ int load_rule_info (
   SDBAbonRule soAbonRule;
 
   for (; iter != p_vectRuleList.end (); ++iter) {
-		pcrf_db_load_rule_info (p_coDBConn, p_soMsgInfo, *iter, p_vectAbonRules);
+		pcrf_rule_cache_get_rule_info (p_soMsgInfo, *iter, p_vectAbonRules);
 	}
 
 	return iRetVal;
 }
 
-int pcrf_server_create_abon_rule_list (
-	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo,
-	std::vector<SDBAbonRule> &p_vectAbonRules,
-	SStat *p_psoStat)
+int pcrf_server_create_abon_rule_list(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
+  SStat *psoStat = stat_get_branch("DB stat");
 
 	/* очищаем список перед выполнением */
 	p_vectAbonRules.clear ();
@@ -2354,7 +2324,7 @@ int pcrf_server_create_abon_rule_list (
 		}
 	} while (0);
 
-	stat_measure (p_psoStat, __FUNCTION__, &coTM);
+	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
