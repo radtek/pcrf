@@ -1251,6 +1251,7 @@ int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB 
     return EINVAL;
   }
 
+  int iRetVal = 0;
   CTimeMeasurer coTM;
   SStat *psoStat = stat_get_branch("DB stat");
   otl_nocommit_stream coStream;
@@ -1274,10 +1275,10 @@ int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB 
     if (coStream.good()) {
       coStream.close();
     }
-    return coExcept.code;
+    iRetVal = coExcept.code;
   }
 
   stat_measure(psoStat, __FUNCTION__, &coTM);
 
-  return 0;
+  return iRetVal;
 }

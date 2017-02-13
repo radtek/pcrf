@@ -32,7 +32,7 @@ struct SSessionCache {
   otl_value<std::string>  m_coIMEISV;
   otl_value<std::string>  m_coEndUserIMSI;
   int32_t                 m_iIPCANType;
-  SSessionCache() { m_iIPCANType = 0; }
+  SSessionCache() : m_iIPCANType(0) { }
 };
 
 struct SNode {
@@ -49,8 +49,11 @@ static std::map<std::string,SSessionCache> *g_pmapSessionCache;
 static std::map<std::string,std::list<std::string> > *g_pmapParent;
 static std::map<std::string,std::string> *g_pmapChild;
 
+/* для организации низкоприоритетного доступа к хранилищу */
+static pthread_mutex_t g_mutexSCLowPrio;
 /* мьютекс для организации доступа к хранилищу */
-static pthread_mutex_t g_mutex;
+static pthread_mutex_t g_mutexSessionCache;
+
 /* ожиданеие мьютекса */
 #define MUTEX_RD_WAIT 1000
 #define MUTEX_WR_WAIT 2000
@@ -73,6 +76,9 @@ static int g_send_sock = -1;
 static int pcrf_session_cache_init_node ();
 static void pcrf_session_cache_fini_node ();
 
+/* загрузка списка сессий из БД */
+static void * pcrf_session_cache_load_session_list(void *p_pArg);
+
 /* отправка сообщение нодам */
 #define NODE_POLL_WAIT 1
 #pragma pack(push,1)
@@ -92,16 +98,24 @@ int pcrf_session_cache_init ()
   g_pmapSessionCache = new std::map<std::string,SSessionCache>;
   g_pmapParent = new std::map<std::string,std::list<std::string> >;
   g_pmapChild = new std::map<std::string,std::string>;
+  /* загружаем список сессий из БД */
+  pthread_t tThread;
+  if (0 == pthread_create(&tThread, NULL, pcrf_session_cache_load_session_list, NULL)) {
+    pthread_detach(tThread);
+  }
   /* создаем список нод */
   g_pvectNodeList = new std::vector<SNode>;
   /* создаем семафор */
-  CHECK_FCT( pthread_mutex_init (&g_mutex, NULL) );
+  CHECK_FCT(pthread_mutex_init (&g_mutexSCLowPrio, NULL));
+  CHECK_FCT( pthread_mutex_init (&g_mutexSessionCache, NULL) );
   /* создаем поток для обработки входящих команд */
   CHECK_FCT( pthread_create (&g_thrdSessionCacheReceiver, NULL, pcrf_session_cache_receiver, NULL) );
   /* загрузка списка нод */
   CHECK_FCT( pcrf_session_cache_init_node () );
 
   g_module_is_initialized = true;
+
+  UTL_LOG_N(*g_pcoLog, "session cache is initialized successfully");
 
   return 0;
 }
@@ -114,7 +128,8 @@ void pcrf_session_cache_fini (void)
     CHECK_FCT_DO(pthread_join(g_thrdSessionCacheReceiver, NULL), /* continue */ );
   }
   /* уничтожаем семафор */
-  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutex), /* continue */ );
+  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutexSCLowPrio), /* continue */ );
+  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutexSessionCache), /* continue */ );
   /* удаляем кеш */
   if (NULL != g_pmapSessionCache) {
     delete g_pmapSessionCache;
@@ -258,16 +273,20 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
   }
 }
 
-static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache &p_soSessionInfo, std::string *p_pstrParentSessionId)
+static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache &p_soSessionInfo, std::string *p_pstrParentSessionId, bool p_bLowPriority = false)
 {
   std::pair<std::map<std::string,SSessionCache>::iterator,bool> insertResult;
+
+  if (p_bLowPriority) {
+    CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSCLowPrio), goto clean_and_exit);
+  }
 
   timespec soTimeSpec;
 
   CHECK_FCT_DO(pcrf_make_timespec_timeout (soTimeSpec, MUTEX_WR_WAIT), return);
 
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto clean_and_exit );
+  CHECK_FCT_DO(pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto unlock_low_priority);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
@@ -286,7 +305,12 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   /* сохраняем связку между сессиями */
   pcrf_session_cache_mk_link2parent(p_strSessionId, p_pstrParentSessionId);
 
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
+
+unlock_low_priority:
+  if (p_bLowPriority) {
+    CHECK_FCT_DO(pthread_mutex_unlock(&g_mutexSCLowPrio), /* continue */);
+  }
 
 clean_and_exit:
 
@@ -581,7 +605,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
   /* готовим таймер мьютекса */
   CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RD_WAIT), return errno );
-  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
@@ -609,7 +633,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     iRetVal = EINVAL;
   }
   /* освобождаем мьютекс */
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
 
 clean_and_exit:
   stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
@@ -625,7 +649,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 
   CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RM_WAIT), return );
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutex, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
@@ -636,7 +660,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   }
 
   /* освобождаем семафор */
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutex), /* continue */ );
+  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
 
 clean_and_exit:
 
@@ -969,4 +993,105 @@ static void pcrf_session_cache_fini_node ()
       iter->m_diamrlm = NULL;
     }
   }
+}
+
+static void * pcrf_session_cache_load_session_list(void *p_pArg)
+{
+  int iRetVal = 0;
+  CTimeMeasurer coTM;
+  otl_connect *pcoDBConn = NULL;
+
+  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__) && NULL != pcoDBConn) {
+  } else {
+    goto clean_and_exit;
+  }
+
+  try {
+    otl_nocommit_stream coStream;
+
+    coStream.open(
+      1000,
+      "select "
+        "sl.session_id,"
+        "sl.subscriber_id,"
+        "sl.framed_ip_address,"
+        "sl.called_station_id,"
+        "sloc.ip_can_type,"
+        "sloc.sgsn_ip_address,"
+        "sloc.rat_type,"
+        "sl.origin_host,"
+        "sl.origin_realm,"
+        "sloc.cgi,"
+        "sloc.ecgi,"
+        "sl.IMEISV,"
+        "sl.end_user_imsi "
+      "from "
+        "ps.sessionList sl "
+        "inner join ps.peer p on sl.origin_host = p.host_name and sl.origin_realm = p.realm "
+        "left join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
+      "where "
+        "sl.time_end is null "
+        "and sloc.time_end is null "
+        "and p.protocol_id = :protocol_id/*int*/",
+      *pcoDBConn);
+    coStream
+      << GX_3GPP;
+    while (0 == coStream.eof()) {
+      {
+        std::string strSessionId;
+        SSessionCache soSessCache;
+
+        coStream
+          >> strSessionId
+          >> soSessCache.m_coSubscriberId
+          >> soSessCache.m_coFramedIPAddr
+          >> soSessCache.m_coCalledStationId
+          >> soSessCache.m_coIPCANType
+          >> soSessCache.m_coSGSNIPAddr
+          >> soSessCache.m_coRATType
+          >> soSessCache.m_coOriginHost
+          >> soSessCache.m_coOriginRealm
+          >> soSessCache.m_coCGI
+          >> soSessCache.m_coECGI
+          >> soSessCache.m_coIMEISV
+          >> soSessCache.m_coEndUserIMSI;
+        if (0 == soSessCache.m_coIPCANType.is_null()) {
+          dict_object * enum_obj = NULL;
+          dict_enumval_request req;
+          memset(&req, 0, sizeof(struct dict_enumval_request));
+
+          /* First, get the enumerated type of the Result-Code AVP (this is fast, no need to cache the object) */
+          CHECK_FCT_DO(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &(req.type_obj), ENOENT), continue);
+
+          /* Now search for the value given as parameter */
+          req.search.enum_name = const_cast<char*>(soSessCache.m_coIPCANType.v.c_str());
+          CHECK_FCT_DO(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP), continue);
+
+          /* finally retrieve its data */
+          CHECK_FCT_DO(fd_dict_getval(enum_obj, &(req.search)), continue);
+
+          /* copy the found value, we're done */
+          soSessCache.m_iIPCANType = req.search.enum_value.i32;
+        }
+        pcrf_session_cache_insert_local(strSessionId, soSessCache, NULL, true);
+      }
+    }
+    {
+      char mcDuration[128];
+      if (0 == coTM.GetDifference(NULL, mcDuration, sizeof(mcDuration))) {
+        UTL_LOG_N(*g_pcoLog, "session list is loaded in '%s'; session count: '%u'", mcDuration, g_pmapSessionCache->size());
+      }
+    }
+  } catch (otl_exception &coExcept) {
+    UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    iRetVal = coExcept.code;
+  }
+
+clean_and_exit:
+  if (NULL != pcoDBConn) {
+    pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
+    pcoDBConn = NULL;
+  }
+
+  pthread_exit(NULL);
 }
