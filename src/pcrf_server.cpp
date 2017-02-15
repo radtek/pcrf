@@ -57,6 +57,10 @@ int pcrf_procera_terminate_session (otl_connect &p_coDBConn, otl_value<std::stri
 
 static std::map<std::string,int32_t> *g_pmapTetering = NULL;
 
+/* указатели на объекты учета статистики */
+SStat *g_psoDBStat;
+SStat *g_psoGxSesrverStat;
+
 static int app_pcrf_ccr_cb (
 	msg ** p_ppsoMsg,
 	avp * p_psoAVP,
@@ -74,8 +78,6 @@ static int app_pcrf_ccr_cb (
   p_psoAVP = p_psoAVP; p_psoSess = p_psoSess; opaque = opaque; p_pAct = p_pAct;
 
   CTimeMeasurer coTM;
-	SStat *psoStatFn = stat_get_branch("gx server");
-  SStat *psoStatPr = stat_get_branch("peer stat");
 
 	SMsgDataForDB soMsgInfoCache;
 
@@ -379,7 +381,9 @@ static int app_pcrf_ccr_cb (
 		break; /* INITIAL_REQUEST */
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		/* загружаем список активных правил */
-		CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive), /* continue */ );
+    if (0 != pcrf_session_rule_cache_get(soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, vectActive)) {
+      CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive), /* continue */);
+    }
 		/* обрабатываем триггеры */
 		{
       bool bCacheUPdated = false;
@@ -507,8 +511,6 @@ cleanup_and_exit:
     pstrUgwSessionId = NULL;
   }
 	/* фиксируем статистику */
-  /* статистика по пиру */
-	stat_measure (psoStatPr, soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v.c_str(), &coTM);
 
   /* освобождаем занятые ресурсы */
 	pcrf_server_DBStruct_cleanup (&soMsgInfoCache);
@@ -522,7 +524,7 @@ cleanup_and_exit:
 		CHECK_FCT_DO (fd_msg_send (p_ppsoMsg, NULL, NULL), /*continue*/);
 
   /* статистика по работе функции */
-	stat_measure(psoStatFn, __FUNCTION__, &coTM);
+	stat_measure(g_psoGxSesrverStat, __FUNCTION__, &coTM);
 
   /* если сессию следует завершить */
   if (NULL != psoSessShouldBeTerm) {
@@ -548,6 +550,10 @@ int app_pcrf_serv_init (void)
 
   /* Advertise the support for the Gx application in the peer */
   CHECK_FCT_DO( fd_disp_app_support (g_psoDictApp, g_psoDictVend, 1, 0), /* continue */ );
+
+  /* инициализация объектов статистики */
+  g_psoDBStat = stat_get_branch("DB operation");
+  g_psoGxSesrverStat = stat_get_branch("gx server");
 
 	return 0;
 }
@@ -787,7 +793,6 @@ avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::v
 	}
 
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 	avp *psoAVPCRR = NULL; /* Charging-Rule-Remove */
 	std::vector<SDBAbonRule>::iterator iter = p_vectActive.begin();
 
@@ -819,17 +824,21 @@ avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::v
           CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
         }
 			}
-			if (p_pcoDBConn)
-				CHECK_FCT_DO (pcrf_db_close_session_policy (*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
-			break; /* Gx */
+      if (p_pcoDBConn) {
+        CHECK_FCT_DO(pcrf_db_close_session_policy(*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
+      }
+      pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, iter->m_coRuleName.v);
+      break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
-			if (p_pcoDBConn)
-				CHECK_FCT_DO (pcrf_db_close_session_policy (*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
-			break; /* Gx Cisco SCE */
+      if (p_pcoDBConn) {
+        CHECK_FCT_DO(pcrf_db_close_session_policy(*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
+      }
+      pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, iter->m_coRuleName.v);
+      break; /* Gx Cisco SCE */
 		}
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRR;
 }
@@ -846,7 +855,6 @@ avp * pcrf_make_CRI (
 	}
 
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 	avp *psoAVPCRI = NULL; /* Charging-Rule-Install */
 	avp *psoAVPChild = NULL;
 	avp_value soAVPVal;
@@ -883,9 +891,11 @@ avp * pcrf_make_CRI (
 				/* put 'Charging-Rule-Definition' into 'Charging-Rule-Install' */
 				CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 				/* сохраняем выданную политику в БД */
-				if (p_pcoDBConn)
-					CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
-			}
+        if (p_pcoDBConn) {
+          CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
+        }
+        pcrf_session_rule_cache_insert(p_psoReqInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coRuleName.v);
+      }
 			break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
 			/* Cisco-SCA BB-Package-Install */
@@ -921,13 +931,15 @@ avp * pcrf_make_CRI (
 				CHECK_FCT_DO (fd_msg_avp_add (p_soAns, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 			}
 			/* сохраняем выданную политику в БД */
-			if (p_pcoDBConn && !iter->m_bIsActivated)
-				CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
+      if (! iter->m_bIsActivated) {
+        if (NULL != p_pcoDBConn) {
+          CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
+        }
+        pcrf_session_rule_cache_insert(p_psoReqInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coRuleName.v);
+      }
 			break; /* Gx Cisco SCE */
 		}
 	}
-
-	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRI;
 }
@@ -2262,8 +2274,6 @@ int load_rule_info (
 int pcrf_server_create_abon_rule_list(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules)
 {
 	int iRetVal = 0;
-	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	/* очищаем список перед выполнением */
 	p_vectAbonRules.clear ();
@@ -2323,8 +2333,6 @@ int pcrf_server_create_abon_rule_list(otl_connect &p_coDBConn, SMsgDataForDB &p_
 			}
 		}
 	} while (0);
-
-	stat_measure (psoStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }

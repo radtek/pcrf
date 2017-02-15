@@ -69,6 +69,11 @@ int pcrf_rule_cache_init();
 /* деинициализация кэша правил */
 void pcrf_rule_cache_fini();
 
+/* инициализация кэша правил сессий */
+int pcrf_session_rule_list_init();
+/* деинициализация кэша правил сессий */
+void pcrf_session_rule_list_fini();
+
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;
 extern struct dict_object *g_psoDictCCA;

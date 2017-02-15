@@ -7,6 +7,9 @@
 
 extern CLog *g_pcoLog;
 
+static SStat *g_psoReqStat;
+static SStat *g_psoPeerStat;
+
 static void pcrf_tracer (
 	fd_hook_type p_eHookType,
 	msg * p_psoMsg,
@@ -26,6 +29,7 @@ static void pcrf_tracer (
 
   int iFnRes;
   std::string strRequestType;
+  std::string strPeerName;
 
   /* формируем Request Type */
   /* тип команды */
@@ -78,8 +82,17 @@ static void pcrf_tracer (
     strRequestType += 'A';
   }
 
-  SStat *psoStat = stat_get_branch("req stat");
-  stat_measure(psoStat, strRequestType.c_str(), NULL);
+  /* статистика по запросам */
+  stat_measure(g_psoReqStat, strRequestType.c_str(), NULL);
+
+  if (NULL != p_psoPeer) {
+    strPeerName.insert(0, reinterpret_cast<char*>(p_psoPeer->info.pi_diamid), p_psoPeer->info.pi_diamidlen);
+  } else {
+    strPeerName = "<unknown peer>";
+  }
+
+  /* статистика по пирам */
+  stat_measure(g_psoPeerStat, strPeerName.c_str(), NULL);
 
   /* если нет необходимости трассировки */
   if (0 == g_psoConf->m_iTraceReq) {
@@ -87,7 +100,6 @@ static void pcrf_tracer (
   }
 
 	CTimeMeasurer coTM;
-	const char *pszPeerName = p_psoPeer ? p_psoPeer->info.pi_diamid : "<unknown peer>";
 	char *pmcBuf = NULL;
 	size_t stLen;
 	otl_nocommit_stream coStream;
@@ -171,7 +183,7 @@ static void pcrf_tracer (
 		switch (p_eHookType)
 		{
 		case HOOK_MESSAGE_RECEIVED:
-			strOriginHost = pszPeerName;
+			strOriginHost = strPeerName;
 			break;
 		case HOOK_MESSAGE_LOCAL:
 		case HOOK_MESSAGE_SENT:
@@ -187,7 +199,7 @@ static void pcrf_tracer (
 			strDestinHost.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
 			break;
 		case HOOK_MESSAGE_SENT:
-			strDestinHost = pszPeerName;
+			strDestinHost = strPeerName;
 			break;
 		default:
 			break;
@@ -274,6 +286,9 @@ int pcrf_tracer_init (void)
 	int iRetVal = 0;
 
 	CHECK_FCT (fd_hook_register (HOOK_MASK (HOOK_MESSAGE_RECEIVED, HOOK_MESSAGE_SENT), pcrf_tracer, NULL, NULL, &psoHookHandle));
+
+  g_psoPeerStat = stat_get_branch("peer stat");
+  g_psoReqStat = stat_get_branch("req stat");
 
 	return iRetVal;
 }

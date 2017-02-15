@@ -2,6 +2,7 @@
 #include "app_pcrf_header.h"
 
 extern CLog *g_pcoLog;
+extern SStat *g_psoDBStat;
 
 /* добавление записи в список сессий */
 int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo);
@@ -50,7 +51,6 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
   int iRetVal = 0;
 	int iFnRes = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	do {
 
@@ -133,7 +133,7 @@ int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_p
 		}
 	} while (0);
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -151,14 +151,13 @@ int pcrf_server_policy_db_store (
 	int iRetVal = 0;
 	int iFnRes;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		/* сначала фиксируем информацию, полученную в запросе */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
 			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
-		}
+    }
 		if (0 == iRetVal) {
     } else {
 			break;
@@ -174,7 +173,8 @@ int pcrf_server_policy_db_store (
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
 			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
-		}
+      pcrf_session_rule_cache_remove_rule(p_psoMsgInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coChargingRuleName.v);
+    }
 		if (0 == iRetVal) {
     } else {
 			break;
@@ -186,7 +186,7 @@ int pcrf_server_policy_db_store (
 		break;
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -362,7 +362,6 @@ int pcrf_db_insert_policy (
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -386,7 +385,7 @@ int pcrf_db_insert_policy (
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -470,7 +469,6 @@ int pcrf_db_close_session_policy (
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -498,7 +496,7 @@ int pcrf_db_close_session_policy (
 			coStream.close();
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -513,7 +511,6 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
 
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -557,7 +554,7 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
 		}
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -571,7 +568,6 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 	otl_nocommit_stream coStream;
 	std::string strSessionId;
   SSessionInfo soSessInfo;
@@ -616,7 +612,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 		p_pcoDBConn->rollback();
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -633,7 +629,6 @@ int pcrf_server_db_load_active_rules(
 
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -666,7 +661,7 @@ int pcrf_server_db_load_active_rules(
 		}
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -679,7 +674,6 @@ int pcrf_load_abon_rule_list (
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	otl_refcur_stream coRefCur;
@@ -732,7 +726,7 @@ int pcrf_load_abon_rule_list (
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -741,7 +735,6 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 {
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -781,7 +774,7 @@ int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubs
 		}
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -790,7 +783,6 @@ int pcrf_server_find_ugw_sess_byframedip (otl_connect &p_coDBConn, std::string &
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
   otl_nocommit_stream coStream;
   try {
@@ -828,7 +820,7 @@ int pcrf_server_find_ugw_sess_byframedip (otl_connect &p_coDBConn, std::string &
     }
   }
 
-  stat_measure (psoStat, __FUNCTION__, &coTM);
+  stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }
@@ -836,7 +828,6 @@ int pcrf_server_find_ugw_sess_byframedip (otl_connect &p_coDBConn, std::string &
 int pcrf_server_find_IPCAN_sess_byframedip(otl_connect &p_coDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo)
 {
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
   if (0 == p_coIPAddr.is_null()) {
     LOG_D("Framed-IP-Address: '%s'; Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
@@ -850,14 +841,13 @@ int pcrf_server_find_IPCAN_sess_byframedip(otl_connect &p_coDBConn, otl_value<st
     return EINVAL;
   }
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 }
 
 int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId)
 {
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -965,7 +955,7 @@ int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_s
 		} else {
 			/* no data found */
 			iRetVal = 1403;
-			UTL_LOG_E (*g_pcoLog, "session in the database not found: session-id: '%s'", p_strSessionId.c_str());
+			UTL_LOG_E (*g_pcoLog, "session not found in the database : session-id: '%s'", p_strSessionId.c_str());
 		}
 		coStream.close ();
 	} catch (otl_exception &coExcept) {
@@ -976,7 +966,7 @@ int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_s
 		}
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -991,7 +981,6 @@ int pcrf_server_db_user_location(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 
@@ -1030,7 +1019,7 @@ int pcrf_server_db_user_location(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsg
 		p_coDBConn.rollback();
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -1039,7 +1028,6 @@ int pcrf_server_db_monit_key(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo
 {
 	int iRetVal = 0;
 	CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 
@@ -1081,7 +1069,7 @@ int pcrf_server_db_monit_key(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo
 		p_coDBConn.rollback();
 	}
 
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -1095,7 +1083,6 @@ int pcrf_server_db_insert_refqueue (
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	otl_value<std::string> coAction;
@@ -1140,7 +1127,7 @@ int pcrf_server_db_insert_refqueue (
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -1149,7 +1136,6 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
   SSessionInfo soSessInfo;
 	otl_nocommit_stream coStream;
 
@@ -1192,7 +1178,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -1206,7 +1192,6 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 	otl_nocommit_stream coStream;
   SDBAbonRule soRule;
 
@@ -1239,7 +1224,7 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -1253,7 +1238,6 @@ int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB 
 
   int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
   otl_nocommit_stream coStream;
 
   try {
@@ -1278,7 +1262,7 @@ int pcrf_server_db_insert_tetering_info(otl_connect *p_pcoDBConn, SMsgDataForDB 
     iRetVal = coExcept.code;
   }
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }

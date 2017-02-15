@@ -286,7 +286,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   CHECK_FCT_DO(pcrf_make_timespec_timeout (soTimeSpec, MUTEX_WR_WAIT), return);
 
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO(pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed: timeout", NULL); goto unlock_low_priority);
+  CHECK_FCT_DO(pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed", NULL); goto unlock_low_priority);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
@@ -294,12 +294,12 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
     if (insertResult.first != g_pmapSessionCache->end()) {
       insertResult.first->second = p_soSessionInfo;
       pcrf_session_cache_update_child(p_strSessionId, p_soSessionInfo);
-      stat_measure(g_psoSessionCacheStat, "session updated", NULL);
+      stat_measure(g_psoSessionCacheStat, "updated", NULL);
     } else {
       UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
   } else {
-    stat_measure (g_psoSessionCacheStat, "session inserterd", NULL);
+    stat_measure (g_psoSessionCacheStat, "inserterd", NULL);
   }
 
   /* сохраняем связку между сессиями */
@@ -340,13 +340,15 @@ static int pcrf_session_cache_fill_pspack (
   std::string &p_strSessionId,
   SSessionCache *p_psoSessionInfo,
   uint16_t p_uiReqType,
-  std::string *p_pstrParentSessionId)
+  std::string *p_pstrOptionalParam)
 {
   int iRetVal = 0;
   CPSPacket ps_pack;
   static uint32_t uiReqNum = 0;
   SPayloadHdr *pso_payload_hdr;
   char mc_attr[256];
+  uint16_t uiVendId;
+  uint16_t uiAVPId;
 
   CHECK_FCT(ps_pack.Init (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, uiReqNum, p_uiReqType));
 
@@ -366,14 +368,12 @@ static int pcrf_session_cache_fill_pspack (
       return -1;
     }
     otl_value<std::string> *pco_field;
-    uint16_t vend_id;
-    uint16_t avp_id;
     /* добавляем Subscriber-Id */
     pco_field = &p_psoSessionInfo->m_coSubscriberId;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PS_SUBSCR;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PS_SUBSCR;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if ( 0 < (iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -382,9 +382,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем Framed-IP-Address */
     pco_field = &p_psoSessionInfo->m_coFramedIPAddr;
     if (0 == pco_field->is_null()) {
-      vend_id = 0;
-      avp_id = 8;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 0;
+      uiAVPId = 8;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -393,18 +393,18 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем Called-Station-Id */
     pco_field = &p_psoSessionInfo->m_coCalledStationId;
     if (0 == pco_field->is_null()) {
-      vend_id = 0;
-      avp_id = 30;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 0;
+      uiAVPId = 30;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
       }
     }
     /* добавляем IP-CAN-Type */
-    vend_id = 10415;
-    avp_id = 1027;
-    CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType)));
+    uiVendId = 10415;
+    uiAVPId = 1027;
+    CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType)));
     if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
     } else {
       return -1;
@@ -412,9 +412,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем IP-CAN-Type (в текстовом виде) */
     pco_field = &p_psoSessionInfo->m_coIPCANType;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_IPCANTYPE;
-      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_IPCANTYPE;
+      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -423,9 +423,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем SGSN-IP-Address */
     pco_field = &p_psoSessionInfo->m_coSGSNIPAddr;
     if (0 == pco_field->is_null()) {
-      vend_id = 10415;
-      avp_id = 6;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 10415;
+      uiAVPId = 6;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -434,9 +434,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем RAT-Type */
     pco_field = &p_psoSessionInfo->m_coRATType;
     if (0 == pco_field->is_null()) {
-      vend_id = 10415;
-      avp_id = 1032;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 10415;
+      uiAVPId = 1032;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -445,9 +445,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем Origin-Host */
     pco_field = &p_psoSessionInfo->m_coOriginHost;
     if (0 == pco_field->is_null()) {
-      vend_id = 0;
-      avp_id = 264;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 0;
+      uiAVPId = 264;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -456,9 +456,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем Origin-Realm */
     pco_field = &p_psoSessionInfo->m_coOriginRealm;
     if (0 == pco_field->is_null()) {
-      vend_id = 0;
-      avp_id = 296;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 0;
+      uiAVPId = 296;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -467,9 +467,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем CGI */
     pco_field = &p_psoSessionInfo->m_coCGI;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_CGI;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_CGI;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -478,9 +478,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем ECGI */
     pco_field = &p_psoSessionInfo->m_coECGI;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_ECGI;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_ECGI;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -489,9 +489,9 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем IMEI-SV */
     pco_field = &p_psoSessionInfo->m_coIMEISV;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_IMEI;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_IMEI;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -500,19 +500,19 @@ static int pcrf_session_cache_fill_pspack (
     /* добавляем End-User-IMSI */
     pco_field = &p_psoSessionInfo->m_coEndUserIMSI;
     if (0 == pco_field->is_null()) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_IMSI;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_IMSI;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
       }
     }
     /* добавляем Parent-Session-Id (по необходимости) */
-    if (NULL != p_pstrParentSessionId) {
-      vend_id = 65535;
-      avp_id = PCRF_ATTR_PSES;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), vend_id, avp_id, p_pstrParentSessionId->data(), p_pstrParentSessionId->length ()));
+    if (NULL != p_pstrOptionalParam) {
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_PSES;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, p_pstrOptionalParam->data(), p_pstrOptionalParam->length ()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -520,6 +520,20 @@ static int pcrf_session_cache_fill_pspack (
     }
   } else if (static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION) == p_uiReqType) {
     /* для удаления сессии достаточно лишь SessionId*/
+  } else if (static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL) == p_uiReqType
+    || static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSRUL) == p_uiReqType) {
+    /* для выполнения этой операции необходим атрибут Rule-Name */
+    if (NULL != p_pstrOptionalParam) {
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_RULNM;
+      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, p_pstrOptionalParam->data(), p_pstrOptionalParam->length()));
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      } else {
+        return -1;
+      }
+    } else {
+      return -1;
+    }
   } else {
     UTL_LOG_E (*g_pcoLog, "unsupported command type: '%#x", static_cast<uint32_t>(p_uiReqType));
     return -1;
@@ -528,13 +542,13 @@ static int pcrf_session_cache_fill_pspack (
   return iRetVal;
 }
 
-static inline void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrParentSessionId)
+void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam)
 {
   char mc_buf[4096];
   int iPayloadLen;
   std::vector<SNode>::iterator iter;
 
-  iPayloadLen = pcrf_session_cache_fill_pspack (mc_buf, sizeof(mc_buf), p_strSessionId, p_psoSessionInfo, p_uiCmdType, p_pstrParentSessionId);
+  iPayloadLen = pcrf_session_cache_fill_pspack (mc_buf, sizeof(mc_buf), p_strSessionId, p_psoSessionInfo, p_uiCmdType, p_pstrOptionalParam);
   if (0 < iPayloadLen) {
   } else {
     return;
@@ -590,8 +604,6 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
 
   pcrf_session_cache_cmd2remote (p_coSessionId.v, &soTmp, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSION), p_pstrParentSessionId);
 
-  stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
-
   return;
 }
 
@@ -605,12 +617,12 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
   /* готовим таймер мьютекса */
   CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RD_WAIT), return errno );
-  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed: timeout", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
-    stat_measure (g_psoSessionCacheStat, "cache hit", NULL);
+    stat_measure (g_psoSessionCacheStat, "hit", NULL);
     if (! iter->second.m_coSubscriberId.is_null ()) {
       p_soSessionInfo.m_strSubscriberId = iter->second.m_coSubscriberId.v;
     } else {
@@ -629,14 +641,13 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second.m_coIMEISV;
     if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second.m_coEndUserIMSI;
   } else {
-    stat_measure (g_psoSessionCacheStat, "cache miss", NULL);
+    stat_measure (g_psoSessionCacheStat, "miss", NULL);
     iRetVal = EINVAL;
   }
   /* освобождаем мьютекс */
   CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
 
 clean_and_exit:
-  stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }
@@ -649,14 +660,14 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 
   CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RM_WAIT), return );
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed: timeout", NULL); goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed", NULL); goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
     g_pmapSessionCache->erase (iter);
-    stat_measure (g_psoSessionCacheStat, "session removed", NULL);
+    stat_measure (g_psoSessionCacheStat, "removed", NULL);
   }
 
   /* освобождаем семафор */
@@ -672,10 +683,9 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
   CTimeMeasurer coTM;
 
   pcrf_session_cache_remove_local (p_strSessionId);
+  pcrf_session_rule_cache_remove_sess(p_strSessionId);
 
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
-
-  stat_measure (g_psoSessionCacheStat, __FUNCTION__, &coTM);
 }
 
 static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, const ssize_t p_stMsgLen)
@@ -693,6 +703,7 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
   SPayloadHdr *psoPayload;
   SSessionCache soCache;
   std::string *pstrParentSessionId = NULL;
+  std::string *pstrRuleName = NULL;
 
   /* парсинг запроса */
   CHECK_FCT( coPSPack.Parse (reinterpret_cast<const SPSRequest*>(p_pmucBuf), static_cast<size_t>(p_stMsgLen), uiPackNum, uiReqType, uiPackLen, mmap) );
@@ -787,6 +798,10 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
         soCache.m_coIPCANType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coIPCANType.set_non_null();
         break;                  /* IP-CAN-Type */
+      case PCRF_ATTR_RULNM: /* Rule-Name */
+        pstrRuleName = new std::string;
+        pstrRuleName->insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        break;                  /* Rule-Name */
       default:
         UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
       }
@@ -810,9 +825,20 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     break;
   case PCRF_CMD_REMOVE_SESSION:
     pcrf_session_cache_remove_local (strSessionId);
+    pcrf_session_rule_cache_remove_sess(strSessionId);
+    break;
+  case PCRF_CMD_INSERT_SESSRUL:
+    if (NULL != pstrRuleName) {
+      pcrf_session_rule_cache_insert_local(strSessionId, *pstrRuleName);
+    }
+    break;
+  case PCRF_CMD_REMOVE_SESSRUL:
+    if (NULL != pstrRuleName) {
+      pcrf_session_rule_cache_remove_rule(strSessionId, *pstrRuleName);
+    }
     break;
   default:
-    UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", psoPayload->m_vend_id );
+    UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", uiReqType);
   }
 
 clean_and_exit:
@@ -821,6 +847,9 @@ clean_and_exit:
   }
   if (NULL != pstrParentSessionId) {
     delete pstrParentSessionId;
+  }
+  if (NULL != pstrRuleName) {
+    delete pstrRuleName;
   }
 
   return iRetVal;
@@ -1001,7 +1030,7 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
   CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;
 
-  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__) && NULL != pcoDBConn) {
+  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
   } else {
     goto clean_and_exit;
   }

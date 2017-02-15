@@ -325,6 +325,9 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
 int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
 /* удаление данных из кеша */
 void pcrf_session_cache_remove (std::string &p_strSessionId);
+/* передача данных другим нодам */
+struct SSessionCache;
+void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
@@ -337,6 +340,13 @@ int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiAddUSec);
 
 /* преобразование ip-адреса к десятичному виду точками с качестве разделителей */
 void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
+
+/* кэш правил сессии */
+int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
+void pcrf_session_rule_cache_insert(std::string &p_strSessionId, std::string &p_strRuleName);
+void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority = false);
+void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
+void pcrf_session_rule_cache_remove_sess(std::string &p_strSessionId);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

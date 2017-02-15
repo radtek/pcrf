@@ -40,6 +40,9 @@ static int pcrf_entry (char * conffile)
 	/* инициализация пула подключений к БД */
 	CHECK_FCT (pcrf_db_pool_init ());
 
+  /* формирование списка клиентов и регистрация функции валидации клиента */
+  CHECK_FCT(app_pcrf_load_peer());
+
 	/* инициализация трейсера */
 	CHECK_FCT (pcrf_tracer_init ());
 
@@ -49,14 +52,14 @@ static int pcrf_entry (char * conffile)
   /* инициализация кеша правил */
   CHECK_FCT(pcrf_rule_cache_init());
 
+  /* инициализация кеша правил сессий */
+  CHECK_FCT(pcrf_session_rule_list_init());
+
   /* Install the handlers for incoming messages */
 	CHECK_FCT (app_pcrf_serv_init ());
 
 	/* инициализация клиента (client) */
 	CHECK_FCT (pcrf_cli_init ());
-
-  /* формирование списка клиентов и регистрация функции валидации клиента */
-	CHECK_FCT (app_pcrf_load_peer ());
 
 	return 0;
 }
@@ -66,6 +69,7 @@ void fd_ext_fini(void)
 {
 	app_pcrf_serv_fini ();
 	pcrf_cli_fini ();
+  pcrf_session_rule_list_fini();
   pcrf_rule_cache_fini();
   pcrf_session_cache_fini ();
   pcrf_tracer_fini ();

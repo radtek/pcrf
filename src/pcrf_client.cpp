@@ -9,6 +9,8 @@
 
 extern CLog *g_pcoLog;
 
+static SStat *g_psoGxClientStat;
+
 /* длительность интервала опроса БД по умолчанию */
 #define DB_REQ_INTERVAL 1
 
@@ -125,7 +127,8 @@ static void pcrf_client_raa (void *p_pData, struct msg **p_ppMsg)
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
 		CHECK_FCT_DO(pcrf_client_db_fix_staled_sess (strSessionId.c_str()), /*continue*/ );
-		break;
+    pcrf_session_cache_remove(strSessionId);
+    break;
 	}
 
   clean_and_exit:
@@ -147,7 +150,6 @@ int pcrf_client_rar (
 {
 	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
-	SStat         *psoStat      = stat_get_branch("gx client");
 	msg           *psoReq       = NULL;
 	sess_state    *psoMsgState  = NULL, *psoMsgStFnParam = NULL;
 	session       *psoSess      = NULL;
@@ -290,7 +292,7 @@ int pcrf_client_rar (
   }
 
 out:
-	stat_measure (psoStat, __FUNCTION__, &coTM);
+	stat_measure (g_psoGxClientStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -300,7 +302,6 @@ int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 {
 	int           iRetVal     = 0;
   CTimeMeasurer coTM;
-  SStat         *psoStat    = stat_get_branch("gx client");
   msg           *psoReq     = NULL;
   session       *psoSess    = NULL;
 
@@ -395,7 +396,7 @@ int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_raa, NULL), goto out);
 
 out:
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoGxClientStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }
@@ -494,7 +495,9 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				goto clear_and_continue;
 			}
 			/* загружаем список активных правил */
-			CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive), );
+      if (0 != pcrf_session_rule_cache_get(soSessInfo.m_psoSessInfo->m_coSessionId.v, vectActive)) {
+        CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive), /* continue */);
+      }
 			/* формируем список неактуальных правил */
 			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */
@@ -632,6 +635,8 @@ int pcrf_cli_init (void)
 
 	/* запуск потока для выполнения запросов к БД */
 	CHECK_POSIX (pthread_create (&g_tThreadId, NULL, pcrf_client_operate_refreshqueue, NULL));
+
+  g_psoGxClientStat = stat_get_branch("gx client");
 
 	return 0;
 }

@@ -3,13 +3,13 @@
 #include <stdio.h>
 
 extern CLog *g_pcoLog;
+extern SStat *g_psoDBStat;
 
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue)
 {
 	int iRetVal = 0;
 	SRefQueue soQueueElem;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -36,7 +36,7 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -45,7 +45,6 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 	otl_connect *pcoDBConn;
 	otl_datetime coDateTime;
 
@@ -97,7 +96,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 			<< p_pcszSessionId;
 		if (coStream.good())
 			coStream.close();
-		pcoDBConn->commit ();
+    pcoDBConn->commit ();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
@@ -111,7 +110,7 @@ int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
 		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -120,7 +119,6 @@ int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReq
 {
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	/* очищаем список перед выполнением */
 	p_vectSessionList.clear ();
@@ -156,7 +154,7 @@ int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReq
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -169,7 +167,6 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 
 	int iRetVal = 0;
   CTimeMeasurer coTM;
-  SStat *psoStat = stat_get_branch("DB stat");
 
 	otl_nocommit_stream coStream;
 	try {
@@ -190,7 +187,7 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
 		}
 	}
 
-  stat_measure(psoStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
