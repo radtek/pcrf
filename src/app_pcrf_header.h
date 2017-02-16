@@ -176,13 +176,14 @@ int pcrf_server_policy_db_store (
 	SMsgDataForDB *p_psoMsgInfo);
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
 /* закрываем запись в таблице выданных политик */
-int pcrf_db_close_session_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_close_session_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo,
-	std::string &p_strRuleName);
+	std::string &p_strRuleName,
+  std::string *p_pstrRuleFailureCode = NULL);
 /* добавление записи в таблицу выданых политик */
-int pcrf_db_insert_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_insert_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo,
 	SDBAbonRule &p_soRule);
 
@@ -346,7 +347,8 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
 void pcrf_session_rule_cache_insert(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority = false);
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
-void pcrf_session_rule_cache_remove_sess(std::string &p_strSessionId);
+void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
+void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

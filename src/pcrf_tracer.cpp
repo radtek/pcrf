@@ -228,7 +228,7 @@ static void pcrf_tracer (
 
 	/* пытаемся сохранить данные в БД */
 #ifdef DEBUG
-  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 1);
+  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10);
 #else
   iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 0);
 #endif

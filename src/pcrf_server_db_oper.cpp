@@ -11,14 +11,9 @@ int pcrf_db_update_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
 /* добавление записи в таблицу потребления трафика */
 int pcrf_db_session_usage(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo);
 
-/* обновление записи в таблице выданых политик */
-int pcrf_db_update_policy (
-	otl_connect &p_coDBConn,
-	SSessionInfo &p_soSessInfo,
-	SSessionPolicyInfo &p_soPoliciInfo);
 /* закрываем записи в таблице выданных политик */
-int pcrf_db_close_session_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_close_session_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo);
 
 int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
@@ -156,14 +151,14 @@ int pcrf_server_policy_db_store (
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		/* сначала фиксируем информацию, полученную в запросе */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
+      pcrf_db_close_session_rule(&p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), iter->m_coChargingRuleName.v, &(iter->m_coRuleFailureCode.v));
     }
 		if (0 == iRetVal) {
     } else {
 			break;
 		}
 		/* потом закрываем оставшиеся сессии */
-		iFnRes = pcrf_db_close_session_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
+		iFnRes = pcrf_db_close_session_rule (&p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo));
 		if (0 == iFnRes) {
     } else {
 			iRetVal = iFnRes;
@@ -172,8 +167,7 @@ int pcrf_server_policy_db_store (
 		break;
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-			pcrf_db_update_policy (p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), *iter);
-      pcrf_session_rule_cache_remove_rule(p_psoMsgInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coChargingRuleName.v);
+      pcrf_db_close_session_rule(&p_coDBConn, *(p_psoMsgInfo->m_psoSessInfo), iter->m_coChargingRuleName.v, &(iter->m_coRuleFailureCode.v));
     }
 		if (0 == iRetVal) {
     } else {
@@ -355,11 +349,18 @@ int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, 
 	return iRetVal;
 }
 
-int pcrf_db_insert_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_insert_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo,
 	SDBAbonRule &p_soRule)
 {
+  pcrf_session_rule_cache_insert(p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v);
+
+  if (NULL != p_pcoDBConn) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
   CTimeMeasurer coTM;
 
@@ -370,19 +371,16 @@ int pcrf_db_insert_policy (
 			"insert into ps.sessionRule "
 			"(session_id,time_start,rule_name) "
 			"values (:session_id /*char[255]*/, sysdate, :rule_name /*char[255]*/)",
-			p_coDBConn);
+			*p_pcoDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId
 			<< p_soRule.m_coRuleName;
-		p_coDBConn.commit ();
+		p_pcoDBConn->commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		p_coDBConn.rollback ();
-		if (coStream.good()) {
-			coStream.close();
-		}
+		p_pcoDBConn->rollback ();
 	}
 
   stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
@@ -390,48 +388,15 @@ int pcrf_db_insert_policy (
 	return iRetVal;
 }
 
-int pcrf_db_update_policy (
-	otl_connect &p_coDBConn,
-	SSessionInfo &p_soSessInfo,
-	SSessionPolicyInfo &p_soPoliciInfo)
-{
-	int iRetVal = 0;
-
-	otl_nocommit_stream coStream;
-	try {
-		coStream.open (
-			1,
-			"update ps.sessionRule "
-				"set time_end = sysdate, "
-				"rule_failure_code = :rule_failure_code /* char[64]*/ "
-			"where "
-				"session_id = :session_id /* char[255]*/ "
-				"and lower(rule_name) = lower(:rule_name /* char[255] */) "
-				"and time_end is null",
-			p_coDBConn);
-		coStream
-			<< p_soPoliciInfo.m_coRuleFailureCode
-			<< p_soSessInfo.m_coSessionId
-			<< p_soPoliciInfo.m_coChargingRuleName;
-		p_coDBConn.commit ();
-    UTL_LOG_D(*g_pcoLog, "session id: '%s'; '%u' rows processed; rule name: '%s'; failury code: '%s'", p_soSessInfo.m_coSessionId.v.c_str(), coStream.get_rpc(), p_soPoliciInfo.m_coChargingRuleName.v.c_str(), p_soPoliciInfo.m_coRuleFailureCode.v.c_str());
-		coStream.close();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		iRetVal = coExcept.code;
-		p_coDBConn.rollback ();
-		if (coStream.good()) {
-			coStream.close();
-		}
-	}
-
-	return iRetVal;
-}
-
-int pcrf_db_close_session_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_close_session_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo)
 {
+  if (NULL != p_pcoDBConn) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
 
 	otl_nocommit_stream coStream;
@@ -445,15 +410,15 @@ int pcrf_db_close_session_policy (
 			"where "
 				"session_id = :session_id /* char[255] */ "
 				"and time_end is null",
-			p_coDBConn);
+			*p_pcoDBConn);
 		coStream
 			<< p_soSessInfo.m_coSessionId;
-		p_coDBConn.commit ();
+		p_pcoDBConn->commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		p_coDBConn.rollback ();
+		p_pcoDBConn->rollback ();
 		if (coStream.good()) {
 			coStream.clean();
 		}
@@ -462,36 +427,53 @@ int pcrf_db_close_session_policy (
 	return iRetVal;
 }
 
-int pcrf_db_close_session_policy (
-	otl_connect &p_coDBConn,
+int pcrf_db_close_session_rule (
+	otl_connect *p_pcoDBConn,
 	SSessionInfo &p_soSessInfo,
-	std::string &p_strRuleName)
+	std::string &p_strRuleName,
+  std::string *p_pstrRuleFailureCode)
 {
-	int iRetVal = 0;
+  pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, p_strRuleName);
+
+  if (NULL != p_pcoDBConn) {
+  } else {
+    return EINVAL;
+  }
+  
+  int iRetVal = 0;
   CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
 	try {
-		coStream.open (
+    otl_value<std::string> coRuleFailureCode;
+
+    if (NULL == p_pstrRuleFailureCode) {
+    } else {
+      coRuleFailureCode = *p_pstrRuleFailureCode;
+    }
+
+    coStream.open (
 			1,
 			"update "
 				"ps.sessionRule "
 			"set "
-				"time_end = sysdate "
-			"where "
+        "time_end = sysdate,"
+        "rule_failure_code = :rule_failure_code /*char[64]*/ "
+      "where "
 				"session_id = :session_id /*char[255]*/ "
 				"and rule_name = :rule_name /*char[100]*/ "
 				"and time_end is null",
-			p_coDBConn);
+			*p_pcoDBConn);
 		coStream
+      << coRuleFailureCode
 			<< p_soSessInfo.m_coSessionId
 			<< p_strRuleName;
-		p_coDBConn.commit ();
+		p_pcoDBConn->commit ();
 		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		p_coDBConn.rollback ();
+		p_pcoDBConn->rollback ();
 		if (coStream.good())
 			coStream.close();
 	}
@@ -622,6 +604,10 @@ int pcrf_server_db_load_active_rules(
 	SMsgDataForDB &p_soMsgInfoCache,
 	std::vector<SDBAbonRule> &p_vectActive)
 {
+  if (0 == pcrf_session_rule_cache_get(p_soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, p_vectActive)) {
+    return 0;
+  }
+
   if (NULL != p_pcoDBConn) {
   } else {
     return EINVAL;

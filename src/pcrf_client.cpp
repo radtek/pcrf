@@ -429,7 +429,7 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 }
 
 /* функция обработки записи очереди обновления политик */
-int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue)
+static int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue)
 {
 	int iRetVal = 0;
 	std::vector<std::string> vectSessionList;
@@ -495,9 +495,7 @@ int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQueue &p_
 				goto clear_and_continue;
 			}
 			/* загружаем список активных правил */
-      if (0 != pcrf_session_rule_cache_get(soSessInfo.m_psoSessInfo->m_coSessionId.v, vectActive)) {
-        CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive), /* continue */);
-      }
+      CHECK_POSIX_DO(pcrf_server_db_load_active_rules(p_pcoDBConn, soSessInfo, vectActive), /* continue */);
 			/* формируем список неактуальных правил */
 			CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 			/* загружаем информацию о мониторинге */
@@ -614,11 +612,38 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
 }
 
+static void sig_oper(void)
+{
+  LOG_D("enter into '%s'", __FUNCTION__);
+
+  otl_connect *pcoDBConn;
+
+  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
+    LOG_D("pcoDBConn: %p", pcoDBConn);
+
+    SRefQueue soRefRec;
+
+    soRefRec.m_strIdentifierType = "subscriber_id";
+    soRefRec.m_strIdentifier = "101957192/627511524@IRBiS";
+
+    CHECK_FCT_DO(pcrf_client_operate_refqueue_record(pcoDBConn, soRefRec), LOG_D("%s: error accurred", __FUNCTION__));
+  } else {
+  }
+
+  if (NULL != pcoDBConn) {
+    pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
+  }
+
+  LOG_D("leave '%s'", __FUNCTION__);
+}
+
 /* инициализация клиента */
 int pcrf_cli_init (void)
 {
 	/* создания списка сессий */
 	CHECK_FCT (fd_sess_handler_create (&g_psoSessionHandler, sess_state_cleanup, NULL, NULL));
+
+  CHECK_FCT(fd_event_trig_regcb(SIGUSR1, "app_pcrf", sig_oper));
 
   /* если очередь обновления политик не обрабатывается */
   if (0 == g_psoConf->m_iOperateRefreshQueue) {

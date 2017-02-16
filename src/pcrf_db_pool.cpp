@@ -266,7 +266,7 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 		sem_post (&g_tDBPoolSem);
 	} else {
 		/* такого быть не должно */
-		UTL_LOG_F(*g_pcoLog, "connection is not exists: %p", p_pcoDBConn);
+    UTL_LOG_F(*g_pcoLog, "connection is not exists: %p; client: %s", p_pcoDBConn, p_pszClient);
 		iRetVal = -2000;
 	}
 	/* снимаем блокировку участка кода */

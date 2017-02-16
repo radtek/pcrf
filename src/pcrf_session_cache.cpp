@@ -683,7 +683,7 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
   CTimeMeasurer coTM;
 
   pcrf_session_cache_remove_local (p_strSessionId);
-  pcrf_session_rule_cache_remove_sess(p_strSessionId);
+  pcrf_session_rule_cache_remove_sess_local(p_strSessionId);
 
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
@@ -825,7 +825,7 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     break;
   case PCRF_CMD_REMOVE_SESSION:
     pcrf_session_cache_remove_local (strSessionId);
-    pcrf_session_rule_cache_remove_sess(strSessionId);
+    pcrf_session_rule_cache_remove_sess_local(strSessionId);
     break;
   case PCRF_CMD_INSERT_SESSRUL:
     if (NULL != pstrRuleName) {
@@ -834,7 +834,7 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     break;
   case PCRF_CMD_REMOVE_SESSRUL:
     if (NULL != pstrRuleName) {
-      pcrf_session_rule_cache_remove_rule(strSessionId, *pstrRuleName);
+      pcrf_session_rule_cache_remove_rule_local(strSessionId, *pstrRuleName);
     }
     break;
   default:

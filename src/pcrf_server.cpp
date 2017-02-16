@@ -381,9 +381,7 @@ static int app_pcrf_ccr_cb (
 		break; /* INITIAL_REQUEST */
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		/* загружаем список активных правил */
-    if (0 != pcrf_session_rule_cache_get(soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, vectActive)) {
-      CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive), /* continue */);
-    }
+    CHECK_POSIX_DO(pcrf_server_db_load_active_rules(pcoDBConn, soMsgInfoCache, vectActive), /* continue */);
 		/* обрабатываем триггеры */
 		{
       bool bCacheUPdated = false;
@@ -595,7 +593,6 @@ int pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRu
 				/* фиксируем, что правило активировано */
 				iterRule->m_bIsActivated = true;
 				iterActive->m_bIsRelevant = true;
-				break;
 			}
 		}
 	}
@@ -824,16 +821,10 @@ avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::v
           CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
         }
 			}
-      if (p_pcoDBConn) {
-        CHECK_FCT_DO(pcrf_db_close_session_policy(*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
-      }
-      pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, iter->m_coRuleName.v);
+      CHECK_FCT_DO(pcrf_db_close_session_rule(p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
       break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
-      if (p_pcoDBConn) {
-        CHECK_FCT_DO(pcrf_db_close_session_policy(*p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
-      }
-      pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, iter->m_coRuleName.v);
+      CHECK_FCT_DO(pcrf_db_close_session_rule(p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
       break; /* Gx Cisco SCE */
 		}
 	}
@@ -891,10 +882,7 @@ avp * pcrf_make_CRI (
 				/* put 'Charging-Rule-Definition' into 'Charging-Rule-Install' */
 				CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 				/* сохраняем выданную политику в БД */
-        if (p_pcoDBConn) {
-          CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
-        }
-        pcrf_session_rule_cache_insert(p_psoReqInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coRuleName.v);
+        CHECK_FCT_DO(pcrf_db_insert_rule(p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
       }
 			break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
@@ -932,10 +920,7 @@ avp * pcrf_make_CRI (
 			}
 			/* сохраняем выданную политику в БД */
       if (! iter->m_bIsActivated) {
-        if (NULL != p_pcoDBConn) {
-          CHECK_FCT_DO(pcrf_db_insert_policy(*p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
-        }
-        pcrf_session_rule_cache_insert(p_psoReqInfo->m_psoSessInfo->m_coSessionId.v, iter->m_coRuleName.v);
+        CHECK_FCT_DO(pcrf_db_insert_rule(p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
       }
 			break; /* Gx Cisco SCE */
 		}
