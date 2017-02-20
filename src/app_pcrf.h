@@ -163,6 +163,7 @@ extern struct dict_object *g_psoDictSubscriptionIdType;
 extern struct dict_object *g_psoDictSubscriptionIdData;
 
 extern struct dict_object *g_psoDictIPCANType;
+extern struct dict_object *g_psoDictRATType;
 
 extern struct dict_object *g_psoDictAPNAggregateMaxBitrateUL;
 extern struct dict_object *g_psoDictAPNAggregateMaxBitrateDL;

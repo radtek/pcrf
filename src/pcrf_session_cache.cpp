@@ -32,7 +32,8 @@ struct SSessionCache {
   otl_value<std::string>  m_coIMEISV;
   otl_value<std::string>  m_coEndUserIMSI;
   int32_t                 m_iIPCANType;
-  SSessionCache() : m_iIPCANType(0) { }
+  int32_t                 m_iRATType;
+  SSessionCache() : m_iIPCANType(0), m_iRATType(0) { }
 };
 
 struct SNode {
@@ -181,6 +182,7 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
                                                               iterCache->second.m_iIPCANType        = p_soSessionInfo.m_iIPCANType;
         if (! p_soSessionInfo.m_coSGSNIPAddr.is_null())       iterCache->second.m_coSGSNIPAddr      = p_soSessionInfo.m_coSGSNIPAddr;
         if (! p_soSessionInfo.m_coRATType.is_null())          iterCache->second.m_coRATType         = p_soSessionInfo.m_coRATType;
+                                                              iterCache->second.m_iRATType          = p_soSessionInfo.m_iRATType;
         if (! p_soSessionInfo.m_coCGI.is_null())              iterCache->second.m_coCGI             = p_soSessionInfo.m_coCGI;
         if (! p_soSessionInfo.m_coECGI.is_null())             iterCache->second.m_coECGI            = p_soSessionInfo.m_coECGI;
       }
@@ -432,11 +434,19 @@ static int pcrf_session_cache_fill_pspack (
       }
     }
     /* добавляем RAT-Type */
+    uiVendId = 10415;
+    uiAVPId = 1032;
+    CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, &p_psoSessionInfo->m_iRATType, sizeof(p_psoSessionInfo->m_iRATType)));
+    if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+    } else {
+      return -1;
+    }
+    /* добавляем RAT-Type (в текстовом виде)*/
     pco_field = &p_psoSessionInfo->m_coRATType;
     if (0 == pco_field->is_null()) {
-      uiVendId = 10415;
-      uiAVPId = 1032;
-      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_RATTYPE;
+      CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length()));
       if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
       } else {
         return -1;
@@ -593,6 +603,7 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   soTmp.m_iIPCANType        = p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType;
   soTmp.m_coSGSNIPAddr      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress;
   soTmp.m_coRATType         = p_soRequestInfo.m_soUserLocationInfo.m_coRATType;
+  soTmp.m_iRATType          = p_soRequestInfo.m_soUserLocationInfo.m_iRATType;
   soTmp.m_coOriginHost      = p_soSessionInfo.m_coOriginHost;
   soTmp.m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
   soTmp.m_coCGI             = p_soRequestInfo.m_soUserLocationInfo.m_coCGI;
@@ -634,6 +645,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
                                                                         p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType     = iter->second.m_iIPCANType;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress.is_null()) p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress  = iter->second.m_coSGSNIPAddr;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coRATType.is_null())     p_soRequestInfo.m_soUserLocationInfo.m_coRATType      = iter->second.m_coRATType;
+                                                                        p_soRequestInfo.m_soUserLocationInfo.m_iRATType       = iter->second.m_iRATType;
     if (p_soSessionInfo.m_coOriginHost.is_null())                       p_soSessionInfo.m_coOriginHost                        = iter->second.m_coOriginHost;
     if (p_soSessionInfo.m_coOriginRealm.is_null())                      p_soSessionInfo.m_coOriginRealm                       = iter->second.m_coOriginRealm;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coCGI.is_null())         p_soRequestInfo.m_soUserLocationInfo.m_coCGI          = iter->second.m_coCGI;
@@ -761,8 +773,11 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
         }
         break;    /* IP-CAN-Type */
       case 1032:  /* RAT-Type */
-        soCache.m_coRATType.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
-        soCache.m_coRATType.set_non_null();
+        if (sizeof(soCache.m_iRATType) == psoPayload->m_payload_len - sizeof(*psoPayload)) {
+          soCache.m_iRATType = *reinterpret_cast<int32_t*>(reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload));
+        } else {
+          /* invalid data size */
+        }
         break;    /* RAT-Type */
       default:
         UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
@@ -798,6 +813,10 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
         soCache.m_coIPCANType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
         soCache.m_coIPCANType.set_non_null();
         break;                  /* IP-CAN-Type */
+      case PCRF_ATTR_RATTYPE: /* RAT-Type */
+        soCache.m_coRATType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coRATType.set_non_null();
+        break;                  /* RAT-Type */
       case PCRF_ATTR_RULNM: /* Rule-Name */
         pstrRuleName = new std::string;
         pstrRuleName->insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
@@ -1089,7 +1108,7 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
           dict_enumval_request req;
           memset(&req, 0, sizeof(struct dict_enumval_request));
 
-          /* First, get the enumerated type of the Result-Code AVP (this is fast, no need to cache the object) */
+          /* First, get the enumerated type of the IP-CAN-Type AVP (this is fast, no need to cache the object) */
           CHECK_FCT_DO(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &(req.type_obj), ENOENT), continue);
 
           /* Now search for the value given as parameter */
@@ -1101,6 +1120,26 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
 
           /* copy the found value, we're done */
           soSessCache.m_iIPCANType = req.search.enum_value.i32;
+          LOG_D("%s: IP-CAN-Type: '%d', '%s'", __FUNCTION__, soSessCache.m_iIPCANType, soSessCache.m_coIPCANType.v.c_str());
+        }
+        if (0 == soSessCache.m_coRATType.is_null()) {
+          dict_object * enum_obj = NULL;
+          dict_enumval_request req;
+          memset(&req, 0, sizeof(struct dict_enumval_request));
+
+          /* First, get the enumerated type of the RAT-Type AVP (this is fast, no need to cache the object) */
+          CHECK_FCT_DO(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &(req.type_obj), ENOENT), continue);
+
+          /* Now search for the value given as parameter */
+          req.search.enum_name = const_cast<char*>(soSessCache.m_coRATType.v.c_str());
+          CHECK_FCT_DO(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP), continue);
+
+          /* finally retrieve its data */
+          CHECK_FCT_DO(fd_dict_getval(enum_obj, &(req.search)), continue);
+
+          /* copy the found value, we're done */
+          soSessCache.m_iRATType = req.search.enum_value.i32;
+          LOG_D("%s: RAT-Type: '%d', '%s'", __FUNCTION__, soSessCache.m_iRATType, soSessCache.m_coRATType.v.c_str());
         }
         pcrf_session_cache_insert_local(strSessionId, soSessCache, NULL, true);
       }

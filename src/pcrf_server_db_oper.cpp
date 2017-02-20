@@ -145,7 +145,6 @@ int pcrf_server_policy_db_store (
 
 	int iRetVal = 0;
 	int iFnRes;
-  CTimeMeasurer coTM;
 
 	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
@@ -179,8 +178,6 @@ int pcrf_server_policy_db_store (
 	default:
 		break;
 	}
-
-  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -830,9 +827,13 @@ int pcrf_server_find_IPCAN_sess_byframedip(otl_connect &p_coDBConn, otl_value<st
   stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 }
 
-int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId)
+int pcrf_server_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId)
 {
-	int iRetVal = 0;
+  if (0 == pcrf_session_cache_get(p_strSessionId, *(p_soMsgInfo.m_psoSessInfo), *(p_soMsgInfo.m_psoReqInfo))) {
+    return 0;
+  }
+
+  int iRetVal = 0;
 	CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
@@ -896,11 +897,11 @@ int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_s
 				struct dict_enumval_request req;
 				memset(&req, 0, sizeof(struct dict_enumval_request));
 
-				/* First, get the enumerated type of the Result-Code AVP (this is fast, no need to cache the object) */
+				/* First, get the enumerated type of the IP-CAN-Type AVP (this is fast, no need to cache the object) */
 				CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &(req.type_obj), ENOENT));
 
 				/* Now search for the value given as parameter */
-				req.search.enum_name = (char *) coIPCANType.v.c_str ();
+				req.search.enum_name = const_cast<char*>(coIPCANType.v.c_str());
 				CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP));
 
 				/* finally retrieve its data */
@@ -908,15 +909,35 @@ int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_s
 
 				/* copy the found value, we're done */
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = req.search.enum_value.i32;
-			}
-			/* если из БД получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
+        LOG_D("%s: IP-CAN-Type: '%d', '%s'", __FUNCTION__, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType, coIPCANType.v.c_str());
+      }
+      /* если из БД получено значение RAT-Type и соответствующего атрибута не было в запросе */
+      if (!coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()) {
+        /* копируем значение, полученное из БД */
+        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
+        /* Find the enum value corresponding to the rescode string, this will give the class of error */
+        struct dict_object * enum_obj = NULL;
+        struct dict_enumval_request req;
+        memset(&req, 0, sizeof(struct dict_enumval_request));
+
+        /* First, get the enumerated type of the RAT-Type AVP (this is fast, no need to cache the object) */
+        CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &(req.type_obj), ENOENT));
+
+        /* Now search for the value given as parameter */
+        req.search.enum_name = const_cast<char *>(coRATType.v.c_str());
+        CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP));
+
+        /* finally retrieve its data */
+        CHECK_FCT_DO(fd_dict_getval(enum_obj, &(req.search)), return EINVAL);
+
+        /* copy the found value, we're done */
+        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iRATType = req.search.enum_value.i32;
+        LOG_D("%s: RAT-Type: '%d', '%s'", __FUNCTION__, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iRATType, coRATType.v.c_str());
+      }
+      /* если из БД получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
 			if (! coSGSNAddress.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null()) {
 				/* копируем значение, полученное из БД */
 				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = coSGSNAddress;
-			}
-			/* то же самое с RAT Type */
-			if (! coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()) {
-				p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
 			}
 			/* то же самое с Origin-Host */
 			if (! coOriginHost.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginHost.is_null()) {

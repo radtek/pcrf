@@ -454,11 +454,8 @@ static int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQu
 			/* загружаем из БД информацию о сессии абонента */
 			{
         /* ищем информацию о базовой сессии в кеше */
-        if (0 != pcrf_session_cache_get(soSessInfo.m_psoSessInfo->m_coSessionId.v, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo)) {
-          /* если не находим в кеше - ищем в БД */
-          if (0 != pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v)) {
-            goto clear_and_continue;
-          }
+        if (0 != pcrf_server_load_session_info(*p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v)) {
+          goto clear_and_continue;
         }
 				/* необходимо определить диалект хоста */
 				CHECK_POSIX_DO (pcrf_peer_dialect(*soSessInfo.m_psoSessInfo), goto clear_and_continue);
@@ -469,10 +466,7 @@ static int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQu
           if (0 == pcrf_server_find_ugw_sess_byframedip (*p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo) && 0 == soUGWSessInfo.m_coSessionId.is_null()) {
             strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
             /* ищем информацию о базовой сессии в кеше */
-            if (0 != pcrf_session_cache_get(strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo)) {
-              /* если не находим в кеше - ищем в БД */
-              pcrf_server_db_load_session_info(*p_pcoDBConn, soSessInfo, strUGWSessionId);
-            }
+            pcrf_server_load_session_info(*p_pcoDBConn, soSessInfo, strUGWSessionId);
           }
         }
       }

@@ -81,13 +81,14 @@ struct SUserLocationInfo {
 	otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
 	otl_value<std::string> m_coSGSNIPv6Address;
 	otl_value<std::string> m_coRATType;
-	otl_value<std::string> m_coIPCANType;
+  int32_t m_iRATType;
+  otl_value<std::string> m_coIPCANType;
 	int32_t m_iIPCANType;
 	otl_value<std::string> m_coRAI;
 	otl_value<std::string> m_coCGI;
 	otl_value<std::string> m_coECGI;
 	otl_value<std::string> m_coTAI;
-	SUserLocationInfo() { m_bLoaded = false; m_iIPCANType = 0; }
+	SUserLocationInfo() : m_bLoaded(false), m_iIPCANType(0), m_iRATType (0) { }
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -236,7 +237,7 @@ int pcrf_server_find_ugw_sess_byframedip (otl_connect &p_coDBConn, std::string &
 /* поиск IP-CAN сессии */
 int pcrf_server_find_IPCAN_sess_byframedip(otl_connect &p_coDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo);
 /* загрузка идентификатора абонента по Session-Id */
-int pcrf_server_db_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId);
+int pcrf_server_load_session_info(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId);
 /* загрузка списка правил абонента из БД */
 int pcrf_load_abon_rule_list(otl_connect &p_coDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<std::string> &p_vectRuleList);
 /* загрузка Monitoring Key из БД */

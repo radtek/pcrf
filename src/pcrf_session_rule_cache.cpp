@@ -117,7 +117,9 @@ void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::stri
     std::list<std::string> list;
     list.push_back(p_strRuleName);
     g_mapSessRuleLst.insert(std::pair<std::string, std::list<std::string> >(p_strSessionId, list));
-    LOG_D("session inserted: session-id: %s; rune-name: %s", p_strSessionId.c_str(), p_strRuleName.c_str());
+    if (!p_bLowPriority) {
+      LOG_D("session inserted: session-id: %s; rune-name: %s", p_strSessionId.c_str(), p_strRuleName.c_str());
+    }
     stat_measure(g_psoSessionRuleCacheStat, "session inserted", &coTM);
   }
 
