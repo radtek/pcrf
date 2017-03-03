@@ -40,6 +40,9 @@ static int pcrf_entry (char * conffile)
 	/* инициализация пула подключений к БД */
 	CHECK_FCT (pcrf_db_pool_init ());
 
+  /* инициализация очереди sql-запросов */
+  CHECK_FCT(pcrf_sql_queue_init());
+
   /* формирование списка клиентов и регистрация функции валидации клиента */
   CHECK_FCT(app_pcrf_load_peer());
 
@@ -73,6 +76,7 @@ void fd_ext_fini(void)
   pcrf_rule_cache_fini();
   pcrf_session_cache_fini ();
   pcrf_tracer_fini ();
+  pcrf_sql_queue_fini();
 	pcrf_db_pool_fin ();
 	stat_fin();
 	pcrf_logger_fini();

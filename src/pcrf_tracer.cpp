@@ -18,7 +18,8 @@ static void pcrf_tracer (
 	fd_hook_permsgdata *p_psoPMD,
 	void * p_pRegData)
 {
-  if (NULL == p_psoMsg) {
+  if ( NULL != p_psoMsg ) {
+  } else {
     UTL_LOG_E(*g_pcoLog, "NULL pointer to message structure");
     return;
   }
@@ -35,31 +36,31 @@ static void pcrf_tracer (
   /* тип команды */
   switch (psoMsgHdr->msg_code) {
   case 257: /* Capabilities-Exchange */
-    strRequestType += "CE";
+    strRequestType = "CE";
     break;
   case 258: /* Re-Auth */
-    strRequestType += "RA";
+    strRequestType = "RA";
     break;
   case 265: /* AA */
-    strRequestType += "AA";
+    strRequestType = "AA";
     break;
   case 271: /* Accounting */
-    strRequestType += "A";
+    strRequestType = "A";
     break;
   case 272: /* Credit-Control */
-    strRequestType += "CC";
+    strRequestType = "CC";
     break;
   case 274: /* Abort-Session */
-    strRequestType += "AS";
+    strRequestType = "AS";
     break;
   case 275: /* Session-Termination */
-    strRequestType += "ST";
+    strRequestType = "ST";
     break;
   case 280: /* Device-Watchdog */
-    strRequestType += "DW";
+    strRequestType = "DW";
     break;
   case 282: /* Disconnect-Peer */
-    strRequestType += "DP";
+    strRequestType = "DP";
     break;
   default:
   {
@@ -70,7 +71,7 @@ static void pcrf_tracer (
       } else {
         mcCode[sizeof(mcCode) - 1] = '\0';
       }
-      strRequestType += mcCode;
+      strRequestType = mcCode;
     }
   }
   break;
@@ -82,9 +83,6 @@ static void pcrf_tracer (
     strRequestType += 'A';
   }
 
-  /* статистика по запросам */
-  stat_measure(g_psoReqStat, strRequestType.c_str(), NULL);
-
   if (NULL != p_psoPeer) {
     strPeerName.insert(0, reinterpret_cast<char*>(p_psoPeer->info.pi_diamid), p_psoPeer->info.pi_diamidlen);
   } else {
@@ -94,112 +92,165 @@ static void pcrf_tracer (
   /* статистика по пирам */
   stat_measure(g_psoPeerStat, strPeerName.c_str(), NULL);
 
+  char *pmcBuf = NULL;
+  size_t stLen;
+
+  CHECK_MALLOC_DO(
+    fd_msg_dump_treeview( &pmcBuf, &stLen, NULL, p_psoMsg, fd_g_config->cnf_dict, 1, 1 ),
+    { UTL_LOG_E( *g_pcoLog, "Error while dumping a message" ); return; } );
+
+  /* добываем необходимые значения из запроса */
+  std::string strSessionId;
+  std::string strOriginHost;
+  std::string strOriginReal;
+  std::string strDestinHost;
+  std::string strResultCode;
+  std::string strDestinReal;
+  char mcEnumValue[ 256 ];
+  avp_hdr *psoAVPHdr;
+  avp *psoAVP = reinterpret_cast<avp*>(p_psoMsg);
+  msg_brw_dir eSearchDirection = MSG_BRW_FIRST_CHILD;
+
+  while ( 0 == fd_msg_browse_internal( psoAVP, eSearchDirection, reinterpret_cast<msg_or_avp**>(&psoAVP), NULL ) && NULL != psoAVP ) {
+    eSearchDirection = MSG_BRW_NEXT;
+    if ( 0 == fd_msg_avp_hdr( psoAVP, &psoAVPHdr ) ) {
+    } else {
+      continue;
+    }
+    /* нас интересуют лишь вендор Diameter */
+    if ( psoAVPHdr->avp_vendor == 0 ) {
+    } else {
+      continue;
+    }
+    switch ( psoAVPHdr->avp_code ) {
+      case 263: /* Session-Id */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strSessionId.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+        } else {
+          LOG_D( "Session-Id: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 264: /* Origin-Host */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strOriginHost.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+        } else {
+          LOG_D( "Origin-Host: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 268: /* Result-Code */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          iFnRes = pcrf_extract_avp_enum_val( psoAVPHdr, mcEnumValue, sizeof( mcEnumValue ) );
+          if ( 0 == iFnRes ) {
+            strResultCode = mcEnumValue;
+          }
+        } else {
+          LOG_D( "Result-Code: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 283: /* Destination-Realm */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strDestinReal.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+        } else {
+          LOG_D( "Destination-Realm: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 293: /* Destination-Host */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strDestinHost.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+        } else {
+          LOG_D( "Destination-Host: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 296: /* Origin-Realm */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strOriginReal.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+        } else {
+          LOG_D( "Origin-Realm: %p", psoAVPHdr->avp_value );
+        }
+        break;
+      case 416: /* CC-Request-Type */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          iFnRes = pcrf_extract_avp_enum_val( psoAVPHdr, mcEnumValue, sizeof( mcEnumValue ) );
+          if ( 0 == iFnRes && psoMsgHdr->msg_code == 272 ) {
+            strRequestType += '-';
+            strRequestType += mcEnumValue[ 0 ];
+          }
+        } else {
+          LOG_D( "CC-Request-Type: %p", psoAVPHdr->avp_value );
+        }
+        break;
+    }
+  }
+
+  /* статистика по запросам */
+  stat_measure( g_psoReqStat, strRequestType.c_str(), NULL );
+
   /* если нет необходимости трассировки */
   if (0 == g_psoConf->m_iTraceReq) {
+    if ( pmcBuf ) {
+      fd_cleanup_buffer( pmcBuf );
+    }
     return;
   }
 
 	CTimeMeasurer coTM;
-	char *pmcBuf = NULL;
-	size_t stLen;
 	otl_nocommit_stream coStream;
-	char mcEnumValue[256];
-	otl_connect *pcoDBConn = NULL;
 
   /* suppress compiler warning */
   p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
 
-  if (p_psoMsg) {
-		CHECK_MALLOC_DO (
-			fd_msg_dump_treeview (&pmcBuf, &stLen, NULL, p_psoMsg, fd_g_config->cnf_dict, 1, 1),
-			{ UTL_LOG_E (*g_pcoLog, "Error while dumping a message"); return; });
-	}
+	otl_value<std::string> *pstrSessionId = new otl_value<std::string>;
+  otl_value<std::string> *pstrRequestType = new otl_value<std::string>;
+	otl_value<std::string> *pstrOriginHost = new otl_value<std::string>;
+	otl_value<std::string> *pstrDestinHost = new otl_value<std::string>;
+  otl_value<std::string> *pcoOTLOriginReal = new otl_value<std::string>;
+  otl_value<std::string> *pcoOTLDestinReal = new otl_value<std::string>;
+  otl_value<std::string> *pcoOTLResultCode = new otl_value<std::string>;
+  otl_value<std::string> *pcoParsedPack    = new otl_value<std::string>;
+  otl_value<otl_datetime> *pcoDateTime = new otl_value<otl_datetime>;
+  std::string *pstrSQLRequest = new std::string;
+  std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
 
-	std::string strSessionId;
-	std::string strCCReqType;
-	std::string strOriginHost;
-	std::string strOriginReal;
-	std::string strDestinHost;
-	std::string strDestinReal;
-	std::string strResultCode;
-	/* добываем необходимые значения из запроса */
-	msg_or_avp *psoMsgOrAVP;
-	avp_hdr *psoAVPHdr;
-	avp *psoAVP;
-	iFnRes = fd_msg_browse_internal (p_psoMsg, MSG_BRW_FIRST_CHILD, &psoMsgOrAVP, NULL);
-	if (iFnRes)
-		goto free_and_exit;
-	do {
-		psoAVP = (avp*)psoMsgOrAVP;
-		/* получаем заголовок AVP */
-		if (NULL == psoMsgOrAVP)
-			break;
-		if (fd_msg_avp_hdr ((avp*)psoMsgOrAVP, &psoAVPHdr)) {
-			continue;
-		}
-		/* нас интересуют лишь вендор Diameter */
-		if (psoAVPHdr->avp_vendor != 0 && psoAVPHdr->avp_vendor != (vendor_id_t)-1) {
-			continue;
-		}
-		switch (psoAVPHdr->avp_code) {
-		case 263: /* Session-Id */
-			strSessionId.insert (0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-			break;
-		case 264: /* Origin-Host */
-			strOriginHost.insert (0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-			break;
-		case 268: /* Result-Code */
-		{
-			iFnRes = pcrf_extract_avp_enum_val (psoAVPHdr, mcEnumValue, sizeof (mcEnumValue));
-			if (0 == iFnRes)
-				strResultCode = mcEnumValue;
-		}
-		break;
-		case 283: /* Destination-Realm */
-			strDestinReal.insert (0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-			break;
-		case 293: /* Destination-Host */
-			strDestinHost.insert (0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-			break;
-		case 296: /* Origin-Realm */
-			strOriginReal.insert (0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-			break;
-		case 416: /* CC-Request-Type */
-		{
-			iFnRes = pcrf_extract_avp_enum_val (psoAVPHdr, mcEnumValue, sizeof (mcEnumValue));
-			if (0 == iFnRes)
-				strCCReqType = mcEnumValue;
-		}
-		break;
-		}
-	} while (0 == fd_msg_browse_internal (psoAVP, MSG_BRW_NEXT, &psoMsgOrAVP, NULL));
-	/* опционально для CC определяем тип ——-запроса */
-	if (psoMsgHdr->msg_code == 272 && strCCReqType.length ()) {
-		strRequestType += '-';
-		strRequestType += strCCReqType[0];
-	}
+  /* копируем Session-Id */
+  if ( 0 < strSessionId.length() ) {
+    *pstrSessionId = strSessionId;
+  }
+  /* копируем Request-Type */
+  if ( 0 < strRequestType.length() ) {
+    *pstrRequestType = strRequestType;
+  }
+  /* копируем Origin-Host */
+  if ( 0 < strOriginHost.length() ) {
+    *pstrOriginHost = strOriginHost;
+  }
+  /* копируем Destination-Host */
+  if ( 0 < strDestinHost.length() ) {
+    *pstrDestinHost = strDestinHost;
+  }
 	/* проверяем наличие обязательных атрибутов */
-	if (0 == strOriginHost.length ()) {
+	if (0 == pstrOriginHost->v.length ()) {
 		switch (p_eHookType)
 		{
 		case HOOK_MESSAGE_RECEIVED:
-			strOriginHost = strPeerName;
+			*pstrOriginHost = strPeerName;
 			break;
 		case HOOK_MESSAGE_LOCAL:
 		case HOOK_MESSAGE_SENT:
-			strOriginHost.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+			pstrOriginHost->v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      pstrOriginHost->set_non_null();
 			break;
 		default:
 			break;
 		}
 	}
-	if (0 == strDestinHost.length ()) {
+	if (0 == pstrDestinHost->v.length ()) {
 		switch (p_eHookType) {
 		case HOOK_MESSAGE_RECEIVED:
-			strDestinHost.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+			pstrDestinHost->v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      pstrDestinHost->set_non_null();
 			break;
 		case HOOK_MESSAGE_SENT:
-			strDestinHost = strPeerName;
+			*pstrDestinHost = strPeerName;
 			break;
 		default:
 			break;
@@ -226,53 +277,33 @@ static void pcrf_tracer (
 		}
 	}
 
-	/* пытаемся сохранить данные в БД */
-#ifdef DEBUG
-  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10);
-#else
-  iFnRes = pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 0);
-#endif
-  if (0 != iFnRes || NULL == pcoDBConn) {
-    goto free_and_exit;
+  if ( strOriginReal.length() ) {
+    *pcoOTLOriginReal = strOriginReal;
   }
-	try {
-		otl_null coNull;
-		otl_value<std::string> coOTLOriginReal;
-		otl_value<std::string> coOTLDestinReal;
-		otl_value<std::string> coOTLResultCode;
-		if (strOriginReal.length ())
-			coOTLOriginReal = strOriginReal;
-		if (strDestinReal.length ())
-			coOTLDestinReal = strDestinReal;
-		if (strResultCode.length ())
-			coOTLResultCode = strResultCode;
-		coStream.open (1,
-			"insert into ps.requestList"
-			"(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
-			"values"
-			"(ps.requestlist_seq.nextval,:session_id/*char[255]*/,sysdate,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)",
-			*pcoDBConn);
-		coStream
-			<< strSessionId
-			<< strRequestType
-			<< strOriginHost
-			<< coOTLOriginReal
-			<< strDestinHost
-			<< coOTLDestinReal
-			<< coOTLResultCode
-			<< pmcBuf;
-		pcoDBConn->commit ();
-		coStream.close ();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E (*g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		if (coStream.good ())
-			coStream.close ();
-	}
+  if ( strDestinReal.length() ) {
+    *pcoOTLDestinReal = strDestinReal;
+  }
+  if ( strResultCode.length() ) {
+    *pcoOTLResultCode = strResultCode;
+  }
+  pcrf_fill_otl_datetime( *pcoDateTime, NULL );
+  *pcoParsedPack = pmcBuf;
 
-free_and_exit:
-	if (pcoDBConn) {
-		pcrf_db_pool_rel (pcoDBConn, __FUNCTION__);
-	}
+  *pstrSQLRequest =
+    "insert into ps.requestList"
+      "(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
+    "values"
+      "(ps.requestlist_seq.nextval,:session_id/*char[255]*/,:date_time/*timestamp*/,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)";
+  pcrf_sql_queue_add_param( plistParameters, pstrSessionId,    m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, pcoDateTime,      m_eSQLParamType_OTLDateTime );
+  pcrf_sql_queue_add_param( plistParameters, pstrRequestType,  m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, pstrOriginHost,   m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, pcoOTLOriginReal, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, pstrDestinHost,   m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, pcoOTLDestinReal, m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, pcoOTLResultCode, m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, pcoParsedPack,    m_eSQLParamType_StdString );
+  pcrf_sql_queue_enqueue( pstrSQLRequest, plistParameters );
 
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);

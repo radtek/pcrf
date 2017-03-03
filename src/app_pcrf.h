@@ -74,6 +74,11 @@ int pcrf_session_rule_list_init();
 /* деинициализация кэша правил сессий */
 void pcrf_session_rule_list_fini();
 
+/* инициализация очереди sql-запросов */
+int pcrf_sql_queue_init();
+/* деинициализация очереди sql-запросов */
+void pcrf_sql_queue_fini();
+
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;
 extern struct dict_object *g_psoDictCCA;

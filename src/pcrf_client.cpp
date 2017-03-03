@@ -126,7 +126,8 @@ static void pcrf_client_raa (void *p_pData, struct msg **p_ppMsg)
 	/* обрабатываем Result-Code */
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-		CHECK_FCT_DO(pcrf_client_db_fix_staled_sess (strSessionId.c_str()), /*continue*/ );
+    otl_value<std::string> coSessionId( strSessionId );
+    pcrf_client_db_fix_staled_sess( coSessionId );
     pcrf_session_cache_remove(strSessionId);
     break;
 	}
@@ -242,7 +243,7 @@ int pcrf_client_rar (
   if (NULL != p_pvectActiveRules) {
     avp *psoAVP;
 
-    psoAVP = pcrf_make_CRR(p_pcoDBConn, *(p_soReqInfo.m_psoSessInfo), *p_pvectActiveRules);
+    psoAVP = pcrf_make_CRR( *( p_soReqInfo.m_psoSessInfo ), *p_pvectActiveRules );
     if (psoAVP) {
       /* put 'Charging-Rule-Remove' into request */
       CHECK_FCT_DO(iRetVal = fd_msg_avp_add(psoReq, MSG_BRW_LAST_CHILD, psoAVP), );

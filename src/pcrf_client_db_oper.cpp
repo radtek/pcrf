@@ -41,78 +41,19 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 	return iRetVal;
 }
 
-int pcrf_client_db_fix_staled_sess (const char *p_pcszSessionId)
+void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
 {
-	int iRetVal = 0;
-  CTimeMeasurer coTM;
-	otl_connect *pcoDBConn;
-	otl_datetime coDateTime;
+	/* закрываем зависшую сессию */
+  otl_value<otl_datetime> coSysdate;
+  otl_value<std::string> coTermCause;
 
-	/* запрашиваем указатель на объект подключения к БД */
-	if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__) && NULL != pcoDBConn) {
-  } else {
-		return -1;
-  }
+  pcrf_fill_otl_datetime( coSysdate, NULL );
 
-	otl_nocommit_stream coStream;
-	try {
-		/* создаем объект класса потока ДБ */
-		/* закрываем зависшую сессию */
-		coStream.open (
-			1,
-			"update ps.SessionList "
-				"set time_end = time_last_req "
-				"where session_id = :1/*char[255],in*/ "
-				"returning time_last_req into :2/*timestamp,out*/",
-			*pcoDBConn);
-		/* делаем выборку из БД */
-		coStream
-			<< p_pcszSessionId;
-		coStream
-			>> coDateTime;
-		if(coStream.good())
-			coStream.close ();
-		/* фиксируем правила зависшей сессиии */
-		coStream.open (
-			1,
-			"update ps.sessionRule "
-				"set time_end = :time_end/*timestamp*/ "
-				"where time_end is null and session_id = :session_id/*char[255]*/",
-			*pcoDBConn);
-		coStream
-			<< coDateTime
-			<< p_pcszSessionId;
-		if (coStream.good())
-			coStream.close();
-		/* фиксируем локации зависшей сессиии */
-		coStream.open (
-			1,
-			"update ps.sessionLocation "
-				"set time_end = :time_end/*timestamp*/ "
-				"where time_end is null and session_id = :session_id/*char[255]*/",
-			*pcoDBConn);
-		coStream
-			<< coDateTime
-			<< p_pcszSessionId;
-		if (coStream.good())
-			coStream.close();
-    pcoDBConn->commit ();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
-	}
-
-	/* возвращаем подключение к БД, если оно было получено */
-	if (pcoDBConn) {
-		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
-	}
-
-  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
-
-	return iRetVal;
+  pcrf_db_update_session( p_coSessionId , coSysdate, coSysdate, coTermCause);
+	/* фиксируем правила зависшей сессиии */
+  pcrf_db_close_session_rule_all( p_coSessionId );
+	/* фиксируем локации зависшей сессиии */
+  pcrf_server_db_close_user_loc( p_coSessionId );
 }
 
 int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList)

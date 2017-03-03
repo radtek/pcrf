@@ -34,6 +34,7 @@ SET( PCRF_APP_SRC
 	pcrf_session_cache.cpp
 	pcrf_rule_cache.cpp
 	pcrf_session_rule_cache.cpp
+	pcrf_sql_queue.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
 	~/project/utils/src/utils/stat/stat.cpp

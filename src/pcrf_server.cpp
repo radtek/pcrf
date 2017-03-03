@@ -196,16 +196,7 @@ static int app_pcrf_ccr_cb (
     pcrf_session_cache_insert(soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
     break;/* INITIAL_REQUEST */
   case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
-    {
-      time_t tSecsSince1970;
-      tm soTime;
-      if ((time_t)-1 != time(&tSecsSince1970)) {
-        if (localtime_r(&tSecsSince1970, &soTime)) {
-          fill_otl_datetime(soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.v, soTime);
-          soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.set_non_null();
-        }
-      }
-    }
+    pcrf_fill_otl_datetime( soMsgInfoCache.m_psoSessInfo->m_coTimeEnd, NULL );
     /* для Procera инициируем завершение сессии в том случае, когда завершена сессия на ugw */
     if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
       pcrf_procera_terminate_session (*pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coSessionId);
@@ -413,7 +404,7 @@ static int app_pcrf_ccr_cb (
 					break;
         case 101: /* TETHERING_REPORT */
           if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-            CHECK_FCT_DO( pcrf_server_db_insert_tetering_info(pcoDBConn, soMsgInfoCache), /* continue */ );
+            pcrf_server_db_insert_tetering_info( soMsgInfoCache );
             /* TETHERING_REPORT */
             CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
           }
@@ -474,7 +465,7 @@ static int app_pcrf_ccr_cb (
 		/* формируем список неактуальных правил */
 		CHECK_POSIX_DO(pcrf_server_select_notrelevant_active(vectAbonRules, vectActive), );
 		/* Charging-Rule-Remove */
-    psoChildAVP = pcrf_make_CRR (pcoDBConn, *soMsgInfoCache.m_psoSessInfo, vectActive);
+    psoChildAVP = pcrf_make_CRR( *soMsgInfoCache.m_psoSessInfo, vectActive );
 		/* put 'Charging-Rule-Remove' into answer */
 		if (psoChildAVP) {
 			CHECK_FCT_DO (fd_msg_avp_add (ans, MSG_BRW_LAST_CHILD, psoChildAVP), /*continue*/);
@@ -767,14 +758,13 @@ int pcrf_set_CRN (avp *p_pParent, dict_object *p_psoDictObj, std::string &p_strN
   return 0;
 }
 
-avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vectActive)
+avp * pcrf_make_CRR( SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vectActive )
 {
 	/* если список пустой выходим ничего не делая */
 	if (0 == p_vectActive.size()) {
 		return NULL;
 	}
 
-	CTimeMeasurer coTM;
 	avp *psoAVPCRR = NULL; /* Charging-Rule-Remove */
 	std::vector<SDBAbonRule>::iterator iter = p_vectActive.begin();
 
@@ -806,15 +796,13 @@ avp * pcrf_make_CRR(otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, std::v
           CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
         }
 			}
-      CHECK_FCT_DO(pcrf_db_close_session_rule(p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
+      pcrf_db_close_session_rule( p_soSessInfo, iter->m_coRuleName.v );
       break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
-      CHECK_FCT_DO(pcrf_db_close_session_rule(p_pcoDBConn, p_soSessInfo, iter->m_coRuleName.v), );
+      pcrf_db_close_session_rule( p_soSessInfo, iter->m_coRuleName.v );
       break; /* Gx Cisco SCE */
 		}
 	}
-
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return psoAVPCRR;
 }
@@ -867,7 +855,7 @@ avp * pcrf_make_CRI (
 				/* put 'Charging-Rule-Definition' into 'Charging-Rule-Install' */
 				CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRI, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 				/* сохраняем выданную политику в БД */
-        CHECK_FCT_DO(pcrf_db_insert_rule(p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
+        pcrf_db_insert_rule( *( p_psoReqInfo->m_psoSessInfo ), *iter );
       }
 			break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
@@ -905,7 +893,7 @@ avp * pcrf_make_CRI (
 			}
 			/* сохраняем выданную политику в БД */
       if (! iter->m_bIsActivated) {
-        CHECK_FCT_DO(pcrf_db_insert_rule(p_pcoDBConn, *(p_psoReqInfo->m_psoSessInfo), *iter), /* continue */);
+        pcrf_db_insert_rule( *( p_psoReqInfo->m_psoSessInfo ), *iter );
       }
 			break; /* Gx Cisco SCE */
 		}

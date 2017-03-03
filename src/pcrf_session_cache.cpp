@@ -1120,7 +1120,6 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
 
           /* copy the found value, we're done */
           soSessCache.m_iIPCANType = req.search.enum_value.i32;
-          LOG_D("%s: IP-CAN-Type: '%d', '%s'", __FUNCTION__, soSessCache.m_iIPCANType, soSessCache.m_coIPCANType.v.c_str());
         }
         if (0 == soSessCache.m_coRATType.is_null()) {
           dict_object * enum_obj = NULL;
@@ -1139,7 +1138,6 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
 
           /* copy the found value, we're done */
           soSessCache.m_iRATType = req.search.enum_value.i32;
-          LOG_D("%s: RAT-Type: '%d', '%s'", __FUNCTION__, soSessCache.m_iRATType, soSessCache.m_coRATType.v.c_str());
         }
         pcrf_session_cache_insert_local(strSessionId, soSessCache, NULL, true);
       }

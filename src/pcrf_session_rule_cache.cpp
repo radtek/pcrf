@@ -66,9 +66,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
       soRule.m_coRuleName = *iterLst;
       /* сохраняем правилов в списке */
       p_vectActive.push_back(soRule);
-      LOG_D("get session rule: session-id: '%s'; rule-name: '%s'", p_strSessionId.c_str(), iterLst->c_str());
     }
-    LOG_D("target vector size: '%d'", p_vectActive.size());
   } else {
     LOG_D("%s: session not found: '%s'", __FUNCTION__, p_strSessionId.c_str());
     iRetVal = 1403;
@@ -92,8 +90,6 @@ clean_and_exit:
 
 void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority)
 {
-  LOG_D("enter to %s", __FUNCTION__);
-
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
 
@@ -110,16 +106,12 @@ void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::stri
   if (iter != g_mapSessRuleLst.end()) {
     /* если нашли, то дополняем правил список ее */
     iter->second.push_back(p_strRuleName);
-    LOG_D("rule inserted: session-id: %s; rune-name: %s", p_strSessionId.c_str(), p_strRuleName.c_str());
     stat_measure(g_psoSessionRuleCacheStat, "rule inserted", &coTM);
   } else {
     /* если сессия не найдена добавляем ее в хранилище */
     std::list<std::string> list;
     list.push_back(p_strRuleName);
     g_mapSessRuleLst.insert(std::pair<std::string, std::list<std::string> >(p_strSessionId, list));
-    if (!p_bLowPriority) {
-      LOG_D("session inserted: session-id: %s; rune-name: %s", p_strSessionId.c_str(), p_strRuleName.c_str());
-    }
     stat_measure(g_psoSessionRuleCacheStat, "session inserted", &coTM);
   }
 
@@ -132,8 +124,6 @@ unlock_low_prior:
   }
 
 clean_and_exit:
-
-  LOG_D("leave %s", __FUNCTION__);
 
   return;
 }
@@ -150,7 +140,6 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
   if (iter != g_mapSessRuleLst.end()) {
     g_mapSessRuleLst.erase(iter);
     stat_measure(g_psoSessionRuleCacheStat, "session removed", &coTM);
-    LOG_D("%s: session removed: '%s'", __FUNCTION__, p_strSessionId.c_str());
   } else {
     LOG_D("%s: session not found: '%s'", __FUNCTION__, p_strSessionId.c_str());
   }
@@ -182,7 +171,6 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
         iterLst = iter->second.erase(iterLst);
         /* фиксируем в модуле статистики успешное удаление правила */
         stat_measure(g_psoSessionRuleCacheStat, "rule removed", &coTM);
-        LOG_D("%s: rule removed: session-id: '%s'; rule-name: '%s'", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str());
       } else {
         ++iterLst;
       }
@@ -221,7 +209,6 @@ static void * pcrf_session_rule_load_list(void*)
       coStream
         >> strSessionId
         >> strRuleName;
-      LOG_D("%s: session-id: %s; rule-name: %s", __FUNCTION__, strSessionId.c_str(), strRuleName.c_str());
       pcrf_session_rule_cache_insert_local(strSessionId, strRuleName, true);
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
