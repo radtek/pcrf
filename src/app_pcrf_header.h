@@ -169,7 +169,7 @@ struct SDBAbonRule {
 /* выборка данных из пакета */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
 /* сохранение запроса в БД */
-void fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm &p_soTime);
+void pcrf_fill_otl_datetime(otl_datetime &p_coOtlDateTime, tm *p_psoTime);
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
 int pcrf_server_req_db_store (otl_connect &p_coDBConn, struct SMsgDataForDB *p_psoMsgInfo);
 int pcrf_server_policy_db_store (

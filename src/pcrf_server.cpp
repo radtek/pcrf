@@ -196,16 +196,7 @@ static int app_pcrf_ccr_cb (
     pcrf_session_cache_insert(soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
     break;/* INITIAL_REQUEST */
   case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
-    {
-      time_t tSecsSince1970;
-      tm soTime;
-      if ((time_t)-1 != time(&tSecsSince1970)) {
-        if (localtime_r(&tSecsSince1970, &soTime)) {
-          fill_otl_datetime(soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.v, soTime);
-          soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.set_non_null();
-        }
-      }
-    }
+    pcrf_fill_otl_datetime( soMsgInfoCache.m_psoSessInfo->m_coTimeEnd.v, NULL );
     /* для Procera инициируем завершение сессии в том случае, когда завершена сессия на ugw */
     if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
       pcrf_procera_terminate_session (*pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coSessionId);

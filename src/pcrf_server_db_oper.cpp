@@ -195,14 +195,31 @@ void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo)
 	}
 }
 
-void fill_otl_datetime (otl_datetime &p_coOtlDateTime, tm &p_soTime)
+void pcrf_fill_otl_datetime( otl_value<otl_datetime> &p_coOtlDateTime, tm *p_psoTime )
 {
-	p_coOtlDateTime.year = p_soTime.tm_year + 1900;
-	p_coOtlDateTime.month = p_soTime.tm_mon + 1;
-	p_coOtlDateTime.day = p_soTime.tm_mday;
-	p_coOtlDateTime.hour = p_soTime.tm_hour;
-	p_coOtlDateTime.minute = p_soTime.tm_min;
-	p_coOtlDateTime.second = p_soTime.tm_sec;
+  tm *psoTime, soTime;
+
+  if ( NULL == p_psoTime ) {
+    time_t tSecsSince1970;
+    if ( (time_t)-1 != time( &tSecsSince1970 ) ) {
+      if ( localtime_r( &tSecsSince1970, &soTime ) ) {
+      }
+    } else {
+      return;
+    }
+    psoTime = &soTime;
+  } else {
+    psoTime = p_psoTime;
+  }
+
+  p_coOtlDateTime.v.year = psoTime->tm_year + 1900;
+  p_coOtlDateTime.v.month = psoTime->tm_mon + 1;
+  p_coOtlDateTime.v.day = psoTime->tm_mday;
+  p_coOtlDateTime.v.hour = psoTime->tm_hour;
+  p_coOtlDateTime.v.minute = psoTime->tm_min;
+  p_coOtlDateTime.v.second = psoTime->tm_sec;
+
+  p_coOtlDateTime.set_non_null();
 }
 
 int pcrf_db_insert_session (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
@@ -649,69 +666,110 @@ int pcrf_server_db_load_active_rules(
 	return iRetVal;
 }
 
-/* загружает список идентификаторов правил абонента из БД */
-int pcrf_load_abon_rule_list (
-	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo,
-	std::vector<std::string> &p_vectRuleList)
+void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
-	int iRetVal = 0;
+  tm soTM;
+
+  if ( 6 == sscanf( p_strDateTime.c_str(), "%u.%u.%u %u:%u:%u", &soTM.tm_mday, &soTM.tm_mon, &soTM.tm_year, &soTM.tm_hour, &soTM.tm_min, &soTM.tm_sec ) ) {
+    soTM.tm_year -= 1900;
+    --soTM.tm_mon;
+    pcrf_fill_otl_datetime( p_soDateTime, &soTM );
+  }
+}
+
+void pcrf_parse_rule_row( otl_connect &p_coDBConn, std::string &p_strRuleRow, std::vector<std::string> &p_vectRuleList, std::string &p_strSubscriberId )
+{
+  size_t stEnd;
+
+  stEnd = p_strRuleRow.find( 9 );
+  if ( stEnd != std::string::npos && 0 != stEnd ) {
+    p_vectRuleList.push_back( p_strRuleRow.substr( 0, stEnd ) );
+  } else {
+    UTL_LOG_D( *p_coLog, "invalid rule row: length: '%d'; content: '%s'", stEnd, p_strRuleRow.substr.c_str() );
+    return;
+  }
+
+  ++stEnd;
+
+  if ( p_strRuleRow.length() - stEnd == 19 ) {
+    otl_value<otl_datetime> coRefreshTime;
+    std::string strDateTime;
+
+    strDateTime = p_strRuleRow.substr( stEnd );
+    pcrf_parse_date_time( strDateTime, coRefreshTime );
+    if ( 0 != coRefreshTime.is_null() ) {
+    } else {
+      pcrf_server_db_insert_refqueue( p_coDBConn, "subscriber_id", p_strSubscriberId, &( coRefreshTime.v ), NULL );
+    }
+  } else if ( p_strRuleRow.length() < stEnd ) {
+    UTL_LOG_D( *p_coLog, "invalid date/time lentgth: '%d'; content: '%s'", p_strRuleRow.length() - stEnd, p_strRuleRow.substr( stEnd ).c_str() );
+  }
+}
+
+void pcrf_parse_rule_list( otl_connect &p_coDBConn, std::string &p_strRuleList, std::vector<std::string> &p_vectRuleList, std::string &p_strSubscriberId )
+{
+  std::string strRuleRow;
+  size_t stBeginRow = 0;
+  size_t stEndRow;
+
+  while ( std::string::npos != ( stEndRow = p_strRuleList.find( 10, stBeginRow ) ) ) {
+    strRuleRow = p_strRuleList.substr( stBeginRow, stEndRow - stBeginRow );
+    pcrf_parse_rule_row( p_coDBConn, strRuleRow, p_vectRuleList, p_strSubscriberId );
+    stBeginRow = stEndRow;
+    ++stBeginRow;
+  }
+}
+
+/* загружает список идентификаторов правил абонента из БД */
+int pcrf_load_abon_rule_list(
+  otl_connect &p_coDBConn,
+  SMsgDataForDB &p_soMsgInfo,
+  std::vector<std::string> &p_vectRuleList )
+{
+  int iRetVal = 0;
   CTimeMeasurer coTM;
 
-	otl_nocommit_stream coStream;
-	otl_refcur_stream coRefCur;
-	otl_value<otl_datetime> coRefreshTime;
-	std::string strRuleName;
-	try {
-		coStream.open (
-			1,
-			"begin "
-				":cur<refcur,out[32]> := ps.GetSubRules("
-						":subscriber_id <char[64],in>,"
-						":peer_dialect <unsigned,in>,"
-						":ip_can_type <char[20],in>,"
-						":rat_type <char[20],in>,"
-						":apn_name <char[255],in>,"
-						":sgsn_node_ip_address <char[16],in>,"
-						":IMEI <char[20],in>"
-					");"
-			"end;",
-			p_coDBConn);
-		coStream
-			<< p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-			<< p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect
-			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType
-			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType
-			<< p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
-			<< p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress
-			<< p_soMsgInfo.m_psoSessInfo->m_coIMEI;
-		while (! coStream.eof ()) {
-			coStream
-				>> coRefCur;
-			while(!coRefCur.eof()) {
-				coRefCur
-					>> strRuleName
-					>> coRefreshTime;
-				p_vectRuleList.push_back (strRuleName);
-				/* если известна дата действия политик */
-				if (coRefreshTime.is_null ()) {
-        } else {
-					pcrf_server_db_insert_refqueue(p_coDBConn, "subscriber_id", p_soMsgInfo.m_psoSessInfo->m_strSubscriberId, &(coRefreshTime.v), NULL);
-				}
-			}
-		}
-		coStream.close();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
-	}
+  otl_nocommit_stream coStream;
+  std::string strSQLResult;
 
-  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
+  try {
+    coStream.open(
+      1,
+      "begin "
+      ":rule_list/*char[4000],out/* := ps.GetSubRules2("
+      ":subscriber_id/*char[64],in*/,"
+      ":peer_dialect/*unsigned,in*/,"
+      ":ip_can_type/*char[20],in*/,"
+      ":rat_type/*char[20],in*/,"
+      ":apn_name/*char[255],in*/,"
+      ":sgsn_node_ip_address/*char[16],in*/,"
+      ":IMEI/*char[20],in*/"
+      ");"
+      "end;",
+      p_coDBConn );
+    coStream
+      << p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
+      << p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect
+      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType
+      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType
+      << p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
+      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress
+      << p_soMsgInfo.m_psoSessInfo->m_coIMEI;
+    while ( ! coStream.eof() ) {
+      coStream
+        >> strSQLResult;
+      LOG_D( "rule list: '%s'", strSQLResult.c_str() );
+      pcrf_parse_rule_list( p_coDBConn, strSQLResult, p_vectRuleList, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
+    }
+    coStream.close();
+  } catch ( otl_exception &coExcept ) {
+    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+    iRetVal = coExcept.code;
+  }
 
-	return iRetVal;
+  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+
+  return iRetVal;
 }
 
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId)
@@ -1101,15 +1159,8 @@ int pcrf_server_db_insert_refqueue (
 	if (p_coDateTime) {
 		coRefreshDate = *p_coDateTime;
   } else {
-		time_t tSecsSince1970;
-		tm soTime;
-		if ((time_t)-1 != time(&tSecsSince1970)) {
-			if (localtime_r(&tSecsSince1970, &soTime)) {
-				fill_otl_datetime(coRefreshDate.v, soTime);
-				coRefreshDate.set_non_null();
-			}
-		}
-	}
+    pcrf_fill_otl_datetime( coRefreshDate.v, NULL );
+  }
 
 	try {
 		coStream.open (
