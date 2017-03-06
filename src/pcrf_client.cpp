@@ -608,8 +608,6 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
 
 static void sig_oper(void)
 {
-  LOG_D("enter into '%s'", __FUNCTION__);
-
   otl_connect *pcoDBConn;
 
   if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
@@ -627,8 +625,6 @@ static void sig_oper(void)
   if (NULL != pcoDBConn) {
     pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
   }
-
-  LOG_D("leave '%s'", __FUNCTION__);
 }
 
 /* инициализация клиента */
