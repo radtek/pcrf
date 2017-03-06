@@ -1159,7 +1159,7 @@ int pcrf_server_db_insert_refqueue (
 	if (p_coDateTime) {
 		coRefreshDate = *p_coDateTime;
   } else {
-    pcrf_fill_otl_datetime( coRefreshDate.v, NULL );
+    pcrf_fill_otl_datetime( coRefreshDate, NULL );
   }
 
 	try {
