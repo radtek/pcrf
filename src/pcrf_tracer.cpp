@@ -199,58 +199,58 @@ static void pcrf_tracer (
   /* suppress compiler warning */
   p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
 
-	otl_value<std::string> *pstrSessionId = new otl_value<std::string>;
-  otl_value<std::string> *pstrRequestType = new otl_value<std::string>;
-	otl_value<std::string> *pstrOriginHost = new otl_value<std::string>;
-	otl_value<std::string> *pstrDestinHost = new otl_value<std::string>;
-  otl_value<std::string> *pcoOTLOriginReal = new otl_value<std::string>;
-  otl_value<std::string> *pcoOTLDestinReal = new otl_value<std::string>;
-  otl_value<std::string> *pcoOTLResultCode = new otl_value<std::string>;
-  otl_value<std::string> *pcoParsedPack    = new otl_value<std::string>;
-  otl_value<otl_datetime> *pcoDateTime = new otl_value<otl_datetime>;
-  std::string *pstrSQLRequest = new std::string;
+	otl_value<std::string> coSessionId;
+  otl_value<std::string> coRequestType;
+	otl_value<std::string> coOriginHost;
+	otl_value<std::string> coDestinHost;
+  otl_value<std::string> coOTLOriginReal;
+  otl_value<std::string> coOTLDestinReal;
+  otl_value<std::string> coOTLResultCode;
+  otl_value<std::string> coParsedPack;
+  otl_value<otl_datetime> coDateTime;
+  std::string strSQLRequest;
   std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
 
   /* копируем Session-Id */
   if ( 0 < strSessionId.length() ) {
-    *pstrSessionId = strSessionId;
+    coSessionId = strSessionId;
   }
   /* копируем Request-Type */
   if ( 0 < strRequestType.length() ) {
-    *pstrRequestType = strRequestType;
+    coRequestType = strRequestType;
   }
   /* копируем Origin-Host */
   if ( 0 < strOriginHost.length() ) {
-    *pstrOriginHost = strOriginHost;
+    coOriginHost = strOriginHost;
   }
   /* копируем Destination-Host */
   if ( 0 < strDestinHost.length() ) {
-    *pstrDestinHost = strDestinHost;
+    coDestinHost = strDestinHost;
   }
 	/* проверяем наличие обязательных атрибутов */
-	if (0 == pstrOriginHost->v.length ()) {
+	if (0 != coOriginHost.is_null()) {
 		switch (p_eHookType)
 		{
 		case HOOK_MESSAGE_RECEIVED:
-			*pstrOriginHost = strPeerName;
+			coOriginHost = strPeerName;
 			break;
 		case HOOK_MESSAGE_LOCAL:
 		case HOOK_MESSAGE_SENT:
-			pstrOriginHost->v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
-      pstrOriginHost->set_non_null();
+			coOriginHost.v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      coOriginHost.set_non_null();
 			break;
 		default:
 			break;
 		}
 	}
-	if (0 == pstrDestinHost->v.length ()) {
+	if (0 != coDestinHost.is_null()) {
 		switch (p_eHookType) {
 		case HOOK_MESSAGE_RECEIVED:
-			pstrDestinHost->v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
-      pstrDestinHost->set_non_null();
+			coDestinHost.v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      coDestinHost.set_non_null();
 			break;
 		case HOOK_MESSAGE_SENT:
-			*pstrDestinHost = strPeerName;
+			coDestinHost = strPeerName;
 			break;
 		default:
 			break;
@@ -278,32 +278,32 @@ static void pcrf_tracer (
 	}
 
   if ( strOriginReal.length() ) {
-    *pcoOTLOriginReal = strOriginReal;
+    coOTLOriginReal = strOriginReal;
   }
   if ( strDestinReal.length() ) {
-    *pcoOTLDestinReal = strDestinReal;
+    coOTLDestinReal = strDestinReal;
   }
   if ( strResultCode.length() ) {
-    *pcoOTLResultCode = strResultCode;
+    coOTLResultCode = strResultCode;
   }
-  pcrf_fill_otl_datetime( *pcoDateTime, NULL );
-  *pcoParsedPack = pmcBuf;
+  pcrf_fill_otl_datetime( coDateTime, NULL );
+  coParsedPack = pmcBuf;
 
-  *pstrSQLRequest =
+  strSQLRequest =
     "insert into ps.requestList"
       "(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
     "values"
       "(ps.requestlist_seq.nextval,:session_id/*char[255]*/,:date_time/*timestamp*/,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)";
-  pcrf_sql_queue_add_param( plistParameters, pstrSessionId,    m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, pcoDateTime,      m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParameters, pstrRequestType,  m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, pstrOriginHost,   m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, pcoOTLOriginReal, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, pstrDestinHost,   m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, pcoOTLDestinReal, m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, pcoOTLResultCode, m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, pcoParsedPack,    m_eSQLParamType_StdString );
-  pcrf_sql_queue_enqueue( pstrSQLRequest, plistParameters );
+  pcrf_sql_queue_add_param( plistParameters, coSessionId,     m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, coDateTime,      m_eSQLParamType_OTLDateTime );
+  pcrf_sql_queue_add_param( plistParameters, coRequestType,   m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, coOriginHost,    m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, coOTLOriginReal, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, coDestinHost,    m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, coOTLDestinReal, m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, coOTLResultCode, m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParameters, coParsedPack,    m_eSQLParamType_StdString );
+  pcrf_sql_queue_enqueue( strSQLRequest, plistParameters );
 
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);

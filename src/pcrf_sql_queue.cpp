@@ -172,26 +172,16 @@ clean_and_exit:
   pthread_exit(NULL);
 }
 
-void pcrf_sql_queue_enqueue( std::string *p_pstrRequest, std::list<SSQLQueueParam> *p_plistParameters )
+void pcrf_sql_queue_enqueue( std::string &p_strRequest, std::list<SSQLQueueParam> *p_plistParameters )
 {
-  if (NULL != p_pstrRequest) {
-  } else {
-    return;
-  }
-
   CTimeMeasurer coTM;
+  std::string *pstrRequest = new std::string( p_strRequest );
 
-  SSQLQueue soSQLQueue(p_pstrRequest, p_plistParameters);
+  SSQLQueue soSQLQueue( pstrRequest, p_plistParameters );
 
   pthread_mutex_lock( &g_mutexSQLQueue );
   g_listSQLQueue.push_back( soSQLQueue );
   pthread_mutex_unlock( &g_mutexSQLQueue );
 
   stat_measure( g_psoSQLQueueStat, "enqueued", &coTM );
-}
-
-void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, void *p_pvParam, ESQLParamType p_eSQLParamType )
-{
-  SSQLQueueParam soParam( p_eSQLParamType, p_pvParam );
-  p_plistParameters->push_back( soParam );
 }

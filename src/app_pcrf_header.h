@@ -370,9 +370,16 @@ struct SSQLQueueParam {
   void *m_pvParam;
   SSQLQueueParam( ESQLParamType p_eParamType, void *p_pvParam ) : m_eParamType ( p_eParamType ), m_pvParam ( p_pvParam ) { }
 };
-void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, void *p_pvParam, ESQLParamType p_eSQLParamType );
-void pcrf_sql_queue_enqueue( std::string *p_pstrRequest, std::list<SSQLQueueParam> *p_plistParameters );
+void pcrf_sql_queue_enqueue( std::string &p_strRequest, std::list<SSQLQueueParam> *p_plistParameters );
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */
 #endif
+
+template <class T>
+void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, const T &p_tParam, ESQLParamType p_eSQLParamType )
+{
+  T *tParam = new T( p_tParam );
+  SSQLQueueParam soParam( p_eSQLParamType, tParam );
+  p_plistParameters->push_back( soParam );
+}
