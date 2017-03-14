@@ -374,7 +374,7 @@ struct SSQLQueueParam {
   void *m_pvParam;
   SSQLQueueParam( ESQLParamType p_eParamType, void *p_pvParam ) : m_eParamType( p_eParamType ), m_pvParam( p_pvParam ) { }
 };
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL );
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName );
 
 template <class T>
 void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, const T &p_tParam, ESQLParamType p_eSQLParamType )
