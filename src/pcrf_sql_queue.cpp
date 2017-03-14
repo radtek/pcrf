@@ -16,11 +16,19 @@ static pthread_mutex_t g_mutexSQLQueue;
 
 struct SSQLQueue
 {
-  std::string *m_pstrRequest;
+  const char *m_pszRequest;
   std::list<SSQLQueueParam> *m_plistParamList;
-  SSQLQueue(std::string *p_pstrSQLReq, std::list<SSQLQueueParam> *p_plistParam) : m_pstrRequest(p_pstrSQLReq), m_plistParamList(p_plistParam) {}
+  const char *m_pszReqName;
+  SSQLQueue(
+    const char *p_pszSQLReq,
+    std::list<SSQLQueueParam> *p_plistParam,
+    const char *p_pszReqName )
+    : m_pszRequest( p_pszSQLReq ), m_plistParamList( p_plistParam ), m_pszReqName( p_pszReqName )
+  { }
 };
 static std::list<SSQLQueue> g_listSQLQueue;
+
+static std::map<std::string, otl_stream*> g_mapOTLStream;
 
 int pcrf_sql_queue_init()
 {
@@ -41,12 +49,17 @@ void pcrf_sql_queue_fini()
   pthread_mutex_destroy(&g_mutexSQLQueueTimer);
   pthread_mutex_destroy(&g_mutexSQLQueue);
   pthread_join(g_threadSQLQueue, NULL);
+
+  for ( std::map<std::string, otl_stream*>::iterator iter = g_mapOTLStream.begin(); iter != g_mapOTLStream.end(); ++iter ) {
+    iter->second->close();
+    delete iter->second;
+  }
 }
 
 static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLQueue *p_psoSQLQueue)
 {
   /* проверка параметров */
-  if ( NULL != p_pcoDBConn && NULL != p_psoSQLQueue && NULL != p_psoSQLQueue->m_pstrRequest && NULL != p_psoSQLQueue->m_plistParamList ) {
+  if ( NULL != p_pcoDBConn && NULL != p_psoSQLQueue && NULL != p_psoSQLQueue->m_pszRequest && NULL != p_psoSQLQueue->m_plistParamList ) {
   } else {
     return EINVAL;
   }
@@ -55,10 +68,21 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLQueue *p_ps
   int iRetVal = 0;
 
   try {
-    otl_nocommit_stream coStream;
+    otl_stream *pcoStream;
+    std::map<std::string, otl_stream*>::iterator iterStream;
 
-    /* открываем запрос */
-    coStream.open( 1, p_psoSQLQueue->m_pstrRequest->c_str(), *p_pcoDBConn );
+    iterStream = g_mapOTLStream.find( p_psoSQLQueue->m_pszReqName );
+    if ( iterStream != g_mapOTLStream.end() ) {
+      pcoStream = &(*iterStream->second);
+    } else {
+      pcoStream = new otl_stream;
+
+      pcoStream->set_commit( 0 );
+      pcoStream->open( 1, p_psoSQLQueue->m_pszRequest, *p_pcoDBConn, NULL, p_psoSQLQueue->m_pszReqName );
+
+      g_mapOTLStream.insert( std::pair<std::string, otl_stream*>( p_psoSQLQueue->m_pszReqName, pcoStream ) );
+    }
+
     /* передаем параметры зароса */
     std::list<SSQLQueueParam>::iterator iter = p_psoSQLQueue->m_plistParamList->begin();
     for ( ; iter != p_psoSQLQueue->m_plistParamList->end(); ++iter ) {
@@ -68,44 +92,39 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLQueue *p_ps
       }
       switch ( iter->m_eParamType ) {
         case m_eSQLParamType_Int:
-          coStream << * reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
+          *pcoStream << * reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
           break;
         case m_eSQLParamType_UInt:
-          coStream << * reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
+          *pcoStream << * reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_StdString:
-          coStream << * reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
+          *pcoStream << * reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_Char:
-          coStream << * reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
+          *pcoStream << * reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_OTLDateTime:
-          coStream << * reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
+          *pcoStream << * reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
           break;
       }
     }
     p_pcoDBConn->commit();
-
-    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     iRetVal = coExcept.code;
   }
 
-  stat_measure( g_psoSQLQueueStat, "operated", &coTM );
+  stat_measure( g_psoSQLQueueStat, p_psoSQLQueue->m_pszReqName, &coTM );
 
   return iRetVal;
 }
 
 void pcrf_sql_queue_clean_single( SSQLQueue *p_psoSQLQueue )
 {
-  if ( NULL != p_psoSQLQueue && NULL != p_psoSQLQueue->m_pstrRequest ) {
+  if ( NULL != p_psoSQLQueue ) {
   } else {
     return;
   }
-
-  delete p_psoSQLQueue->m_pstrRequest;
-  p_psoSQLQueue->m_pstrRequest = NULL;
 
   std::list<SSQLQueueParam>::iterator iter = p_psoSQLQueue->m_plistParamList->begin();
   while ( iter != p_psoSQLQueue->m_plistParamList->end() ) {
@@ -172,12 +191,11 @@ clean_and_exit:
   pthread_exit(NULL);
 }
 
-void pcrf_sql_queue_enqueue( std::string &p_strRequest, std::list<SSQLQueueParam> *p_plistParameters )
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName )
 {
   CTimeMeasurer coTM;
-  std::string *pstrRequest = new std::string( p_strRequest );
 
-  SSQLQueue soSQLQueue( pstrRequest, p_plistParameters );
+  SSQLQueue soSQLQueue( p_pszSQLRequest, p_plistParameters, p_pszReqName );
 
   pthread_mutex_lock( &g_mutexSQLQueue );
   g_listSQLQueue.push_back( soSQLQueue );

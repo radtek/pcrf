@@ -27,7 +27,7 @@
 #define GX_PROCERA    3
 
 #ifdef __cplusplus
-extern "C" {	/* функции, реализованные на C++ */
+extern "C" {
 #endif
 
 /* функции сервера */
@@ -356,6 +356,10 @@ void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::strin
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 
+#ifdef __cplusplus
+}
+#endif
+
 /* очередь sql-запросов */
 enum ESQLParamType {
   m_eSQLParamType_Invalid,
@@ -368,13 +372,9 @@ enum ESQLParamType {
 struct SSQLQueueParam {
   ESQLParamType m_eParamType;
   void *m_pvParam;
-  SSQLQueueParam( ESQLParamType p_eParamType, void *p_pvParam ) : m_eParamType ( p_eParamType ), m_pvParam ( p_pvParam ) { }
+  SSQLQueueParam( ESQLParamType p_eParamType, void *p_pvParam ) : m_eParamType( p_eParamType ), m_pvParam( p_pvParam ) { }
 };
-void pcrf_sql_queue_enqueue( std::string &p_strRequest, std::list<SSQLQueueParam> *p_plistParameters );
-
-#ifdef __cplusplus
-}				/* функции, реализованные на C++ */
-#endif
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName );
 
 template <class T>
 void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, const T &p_tParam, ESQLParamType p_eSQLParamType )

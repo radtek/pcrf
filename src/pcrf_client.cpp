@@ -611,23 +611,7 @@ static void sig_oper(void)
 {
   LOG_D("enter into '%s'", __FUNCTION__);
 
-  otl_connect *pcoDBConn;
-
-  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
-    LOG_D("pcoDBConn: %p", pcoDBConn);
-
-    SRefQueue soRefRec;
-
-    soRefRec.m_strIdentifierType = "subscriber_id";
-    soRefRec.m_strIdentifier = "101957192/627511524@IRBiS";
-
-    CHECK_FCT_DO(pcrf_client_operate_refqueue_record(pcoDBConn, soRefRec), LOG_D("%s: error accurred", __FUNCTION__));
-  } else {
-  }
-
-  if (NULL != pcoDBConn) {
-    pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
-  }
+  pcrf_server_db_insert_refqueue( "subscriber_id", "101957192/627511524@IRBiS", NULL, NULL );
 
   LOG_D("leave '%s'", __FUNCTION__);
 }

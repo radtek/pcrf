@@ -208,7 +208,6 @@ static void pcrf_tracer (
   otl_value<std::string> coOTLResultCode;
   otl_value<std::string> coParsedPack;
   otl_value<otl_datetime> coDateTime;
-  std::string strSQLRequest;
   std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
 
   /* копируем Session-Id */
@@ -289,11 +288,6 @@ static void pcrf_tracer (
   pcrf_fill_otl_datetime( coDateTime, NULL );
   coParsedPack = pmcBuf;
 
-  strSQLRequest =
-    "insert into ps.requestList"
-      "(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
-    "values"
-      "(ps.requestlist_seq.nextval,:session_id/*char[255]*/,:date_time/*timestamp*/,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)";
   pcrf_sql_queue_add_param( plistParameters, coSessionId,     m_eSQLParamType_StdString);
   pcrf_sql_queue_add_param( plistParameters, coDateTime,      m_eSQLParamType_OTLDateTime );
   pcrf_sql_queue_add_param( plistParameters, coRequestType,   m_eSQLParamType_StdString );
@@ -303,7 +297,14 @@ static void pcrf_tracer (
   pcrf_sql_queue_add_param( plistParameters, coOTLDestinReal, m_eSQLParamType_StdString);
   pcrf_sql_queue_add_param( plistParameters, coOTLResultCode, m_eSQLParamType_StdString);
   pcrf_sql_queue_add_param( plistParameters, coParsedPack,    m_eSQLParamType_StdString );
-  pcrf_sql_queue_enqueue( strSQLRequest, plistParameters );
+
+  pcrf_sql_queue_enqueue(
+    "insert into ps.requestList"
+    "(seq_id,session_id,event_date,request_type,origin_host,origin_realm,destination_host,destination_realm,diameter_result,message)"
+    "values"
+    "(ps.requestlist_seq.nextval,:session_id/*char[255]*/,:date_time/*timestamp*/,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)",
+    plistParameters,
+    "insert request" );
 
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);
