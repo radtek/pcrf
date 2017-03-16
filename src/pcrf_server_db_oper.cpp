@@ -1198,7 +1198,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 	otl_nocommit_stream coStream;
 
 	try {
-    soSessInfo.m_uiPeerDialect = 3;
+    soSessInfo.m_uiPeerDialect = GX_PROCERA;
 		coStream.open (
 			10,
       "select "
@@ -1218,7 +1218,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 			p_coDBConn);
 		coStream
 			<< p_coUGWSessionId
-      << GX_PROCERA;
+      << soSessInfo.m_uiPeerDialect;
     while (! coStream.eof()) {
       coStream
         >> soSessInfo.m_coSessionId

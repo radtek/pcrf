@@ -342,7 +342,7 @@ static int app_pcrf_ccr_cb (
     CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
     /* дополняем ответ на CCR-I для Procera информацией о пользователе */
     /* Subscription-Id */
-    if (3 == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
+    if (GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
   		CHECK_FCT_DO(set_777_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
       CHECK_FCT_DO (pcrf_make_subscription_id (ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164), /* continue */);
     }
@@ -1306,7 +1306,7 @@ int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_
 			/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
 			/* Usage-Monitoring-Report */
-      if (3 != p_soSessInfo.m_uiPeerDialect) {
+      if (GX_PROCERA != p_soSessInfo.m_uiPeerDialect) {
 			  CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return __LINE__);
 			  soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
 			  CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
@@ -2242,7 +2242,7 @@ int pcrf_server_create_abon_rule_list(otl_connect &p_coDBConn, SMsgDataForDB &p_
 
 	do {
     /* дополнительная информация для Procera */
-    if (3 == p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect) {
+    if (GX_PROCERA == p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect) {
       SDBAbonRule soAbonRule;
       std::string strValue;
 
