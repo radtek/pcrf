@@ -47,7 +47,8 @@ void pcrf_rule_cache_fini()
   g_iWork = 0;
   CHECK_FCT_DO(pthread_mutex_unlock(&g_mutexUpdateTimer), /* continue */ );
   if (0 != g_threadUpdate) {
-    CHECK_FCT_DO(pthread_join(g_threadUpdate, NULL), /* continue */);
+    CHECK_FCT_DO( pthread_mutex_unlock( &g_mutexUpdateTimer ), /* continue */ );
+    CHECK_FCT_DO( pthread_join( g_threadUpdate, NULL ), /* continue */ );
   }
   CHECK_FCT_DO(pthread_mutex_destroy(&g_mutexUpdateTimer), /* continue */ );
   CHECK_FCT_DO(pthread_mutex_lock(&g_mutexRuleCache), /*continue*/ );
@@ -292,7 +293,7 @@ static void *pcrf_rule_cache_update(void *p_pvParam)
     soTimeSpec.tv_sec += 60;
     soTimeSpec.tv_nsec = soTimeVal.tv_usec;
     soTimeSpec.tv_nsec *= 1000;
-    iFnRes = pthread_mutex_timedlock(&g_mutexUpdateTimer, &soTimeSpec);
+    iFnRes = pthread_mutex_timedlock( &g_mutexUpdateTimer, &soTimeSpec );
     if (0 == g_iWork) {
       break;
     }

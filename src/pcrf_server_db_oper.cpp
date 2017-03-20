@@ -173,7 +173,8 @@ void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
     "insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
     "values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[32]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:start_time/*timestamp*/,:time_last/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
     plistParameters,
-    "insert session" );
+    "insert session",
+    &( p_soSessInfo.m_coSessionId.v ) );
 }
 
 void pcrf_db_update_session (
@@ -194,7 +195,8 @@ void pcrf_db_update_session (
     " set time_end = :time_end/*timestamp*/, time_last_req = :time_last/*timestamp*/, termination_cause = :term_cause/*char[64]*/"
     " where session_id = :session_id/*char[255]*/",
     plistParam,
-    "update session" );
+    "update session",
+    &( p_coSessionId.v ) );
 }
 
 int pcrf_db_session_usage (otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo)
@@ -287,7 +289,8 @@ void pcrf_db_insert_rule (
     "(session_id,time_start,rule_name) "
     "values (:session_id /*char[255]*/, :time_start/*timestamp*/, :rule_name /*char[255]*/)",
     plistParameters,
-    "insert rule" );
+    "insert rule",
+    &( p_soSessInfo.m_coSessionId.v ) );
 }
 
 void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
@@ -303,7 +306,8 @@ void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
   pcrf_sql_queue_enqueue(
     "update ps.sessionRule set time_end = :time_end/*timestamp*/ where session_id = :session_id /* char[255] */ and time_end is null",
     plistParam,
-    "close rule all" );
+    "close rule all",
+    &( p_coSessionId.v ) );
 }
 
 void pcrf_db_close_session_rule (
@@ -341,7 +345,8 @@ void pcrf_db_close_session_rule (
     "and rule_name = :rule_name /*char[100]*/ "
     "and time_end is null",
     plistParam,
-    "close rule" );
+    "close rule",
+    &( p_soSessInfo.m_coSessionId.v ) );
 }
 
 /* загружает идентификатор абонента (subscriber_id) из БД */
@@ -898,7 +903,8 @@ void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
   pcrf_sql_queue_enqueue(
     "update ps.sessionLocation set time_end = :time_end/*timestamp*/ where time_end is null and session_id = :session_id /*char[255]*/",
     plistParam,
-    "close location" );
+    "close location",
+    &( coSessionId.v ) );
 }
 
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
@@ -933,11 +939,12 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionLocation "
-		"(session_id, time_start, time_end, sgsn_mcc_mnc, sgsn_ip_address, sgsn_ipv6_address, rat_type, ip_can_type, cgi, ecgi, tai, rai) "
-		"values "
+    "(session_id, time_start, time_end, sgsn_mcc_mnc, sgsn_ip_address, sgsn_ipv6_address, rat_type, ip_can_type, cgi, ecgi, tai, rai) "
+    "values "
     "(:session_id/*char[255]*/, :time_start/*timestamp*/, null, :sgsn_mcc_mnc/*char[10]*/, :sgsn_ip_address/*char[15]*/, :sgsn_ipv6_address/*char[50]*/, :rat_type/*char[50]*/, :ip_can_type/*char[20]*/, :cgi/*char[20]*/, :ecgi/*char[20]*/, :tai/*char[20]*/, :rai/*char[20]*/)",
     plistParam,
-    "insert location" );
+    "insert location",
+    &( p_soMsgInfo.m_psoSessInfo->m_coSessionId.v ) );
 }
 
 int pcrf_server_db_monit_key(otl_connect &p_coDBConn, SSessionInfo &p_soSessInfo)
@@ -1141,5 +1148,6 @@ void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo )
     "insert into ps.tetheringdetection (session_id, end_user_imsi, subscriber_id, event_date, tethering_status, origin_host, origin_realm) "
     "values (:session_id/*char[255]*/, :imsi/*char[32]*/, :subscriber_id/*char[64]*/, sysdate, :tethering_status/*unsigned*/, :origin_host/*char[255]*/, :origin_realm/*char[255]*/)",
     plistParam,
-    "insert tethering flag" );
+    "insert tethering flag",
+    &( p_soMsgInfo.m_psoSessInfo->m_coSessionId.v ) );
 }
