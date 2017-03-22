@@ -169,7 +169,9 @@ int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, int p
 	/* ждем когда освободится семафор или истечет таймаут */
 	if (0 != (iFnRes = sem_timedwait(&g_tDBPoolSem, &soWaitTime))) {
     iFnRes = errno;
-    UTL_LOG_F(*g_pcoLog, "failed waiting for a free DB connection: client: '%s'; error: '%s'", NULL == p_pszClient ? "<nameless>" : p_pszClient, strerror(iFnRes));
+    if ( NULL != p_pszClient ) {
+      UTL_LOG_F( *g_pcoLog, "failed waiting for a free DB connection: client: '%s'; error: '%s'", p_pszClient, strerror( iFnRes ) );
+    }
 		return iFnRes;
 	}
 

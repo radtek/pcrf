@@ -37,10 +37,9 @@ int pcrf_sql_queue_init()
   LOG_D( "enter: %s", __FUNCTION__ );
 
   /* определяем количество очередей */
-  g_uiQueueCount = g_psoConf->m_iDBPoolSize / 2;
-  if ( 1 <= g_uiQueueCount ) {
+  if ( 2 <= g_psoConf->m_iDBPoolSize ) {
+    g_uiQueueCount = 2;
   } else {
-    LOG_D( "current number of sql-queue is '%u': it will set to 1", g_uiQueueCount );
     g_uiQueueCount = 1;
   }
 
@@ -142,12 +141,15 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     }
     pcoStream->check_end_of_row();
     LOG_D( "commited: %u", pcoStream->get_rpc() );
+    stat_measure( g_psoSQLQueueStat, "operated", &coTM );
+#ifdef _DEBUG
+    stat_measure( g_psoSQLQueueStat, p_psoSQLReqInfo->m_pszReqName, &coTM );
+#endif
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     iRetVal = coExcept.code;
+    stat_measure( g_psoSQLQueueStat, "failed", &coTM );
   }
-
-  stat_measure( g_psoSQLQueueStat, p_psoSQLReqInfo->m_pszReqName, &coTM );
 
   LOG_D( "leave: %s", __FUNCTION__ );
 
@@ -211,12 +213,12 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
   CHECK_FCT_DO( pthread_mutex_lock( &mutexSQLQueueTimer ), pthread_mutex_destroy( &mutexSQLQueueTimer ); pthread_exit( NULL ) );
 
   while (g_iWork) {
-    CHECK_FCT_DO(pcrf_make_timespec_timeout(soTS, 1000), goto clean_and_exit);
+    CHECK_FCT_DO( pcrf_make_timespec_timeout( soTS, 100000 ), goto clean_and_exit );
     iFnRes = pthread_mutex_timedlock(&mutexSQLQueueTimer, &soTS);
     if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
       if ( ! psoSQLQueue->m_listSQLQueue.empty() ) {
         /* запрашиваем подключение к БД */
-        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 0 ) && NULL != pcoDBConn ) {
+        if ( 0 == pcrf_db_pool_get( &pcoDBConn, NULL, 0 ) && NULL != pcoDBConn ) {
         } else {
           continue;
         }
