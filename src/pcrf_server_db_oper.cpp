@@ -518,7 +518,7 @@ int pcrf_server_db_load_active_rules(
 	return iRetVal;
 }
 
-void pcrf_parse_date_time(std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime)
+void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
   tm soTM;
 
@@ -573,12 +573,12 @@ void pcrf_parse_rule_list( std::string &p_strRuleList, std::vector<std::string> 
 }
 
 /* загружает список идентификаторов правил абонента из БД */
-int pcrf_load_abon_rule_list (
-	otl_connect &p_coDBConn,
-	SMsgDataForDB &p_soMsgInfo,
-	std::vector<std::string> &p_vectRuleList)
+int pcrf_load_abon_rule_list(
+  otl_connect &p_coDBConn,
+  SMsgDataForDB &p_soMsgInfo,
+  std::vector<std::string> &p_vectRuleList )
 {
-	int iRetVal = 0;
+  int iRetVal = 0;
   CTimeMeasurer coTM;
 
 	otl_nocommit_stream coStream;
@@ -619,9 +619,9 @@ int pcrf_load_abon_rule_list (
 		iRetVal = coExcept.code;
 	}
 
-  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
+  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
-	return iRetVal;
+  return iRetVal;
 }
 
 int pcrf_server_find_ugw_session(otl_connect &p_coDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId)
@@ -1019,7 +1019,7 @@ void pcrf_server_db_insert_refqueue (
 		coRefreshDate = *p_coDateTime;
   } else {
     pcrf_fill_otl_datetime( coRefreshDate, NULL );
-	}
+  }
 
   pcrf_sql_queue_add_param( plistParam, coIdenType,    m_eSQLParamType_StdString );
   pcrf_sql_queue_add_param( plistParam, coIdent,       m_eSQLParamType_StdString );
@@ -1043,7 +1043,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 	otl_nocommit_stream coStream;
 
 	try {
-    soSessInfo.m_uiPeerDialect = 3;
+    soSessInfo.m_uiPeerDialect = GX_PROCERA;
 		coStream.open (
 			10,
       "select "
@@ -1063,7 +1063,7 @@ int pcrf_procera_db_load_sess_list (otl_connect &p_coDBConn, otl_value<std::stri
 			p_coDBConn);
 		coStream
 			<< p_coUGWSessionId
-      << GX_PROCERA;
+      << soSessInfo.m_uiPeerDialect;
     while (! coStream.eof()) {
       coStream
         >> soSessInfo.m_coSessionId
