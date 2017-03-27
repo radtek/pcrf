@@ -63,8 +63,9 @@ void pcrf_rule_cache_fini()
 static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_pmapRule)
 {
   CTimeMeasurer coTM;
-
   int iRetVal = 0;
+  int iRepeat = 1;
+
   otl_connect *pcoDBConn = NULL;
 
   if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
@@ -72,6 +73,10 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
     iRetVal = -1;
     goto clean_and_exit;
   }
+
+  sql_repeat:
+  p_pmapRule->clear();
+
   try {
     otl_nocommit_stream coStream;
     otl_value<std::string> coMonitKey;
@@ -163,6 +168,10 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
     }
   } catch (otl_exception &coExcept) {
     UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'; var info: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text, coExcept.var_info);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
     iRetVal = coExcept.code;
   }
 
@@ -185,6 +194,10 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
   }
 
   int iRetVal = 0;
+  int iRepeat = 1;
+
+  sql_repeat:
+  p_vectRuleFlows.clear();
 
   otl_nocommit_stream coStream;
   try {
@@ -207,6 +220,10 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
     coStream.close();
   } catch (otl_exception &coExcept) {
     UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
     iRetVal = coExcept.code;
   }
 
@@ -221,6 +238,10 @@ static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, s
   }
 
   int iRetVal = 0;
+  int iRepeat = 1;
+
+  sql_repeat:
+  p_vectMonitKey.clear();
 
   try {
     otl_nocommit_stream coStream;
@@ -245,6 +266,10 @@ static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, s
     coStream.close();
   } catch (otl_exception &coExcept) {
     UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
     iRetVal = coExcept.code;
   }
 

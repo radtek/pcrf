@@ -56,9 +56,9 @@ static pthread_mutex_t g_mutexSCLowPrio;
 static pthread_mutex_t g_mutexSessionCache;
 
 /* ожиданеие мьютекса */
-#define MUTEX_RD_WAIT 1000
-#define MUTEX_WR_WAIT 2000
-#define MUTEX_RM_WAIT 5000
+#define MUTEX_RD_WAIT  5000
+#define MUTEX_WR_WAIT 10000
+#define MUTEX_RM_WAIT 20000
 
 /* список нод */
 static std::vector<SNode> *g_pvectNodeList;
@@ -84,10 +84,10 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg);
 #define NODE_POLL_WAIT 1
 #pragma pack(push,1)
 struct SPayloadHdr {
-  uint16_t m_vend_id;
-  uint16_t m_avp_id;
-  uint16_t m_padding;
-  uint16_t m_payload_len;
+  uint16_t m_uiVendId;
+  uint16_t m_uiAVPId;
+  uint16_t m_uiPadding;
+  uint16_t m_uiPayloadLen;
 };
 #pragma pack(pop)
 
@@ -327,10 +327,10 @@ static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, si
     /* размера буфера не достаточно */
     return EINVAL;
   }
-  p_psoPayload->m_vend_id = p_uiVendId;
-  p_psoPayload->m_avp_id = p_uiAVPId;
-  p_psoPayload->m_padding = 0;
-  p_psoPayload->m_payload_len = p_uiDataLen + sizeof(*p_psoPayload);
+  p_psoPayload->m_uiVendId = p_uiVendId;
+  p_psoPayload->m_uiAVPId = p_uiAVPId;
+  p_psoPayload->m_uiPadding = 0;
+  p_psoPayload->m_uiPayloadLen = p_uiDataLen + sizeof(*p_psoPayload);
   memcpy(reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload), p_pvData, p_uiDataLen);
 
   return 0;
@@ -359,7 +359,7 @@ static int pcrf_session_cache_fill_pspack (
 
   /* добавляем SessionId */
   CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), 0, 263, p_strSessionId.data(), p_strSessionId.length()));
-  if (0 < (iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+  if (0 < (iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
   } else {
     return -1;
   }
@@ -376,7 +376,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PS_SUBSCR;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if ( 0 < (iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if ( 0 < (iRetVal = ps_pack.AddAttr (reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -387,7 +387,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 0;
       uiAVPId = 8;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -398,7 +398,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 0;
       uiAVPId = 30;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -407,7 +407,7 @@ static int pcrf_session_cache_fill_pspack (
     uiVendId = 10415;
     uiAVPId = 1027;
     CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, &p_psoSessionInfo->m_iIPCANType, sizeof(p_psoSessionInfo->m_iIPCANType)));
-    if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+    if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
     } else {
       return -1;
     }
@@ -417,7 +417,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_IPCANTYPE;
       CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -428,7 +428,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 10415;
       uiAVPId = 6;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -437,7 +437,7 @@ static int pcrf_session_cache_fill_pspack (
     uiVendId = 10415;
     uiAVPId = 1032;
     CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, &p_psoSessionInfo->m_iRATType, sizeof(p_psoSessionInfo->m_iRATType)));
-    if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+    if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
     } else {
       return -1;
     }
@@ -447,7 +447,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_RATTYPE;
       CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -458,7 +458,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 0;
       uiAVPId = 264;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -469,7 +469,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 0;
       uiAVPId = 296;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -480,7 +480,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_CGI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -491,7 +491,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_ECGI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -502,7 +502,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_IMEI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -513,7 +513,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_IMSI;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -523,7 +523,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_PSES;
       CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, p_pstrOptionalParam->data(), p_pstrOptionalParam->length ()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -537,7 +537,7 @@ static int pcrf_session_cache_fill_pspack (
       uiVendId = 65535;
       uiAVPId = PCRF_ATTR_RULNM;
       CHECK_FCT(pcrf_session_cache_fill_payload(pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, p_pstrOptionalParam->data(), p_pstrOptionalParam->length()));
-      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_payload_len))) {
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
       } else {
         return -1;
       }
@@ -733,100 +733,100 @@ static inline int pcrf_session_cache_process_request (const char *p_pmucBuf, con
     }
     psoPayload = reinterpret_cast<SPayloadHdr*>(pmucBuf);
     memcpy (psoPayload, iter->second.m_pvData, iter->second.m_usDataLen);
-    switch (psoPayload->m_vend_id) {
+    switch (psoPayload->m_uiVendId) {
     case 0:     /* Dimeter */
-      switch (psoPayload->m_avp_id) {
+      switch (psoPayload->m_uiAVPId) {
       case 8:   /* Framed-IP-Address */
-        soCache.m_coFramedIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coFramedIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coFramedIPAddr.set_non_null();
         break;  /* Framed-IP-Address */
       case 30:  /* Called-Station-Id */
-        soCache.m_coCalledStationId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coCalledStationId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coCalledStationId.set_non_null();
         break;  /* Called-Station-Id */
       case 263: /* Session-Id */
-        strSessionId.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        strSessionId.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         break;  /* Session-Id */
       case 264: /* Origin-Host */
-        soCache.m_coOriginHost.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coOriginHost.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coOriginHost.set_non_null();
         break;  /* Origin-Host */
       case 296: /* Origin-Realm */
-        soCache.m_coOriginRealm.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coOriginRealm.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coOriginRealm.set_non_null();
         break;  /* Origin-Realm */
       default:
-        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
+        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
       }
       break;    /* Diameter */
     case 10415: /* 3GPP */
-      switch (psoPayload->m_avp_id) {
+      switch (psoPayload->m_uiAVPId) {
       case 6:     /* SGSN-IP-Address */
-        soCache.m_coSGSNIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coSGSNIPAddr.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coSGSNIPAddr.set_non_null();
         break;    /* SGSN-IP-Address */
       case 1027:  /* IP-CAN-Type */
-        if (sizeof(soCache.m_iIPCANType) == psoPayload->m_payload_len - sizeof(*psoPayload)) {
+        if (sizeof(soCache.m_iIPCANType) == psoPayload->m_uiPayloadLen - sizeof(*psoPayload)) {
           soCache.m_iIPCANType = *reinterpret_cast<int32_t*>(reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload));
         } else {
           /* invalid data size */
         }
         break;    /* IP-CAN-Type */
       case 1032:  /* RAT-Type */
-        if (sizeof(soCache.m_iRATType) == psoPayload->m_payload_len - sizeof(*psoPayload)) {
+        if (sizeof(soCache.m_iRATType) == psoPayload->m_uiPayloadLen - sizeof(*psoPayload)) {
           soCache.m_iRATType = *reinterpret_cast<int32_t*>(reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload));
         } else {
           /* invalid data size */
         }
         break;    /* RAT-Type */
       default:
-        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
+        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
       }
       break;    /* 3GPP */
     case 65535: /* Tenet */
-      switch (psoPayload->m_avp_id) {
+      switch (psoPayload->m_uiAVPId) {
       case PS_SUBSCR: /* Subscriber-Id */
-        soCache.m_coSubscriberId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coSubscriberId.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coSubscriberId.set_non_null();
         break;        /* Subscriber-Id */
       case PCRF_ATTR_CGI: /* CGI */
-        soCache.m_coCGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coCGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coCGI.set_non_null();
         break;            /* CGI */
       case PCRF_ATTR_ECGI:  /* ECGI */
-        soCache.m_coECGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coECGI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coECGI.set_non_null();
         break;              /* ECGI */
       case PCRF_ATTR_IMEI:  /* IMEI-SV */
-        soCache.m_coIMEISV.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coIMEISV.v.insert (0, reinterpret_cast<const char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coIMEISV.set_non_null();
         break;              /* IMEI-SV */
       case PCRF_ATTR_IMSI:  /* End-User-IMSI */
-        soCache.m_coEndUserIMSI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coEndUserIMSI.v.insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coEndUserIMSI.set_non_null();
         break;              /* End-User-IMSI */
       case PCRF_ATTR_PSES:  /* Parent-Session-Id */
         pstrParentSessionId = new std::string;
-        pstrParentSessionId->insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        pstrParentSessionId->insert (0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         break;              /* Parent-Session-Id */
       case PCRF_ATTR_IPCANTYPE: /* IP-CAN-Type */
-        soCache.m_coIPCANType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coIPCANType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coIPCANType.set_non_null();
         break;                  /* IP-CAN-Type */
       case PCRF_ATTR_RATTYPE: /* RAT-Type */
-        soCache.m_coRATType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        soCache.m_coRATType.v.insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         soCache.m_coRATType.set_non_null();
         break;                  /* RAT-Type */
       case PCRF_ATTR_RULNM: /* Rule-Name */
         pstrRuleName = new std::string;
-        pstrRuleName->insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_payload_len - sizeof(*psoPayload));
+        pstrRuleName->insert(0, reinterpret_cast<char*>(psoPayload) + sizeof(*psoPayload), psoPayload->m_uiPayloadLen - sizeof(*psoPayload));
         break;                  /* Rule-Name */
       default:
-        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_vend_id, psoPayload->m_avp_id );
+        UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
       }
       break;    /* Tenet */
     default:
-      UTL_LOG_N( *g_pcoLog, "unsupported vendor: '%u'", psoPayload->m_vend_id );
+      UTL_LOG_N( *g_pcoLog, "unsupported vendor: '%u'", psoPayload->m_uiVendId );
     }
   }
 
@@ -949,11 +949,15 @@ static int pcrf_session_cache_init_node ()
     return errno;
   }
 
-  otl_connect *pcoConn = NULL;
-  if (0 == pcrf_db_pool_get(&pcoConn, __FUNCTION__, 10) && NULL != pcoConn) {
+  otl_connect *pcoDBConn = NULL;
+  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
   } else {
     return -1;
   }
+
+  int iRepeat = 1;
+
+  sql_repeat:
 
   try {
     SNode soNode;
@@ -966,7 +970,7 @@ static int pcrf_session_cache_init_node ()
     coStream.open (
       10,
       "select host_name, realm, ip_address, port from ps.node",
-      *pcoConn);
+      *pcoDBConn);
     while (! coStream.eof ()) {
       coStream
         >> coHost
@@ -1013,10 +1017,14 @@ static int pcrf_session_cache_init_node ()
     }
   } catch (otl_exception &coExept) {
     UTL_LOG_F (*g_pcoLog, "can not load node list: error: '%d'; description: '%s'", coExept.code, coExept.msg);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
   }
 
-  if (NULL != pcoConn) {
-    pcrf_db_pool_rel (pcoConn, __FUNCTION__);
+  if ( NULL != pcoDBConn ) {
+    pcrf_db_pool_rel (pcoDBConn, __FUNCTION__);
   }
 
   return 0;

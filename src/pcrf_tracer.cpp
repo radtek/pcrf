@@ -193,9 +193,6 @@ static void pcrf_tracer (
     return;
   }
 
-	CTimeMeasurer coTM;
-	otl_nocommit_stream coStream;
-
   /* suppress compiler warning */
   p_pOther = p_pOther; p_psoPMD = p_psoPMD; p_pRegData = p_pRegData;
 

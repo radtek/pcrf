@@ -43,8 +43,12 @@ int app_pcrf_load_peer ()
 int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn)
 {
 	int iRetVal = 0;
+  int iRepeat = 1;
 
 	otl_nocommit_stream coStream;
+
+  sql_repeat:
+
 	try {
 		SPeerInfo soPeerInfo;
 		otl_value<std::string> coHostName;
@@ -77,15 +81,17 @@ int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect 
       soPeerInfo.m_uiPeerDialect = ((0 == coDialect.is_null()) ? coDialect.v : GX_UNDEF);
 			p_vectPeerList.push_back (soPeerInfo);
 		}
-		coStream.close ();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( &p_coDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
 		if (0 != coExcept.code) {
   		iRetVal = coExcept.code;
     } else {
 			iRetVal = -1;
 		}
-		coStream.close();
 	}
 
 	return iRetVal;

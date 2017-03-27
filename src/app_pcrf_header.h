@@ -217,6 +217,13 @@ void pcrf_db_update_session(
 int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, int p_iWaitSec = -1);
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
+/* восстановление подключения к БД */
+/* возвращаемые значения:
+* -1 - подключение было неработоспособно и восстановить его не удалось
+*  0 - подключение работоспособно и его восстановление не потребовалось
+*  1 - подключение было неработоспособно и оно восстановлено
+*/
+int pcrf_db_pool_restore( otl_connect *p_pcoDBConn );
 
 /* функции работы с AVP */
 /* функция получения значения перечислимого типа */

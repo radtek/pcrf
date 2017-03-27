@@ -8,12 +8,16 @@ extern SStat *g_psoDBStat;
 int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_vectQueue)
 {
 	int iRetVal = 0;
+  int iRepeat = 1;
 	SRefQueue soQueueElem;
   CTimeMeasurer coTM;
 
-	otl_nocommit_stream coStream;
+  sql_restore:
+
 	try {
-		/* создаем объект класса потока ДБ */
+    otl_nocommit_stream coStream;
+
+    /* создаем объект класса потока ДБ */
 		coStream.open(
 			1000,
 			"select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
@@ -27,14 +31,14 @@ int pcrf_client_db_refqueue (otl_connect &p_coDBConn, std::vector<SRefQueue> &p_
 				>> soQueueElem.m_coAction;
 			p_vectQueue.push_back (soQueueElem);
 		}
-		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
-	}
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( &p_coDBConn ) ) {
+      --iRepeat;
+      goto sql_restore;
+    }
+    iRetVal = coExcept.code;
+  }
 
   stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
@@ -59,15 +63,18 @@ void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
 int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList)
 {
 	int iRetVal = 0;
+  int iRepeat = 1;
   CTimeMeasurer coTM;
 
 	/* очищаем список перед выполнением */
 	p_vectSessionList.clear ();
 
-	otl_nocommit_stream coStream;
+  sql_repeat:
 
 	try {
-		std::string strSessionId;
+    otl_nocommit_stream coStream;
+
+    std::string strSessionId;
 		if (0 == p_soReqQueue.m_strIdentifierType.compare("subscriber_id")) {
 			coStream.open (
 				10,
@@ -89,10 +96,11 @@ int pcrf_client_db_load_session_list(otl_connect &p_coDBConn, SRefQueue &p_soReq
 		}
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( &p_coDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
 		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
 	}
 
   stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
@@ -107,25 +115,28 @@ int pcrf_client_db_delete_refqueue (otl_connect &p_coDBConn, SRefQueue &p_soRefQ
   }
 
 	int iRetVal = 0;
+  int iRepeat = 1;
   CTimeMeasurer coTM;
 
-	otl_nocommit_stream coStream;
+  sql_repeat:
+
 	try {
-		coStream.open (
+    otl_nocommit_stream coStream;
+
+    coStream.open (
 			1,
 			"delete from ps.refreshQueue where rowid = :row_id /*char[256]*/",
 			p_coDBConn);
 		coStream
 			<< p_soRefQueue.m_strRowId;
-		coStream.flush ();
 		p_coDBConn.commit ();
-		coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( &p_coDBConn ) ) {
+      --iRepeat;
+      goto sql_repeat;
+    }
 		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
 	}
 
   stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
