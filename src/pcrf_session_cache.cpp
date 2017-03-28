@@ -55,11 +55,6 @@ static pthread_mutex_t g_mutexSCLowPrio;
 /* мьютекс для организации доступа к хранилищу */
 static pthread_mutex_t g_mutexSessionCache;
 
-/* ожиданеие мьютекса */
-#define MUTEX_RD_WAIT  5000
-#define MUTEX_WR_WAIT 10000
-#define MUTEX_RM_WAIT 20000
-
 /* список нод */
 static std::vector<SNode> *g_pvectNodeList;
 
@@ -283,12 +278,8 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
     CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSCLowPrio), goto clean_and_exit);
   }
 
-  timespec soTimeSpec;
-
-  CHECK_FCT_DO(pcrf_make_timespec_timeout (soTimeSpec, MUTEX_WR_WAIT), return);
-
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO(pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "insert/update failed", NULL); goto unlock_low_priority);
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto unlock_low_priority );
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache> (p_strSessionId, p_soSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
@@ -624,11 +615,8 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
   int iRetVal = 0;
   std::map<std::string,SSessionCache>::iterator iter;
-  timespec soTimeSpec;
 
-  /* готовим таймер мьютекса */
-  CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RD_WAIT), return errno );
-  CHECK_FCT_DO( pthread_mutex_timedlock(&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "getting failed", NULL); iRetVal = ETIMEDOUT;  goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
@@ -668,11 +656,8 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   std::map<std::string,SSessionCache>::iterator iter;
 
-  timespec soTimeSpec;
-
-  CHECK_FCT_DO(pcrf_make_timespec_timeout(soTimeSpec, MUTEX_RM_WAIT), return );
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT_DO( pthread_mutex_timedlock (&g_mutexSessionCache, &soTimeSpec), stat_measure(g_psoSessionCacheStat, "removal failed", NULL); goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
