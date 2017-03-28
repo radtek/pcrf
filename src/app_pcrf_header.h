@@ -214,7 +214,7 @@ void pcrf_db_update_session(
   otl_value<std::string> &p_coTermCause );
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec = -1);
+int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec );
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 /* восстановление подключения к БД */

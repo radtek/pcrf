@@ -567,7 +567,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
     pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
 
 		/* запрашиваем подключение к БД */
-    if (0 == pcrf_db_pool_get(&(pcoDBConn), __FUNCTION__) && NULL != pcoDBConn) {
+    if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
     } else {
       continue;
     }

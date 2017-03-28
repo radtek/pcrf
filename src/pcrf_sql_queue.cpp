@@ -37,7 +37,7 @@ int pcrf_sql_queue_init()
   LOG_D( "enter: %s", __FUNCTION__ );
 
   /* определяем количество очередей */
-  if ( 2 <= g_psoConf->m_iDBPoolSize ) {
+  if ( 2 < g_psoConf->m_iDBPoolSize ) {
     g_uiQueueCount = 2;
   } else {
     g_uiQueueCount = 1;

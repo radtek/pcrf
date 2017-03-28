@@ -148,7 +148,7 @@ int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiAddUSec)
 {
   timeval soTimeVal;
 
-  CHECK_FCT(gettimeofday(&soTimeVal, NULL));
+  CHECK_FCT( gettimeofday( &soTimeVal, NULL ) );
   p_soTimeSpec.tv_sec = soTimeVal.tv_sec;
   if ((soTimeVal.tv_usec + p_uiAddUSec) < USEC_PER_SEC) {
     p_soTimeSpec.tv_nsec = (soTimeVal.tv_usec + p_uiAddUSec) * NSEC_PER_USEC;
@@ -272,6 +272,7 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
 
 static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache &p_soSessionInfo, std::string *p_pstrParentSessionId, bool p_bLowPriority = false)
 {
+  CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache>::iterator,bool> insertResult;
 
   if (p_bLowPriority) {
@@ -287,12 +288,12 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
     if (insertResult.first != g_pmapSessionCache->end()) {
       insertResult.first->second = p_soSessionInfo;
       pcrf_session_cache_update_child(p_strSessionId, p_soSessionInfo);
-      stat_measure(g_psoSessionCacheStat, "updated", NULL);
+      stat_measure( g_psoSessionCacheStat, "updated", &coTM );
     } else {
       UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
   } else {
-    stat_measure (g_psoSessionCacheStat, "inserterd", NULL);
+    stat_measure( g_psoSessionCacheStat, "inserterd", &coTM );
   }
 
   /* сохраняем связку между сессиями */
@@ -621,7 +622,6 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
-    stat_measure (g_psoSessionCacheStat, "hit", NULL);
     if (! iter->second.m_coSubscriberId.is_null ()) {
       p_soSessionInfo.m_strSubscriberId = iter->second.m_coSubscriberId.v;
     } else {
@@ -640,8 +640,9 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     if (p_soRequestInfo.m_soUserLocationInfo.m_coECGI.is_null())        p_soRequestInfo.m_soUserLocationInfo.m_coECGI         = iter->second.m_coECGI;
     if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second.m_coIMEISV;
     if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second.m_coEndUserIMSI;
+    stat_measure( g_psoSessionCacheStat, "hit", &coTM );
   } else {
-    stat_measure (g_psoSessionCacheStat, "miss", NULL);
+    stat_measure( g_psoSessionCacheStat, "miss", &coTM );
     iRetVal = EINVAL;
   }
   /* освобождаем мьютекс */
@@ -654,6 +655,7 @@ clean_and_exit:
 
 static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
+  CTimeMeasurer coTM;
   std::map<std::string,SSessionCache>::iterator iter;
 
   /* дожадаемся освобождения мьютекса */
@@ -664,7 +666,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
     g_pmapSessionCache->erase (iter);
-    stat_measure (g_psoSessionCacheStat, "removed", NULL);
+    stat_measure( g_psoSessionCacheStat, "removed", &coTM );
   }
 
   /* освобождаем семафор */

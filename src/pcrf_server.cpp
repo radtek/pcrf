@@ -149,7 +149,7 @@ static int app_pcrf_ccr_cb (
   SSessionInfo *psoSessShouldBeTerm = NULL;
 
   /* запрашиваем объект класса для работы с БД */
-  iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 500000 );
+  iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC );
 	if (0 == iFnRes && NULL != pcoDBConn) {
   } else {
     if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
