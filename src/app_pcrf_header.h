@@ -214,7 +214,7 @@ void pcrf_db_update_session(
   otl_value<std::string> &p_coTermCause );
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, int p_iWaitSec = -1);
+int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec = -1);
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 /* восстановление подключения к БД */
@@ -269,14 +269,8 @@ struct avp * pcrf_make_CRI(otl_connect *p_pcoDBConn, SMsgDataForDB *p_psoReqInfo
 int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull = true);
 /* запись TETHERING_REPORT в БД */
 void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo );
-/* задает значение Event-Trigger RAT_CHANGE */
-int set_RAT_CHANGE_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
-/* задает значение Event-Trigger TETHERING_REPORT */
-int set_TETHERING_REPORT_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
-/* задает значение Event-Trigger 777 */
-int set_777_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
-/* задает значение Event-Trigger USER_LOCATION_CHANGE */
-int set_ULCh_event_trigger(SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP);
+/* задает значение Event-Trigger */
+int set_event_trigger( SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP, int32_t p_iTrigId );
 
 /* функция добавляет запись в очередь обновления политик */
 void pcrf_server_db_insert_refqueue(

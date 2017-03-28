@@ -34,7 +34,7 @@ static int g_iMutexInitialized = 0;
 static const char *g_pcszDefCheckReq = "select to_char(sysdate,'ddmmyyyy') from dual";
 /* размер пула подключений к БД по умолчанию */
 #define DB_POOL_SIZE_DEF 1
-#define DB_POOL_WAIT_DEF 1
+#define DB_POOL_WAIT_DEF 500000
 
 /* функция подключения к БД */
 int pcrf_db_pool_connect( otl_connect *p_pcoDBConn );
@@ -131,31 +131,24 @@ void pcrf_db_pool_fin (void)
 	}
 }
 
-int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, int p_iWaitSec)
+int pcrf_db_pool_get (otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec)
 {
 	int iRetVal = -1;
 	int iFnRes;
-	int iWait;
+	unsigned int uiWait;
+  timespec soWaitTime;
 
 	/* инициализация значения */
 	*p_ppcoDBConn = NULL;
 
-	timeval soCurTime;
-	timespec soWaitTime;
-
-	/* запрашиваем текущее время */
-  if (0 != gettimeofday(&soCurTime, NULL)) {
-    return errno;
-  }
-
   /* задаем время завершения ожидания семафора */
-	if (-1 == p_iWaitSec) {
-		iWait = ((0 == g_psoConf->m_iDBPoolWait) ? DB_POOL_WAIT_DEF : g_psoConf->m_iDBPoolWait);
+	if (-1 == p_uiWaitUSec) {
+		uiWait = ((0 == g_psoConf->m_iDBPoolWait) ? DB_POOL_WAIT_DEF : g_psoConf->m_iDBPoolWait);
 	} else {
-		iWait = p_iWaitSec;
+		uiWait = p_uiWaitUSec;
 	}
-	soWaitTime.tv_sec = soCurTime.tv_sec + iWait;
-	soWaitTime.tv_nsec = soCurTime.tv_usec * 1000;
+
+  pcrf_make_timespec_timeout( soWaitTime, uiWait );
 
 	/* ждем когда освободится семафор или истечет таймаут */
 	if (0 != (iFnRes = sem_timedwait(&g_tDBPoolSem, &soWaitTime))) {

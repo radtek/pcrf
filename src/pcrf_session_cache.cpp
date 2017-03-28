@@ -950,7 +950,7 @@ static int pcrf_session_cache_init_node ()
   }
 
   otl_connect *pcoDBConn = NULL;
-  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     return -1;
   }
@@ -1057,7 +1057,7 @@ static void * pcrf_session_cache_load_session_list(void *p_pArg)
   CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;
 
-  if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     goto clean_and_exit;
   }

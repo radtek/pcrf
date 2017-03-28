@@ -232,11 +232,27 @@ int pcrf_client_rar (
 
 	/* Event-Trigger */
 	/* RAT_CHANGE */
-	CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+  if ( GX_3GPP == p_soReqInfo.m_psoSessInfo->m_uiPeerDialect ) {
+    CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 2 ), /* continue */ );
+  }
 	/* USER_LOCATION_CHANGE */
-	CHECK_FCT_DO(set_ULCh_event_trigger(*(p_soReqInfo.m_psoSessInfo), psoReq), /* continue */);
+#if 0 /* PCRF-113 15.12.2016 */
+  if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+    CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
+  }
+#endif
 
-	/* Usage-Monitoring-Information */
+  /* USAGE_REPORT */
+  switch ( p_soReqInfo.m_psoSessInfo->m_uiPeerDialect ) {
+    case GX_3GPP:
+    case GX_PROCERA:
+      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 33 ), /* continue */ );
+      break;
+    case GX_CISCO_SCE:
+      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 26 ), /* continue */ );
+      break;
+  }
+  /* Usage-Monitoring-Information */
 	CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *(p_soReqInfo.m_psoSessInfo), false), /* continue */);
 
 	/* Charging-Rule-Remove */
@@ -517,18 +533,14 @@ static int pcrf_client_operate_refqueue_record (otl_connect *p_pcoDBConn, SRefQu
 static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 {
 	int iFnRes;
-	struct timeval soCurTime;
 	struct timespec soWaitTime;
 	otl_connect *pcoDBConn = NULL;
 
   /* suppress compiler warning */
   p_pvArg = p_pvArg;
 
-	/* запрашиваем текущее время */
-	CHECK_POSIX_DO (gettimeofday (&soCurTime, NULL), return NULL);
 	/* задаем время завершения ожидания семафора */
-	soWaitTime.tv_sec = soCurTime.tv_sec + (g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL);
-	soWaitTime.tv_nsec = 0;
+  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
 	/* очередь сессий на обновление */
 	std::vector<SRefQueue> vectQueue;
 	std::vector<SRefQueue>::iterator iter;
@@ -552,11 +564,7 @@ static void * pcrf_client_operate_refreshqueue (void *p_pvArg)
 		}
 
 		/* задаем время следующего запуска */
-		/* запрашиваем текущее время */
-		gettimeofday (&soCurTime, NULL);
-		/* задаем время завершения ожидания семафора */
-		soWaitTime.tv_sec = soCurTime.tv_sec + (g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL);
-		soWaitTime.tv_nsec = 0;
+    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
 
 		/* запрашиваем подключение к БД */
     if (0 == pcrf_db_pool_get(&(pcoDBConn), __FUNCTION__) && NULL != pcoDBConn) {

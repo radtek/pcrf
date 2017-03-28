@@ -18,7 +18,7 @@ int app_pcrf_load_peer ()
 	otl_connect *pcoDBConn = NULL;
 
 	do {
-    if (0 == pcrf_db_pool_get(&pcoDBConn, __FUNCTION__, 10) && NULL != pcoDBConn) {
+    if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
     } else {
 			break;
 		}

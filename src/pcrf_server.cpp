@@ -149,10 +149,14 @@ static int app_pcrf_ccr_cb (
   SSessionInfo *psoSessShouldBeTerm = NULL;
 
   /* запрашиваем объект класса для работы с БД */
-  iFnRes = pcrf_db_pool_get (&pcoDBConn, __FUNCTION__);
+  iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 500000 );
 	if (0 == iFnRes && NULL != pcoDBConn) {
   } else {
-    uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
+      /* попытка оптимизации взаимодействия с ugw */
+    } else {
+      uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
+    }
 		goto dummy_answer;
 	}
 
@@ -291,16 +295,16 @@ static int app_pcrf_ccr_cb (
 	} while (0);
 
 	/* Set the Origin-Host, Origin-Realm, Result-Code AVPs */
-  switch (uiResultCode) {
-  case 2001: /* DIAMETER_SUCCESS */
-	  CHECK_FCT_DO (fd_msg_rescode_set (ans, const_cast<char*>("DIAMETER_SUCCESS"), NULL, NULL, 1), /*continue*/);
-    break;
-  case 3004: /* DIAMETER_TOO_BUSY */
-	  CHECK_FCT_DO (fd_msg_rescode_set (ans, const_cast<char*>("DIAMETER_TOO_BUSY"), NULL, NULL, 1), /*continue*/);
-    break;
-  case 5030: /* USER_UNKNOWN */
-	  CHECK_FCT_DO (fd_msg_rescode_set (ans, const_cast<char*>("USER_UNKNOWN"), NULL, NULL, 1), /*continue*/);
-    break;
+  switch ( uiResultCode ) {
+    case 2001: /* DIAMETER_SUCCESS */
+      CHECK_FCT_DO( fd_msg_rescode_set( ans, const_cast<char*>( "DIAMETER_SUCCESS" ), NULL, NULL, 1 ), /*continue*/ );
+      break;
+    case 3004: /* DIAMETER_TOO_BUSY */
+      CHECK_FCT_DO( fd_msg_rescode_set( ans, const_cast<char*>( "DIAMETER_TOO_BUSY" ), NULL, NULL, 1 ), /*continue*/ );
+      break;
+    case 5030: /* USER_UNKNOWN */
+      CHECK_FCT_DO( fd_msg_rescode_set( ans, const_cast<char*>( "USER_UNKNOWN" ), NULL, NULL, 1 ), /*continue*/ );
+      break;
   }
 
 	/* put 'CC-Request-Type' into answer */
@@ -335,19 +339,39 @@ static int app_pcrf_ccr_cb (
 		}
 		/* Event-Trigger */
 		/* USER_LOCATION_CHANGE */
-		CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+#if 0 /* PCRF-113 15.12.2016 */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
+    }
+#endif
 		/* RAT_CHANGE */
-		CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 2 ), /* continue */ );
+    }
     /* TETHERING_REPORT */
-    CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+#if 0 /* PCRF-115 23.12.2016 */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
+    }
+#endif
     /* дополняем ответ на CCR-I для Procera информацией о пользователе */
     /* Subscription-Id */
     if (GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-  		CHECK_FCT_DO(set_777_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
+      CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 777 ), /* continue */ );
       CHECK_FCT_DO (pcrf_make_subscription_id (ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164), /* continue */);
     }
-		/* Usage-Monitoring-Information */
-		CHECK_FCT_DO (pcrf_make_UMI (ans, *(soMsgInfoCache.m_psoSessInfo)), /* continue */ );
+    /* USAGE_REPORT */
+    switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      case GX_3GPP:
+      case GX_PROCERA:
+        CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 33 ), /* continue */ );
+        break;
+      case GX_CISCO_SCE:
+        CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 26 ), /* continue */ );
+        break;
+    }
+    /* Usage-Monitoring-Information */
+    CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
 		/* Charging-Rule-Install */
 		psoChildAVP = pcrf_make_CRI (pcoDBConn, &soMsgInfoCache, vectAbonRules, ans);
 		/* put 'Charging-Rule-Install' into answer */
@@ -363,103 +387,115 @@ static int app_pcrf_ccr_cb (
       bool bCacheUPdated = false;
 			std::vector<int32_t>::iterator iter = soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.begin();
 			for (; iter != soMsgInfoCache.m_psoReqInfo->m_vectEventTrigger.end(); ++iter) {
-				switch (*iter) {
-				case 2:	/* RAT_CHANGE */
-					/* Event-Trigger RAT_CHANGE */
-					CHECK_FCT_DO(set_RAT_CHANGE_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
-          if (! bCacheUPdated) {
-            pcrf_session_cache_insert (soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
-            bCacheUPdated = true;
-          }
-					break;
-				case 13: /* USER_LOCATION_CHANGE */
-					/* Event-Trigger USER_LOCATION_CHANGE */
-          if (pcrf_peer_is_dialect_used (GX_PROCERA)) {
-            CHECK_FCT_DO (pcrf_procera_change_uli (pcoDBConn, soMsgInfoCache), /* continue */ );
-          }
-					CHECK_FCT_DO(set_ULCh_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
-          if (! bCacheUPdated) {
-            pcrf_session_cache_insert (soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId);
-            bCacheUPdated = true;
-          }
-					break;
-				case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
-					/* Default-EPS-Bearer-QoS */
-					pcrf_make_DefaultEPSBearerQoS(ans, *soMsgInfoCache.m_psoReqInfo);
-          CHECK_FCT_DO( pcrf_make_APNAMBR (ans, *soMsgInfoCache.m_psoReqInfo), /* continue */ );
-					break;
-				case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
-					if (GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-						/* Usage-Monitoring-Information */
-						CHECK_FCT_DO (pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */);
-					}
-					break;
-				case 33: /* USAGE_REPORT */
-          switch (soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-          case GX_3GPP: /* Gx */
-          case GX_PROCERA: /* Gx Procera */
-						CHECK_FCT_DO( pcrf_make_UMI(ans, *(soMsgInfoCache.m_psoSessInfo), false), /* continue */ );
+        switch ( *iter ) {
+          case 2:	/* RAT_CHANGE */
+            /* Event-Trigger RAT_CHANGE */
+            if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 2 ), /* continue */ );
+            }
+            if ( ! bCacheUPdated ) {
+              pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
+              bCacheUPdated = true;
+            }
             break;
-          }
-					break;
-        case 101: /* TETHERING_REPORT */
-          if (GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-            pcrf_server_db_insert_tetering_info( soMsgInfoCache );
-            /* TETHERING_REPORT */
-            CHECK_FCT_DO(set_TETHERING_REPORT_event_trigger(*(soMsgInfoCache.m_psoSessInfo), ans), /* continue */);
-          }
-          break;
-        case 777:
-          if (GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect) {
-            SDBAbonRule soRule;
-            std::map<std::string,int32_t>::iterator iter;
-
-            soRule.m_coDynamicRuleFlag = 0;
-            soRule.m_coRuleGroupFlag = 0;
-            soRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
-
-            if (NULL != g_pmapTetering) {
-            } else {
-              g_pmapTetering = new std::map<std::string,int32_t>;
+          case 13: /* USER_LOCATION_CHANGE */
+            /* Event-Trigger USER_LOCATION_CHANGE */
+            if ( pcrf_peer_is_dialect_used( GX_PROCERA ) ) {
+              CHECK_FCT_DO( pcrf_procera_change_uli( pcoDBConn, soMsgInfoCache ), /* continue */ );
             }
-
-            iter = g_pmapTetering->find (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v);
-            if (iter == g_pmapTetering->end()) {
-              if (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null()) {
-              } else {
-                switch (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v) {
-                case 0:
-                  soRule.m_bIsActivated = true;
-                  vectActive.push_back (soRule);
-                default:
-                  soRule.m_bIsRelevant = true;
-                  vectAbonRules.push_back (soRule);
-                  g_pmapTetering->insert (std::make_pair (soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, 1));
-                }
+#if 0 /* PCRF-113 15.12.2016 */
+            if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
+            }
+#endif
+            if ( ! bCacheUPdated ) {
+              pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
+              bCacheUPdated = true;
+            }
+            break;
+          case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
+            /* Default-EPS-Bearer-QoS */
+            pcrf_make_DefaultEPSBearerQoS( ans, *soMsgInfoCache.m_psoReqInfo );
+            CHECK_FCT_DO( pcrf_make_APNAMBR( ans, *soMsgInfoCache.m_psoReqInfo ), /* continue */ );
+            break;
+          case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
+            if ( GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 26 ), /* continue */ );
+              /* Usage-Monitoring-Information */
+              CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ), false ), /* continue */ );
+            }
+            break;
+          case 33: /* USAGE_REPORT */
+            switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              case GX_3GPP: /* Gx */
+              case GX_PROCERA: /* Gx Procera */
+                CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 33 ), /* continue */ );
+                CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ), false ), /* continue */ );
+                break;
+            }
+            break;
+          case 101: /* TETHERING_REPORT */
+#if 0 /* PCRF-115 23.12.2016 */
+            if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              pcrf_server_db_insert_tetering_info( soMsgInfoCache );
+              /* TETHERING_REPORT */
+              if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+                CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
               }
-            } else {
-              if (soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null()) {
-                switch (iter->second) {
-                case 0:
-                  g_pmapTetering->erase (iter);
-                  break;
-                default:
-                  soRule.m_bIsRelevant = true;
-                  vectAbonRules.push_back (soRule);
-                }
+            }
+#endif
+            break;
+          case 777:
+            if ( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+              SDBAbonRule soRule;
+              std::map<std::string, int32_t>::iterator iter;
+
+              soRule.m_coDynamicRuleFlag = 0;
+              soRule.m_coRuleGroupFlag = 0;
+              soRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
+
+              if ( NULL != g_pmapTetering ) {
               } else {
-                if (0 == soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v) {
-                  g_pmapTetering->erase (iter);
+                g_pmapTetering = new std::map<std::string, int32_t>;
+              }
+
+              iter = g_pmapTetering->find( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
+              if ( iter == g_pmapTetering->end() ) {
+                if ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null() ) {
                 } else {
-                  soRule.m_bIsRelevant = true;
-                  vectAbonRules.push_back (soRule);
-                  iter->second = 1;
+                  switch ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v ) {
+                    case 0:
+                      soRule.m_bIsActivated = true;
+                      vectActive.push_back( soRule );
+                    default:
+                      soRule.m_bIsRelevant = true;
+                      vectAbonRules.push_back( soRule );
+                      g_pmapTetering->insert( std::make_pair( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, 1 ) );
+                  }
+                }
+              } else {
+                if ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null() ) {
+                  switch ( iter->second ) {
+                    case 0:
+                      g_pmapTetering->erase( iter );
+                      break;
+                    default:
+                      soRule.m_bIsRelevant = true;
+                      vectAbonRules.push_back( soRule );
+                  }
+                } else {
+                  if ( 0 == soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v ) {
+                    g_pmapTetering->erase( iter );
+                  } else {
+                    soRule.m_bIsRelevant = true;
+                    vectAbonRules.push_back( soRule );
+                    iter->second = 1;
+                  }
                 }
               }
             }
-          }
-          break;
-				}
+            break;
+        }
 			}
 		}
 		/* формируем список неактуальных правил */
@@ -1234,10 +1270,8 @@ int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_
 
 	avp *psoAVPUMI = NULL; /* Usage-Monitoring-Information */
 	avp *psoAVPGSU = NULL; /* Granted-Service-Unit */
-	avp *psoAVPET = NULL;  /* Event-Trigger */
 	avp *psoAVPChild = NULL;
 	union avp_value soAVPVal;
-	bool bEvenTriggerInstalled = false;
 
 	std::map<std::string,SDBMonitoringInfo>::iterator iterMonitInfo = p_soSessInfo.m_mapMonitInfo.begin ();
 	for (; iterMonitInfo != p_soSessInfo.m_mapMonitInfo.end (); ++iterMonitInfo) {
@@ -1311,26 +1345,6 @@ int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_
 			  CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
       }
 		}
-		if (psoAVPUMI) {
-			/* Event-Trigger */
-			if (!bEvenTriggerInstalled) {
-				CHECK_FCT_DO(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVPET), return __LINE__);
-				switch (p_soSessInfo.m_uiPeerDialect) {
-				default:
-				case GX_3GPP: /* Gx */
-				case GX_PROCERA: /* Gx Procera */
-					soAVPVal.i32 = 33;
-					break;
-				case GX_CISCO_SCE: /* Gx Cisco SCE */
-					soAVPVal.i32 = 26;
-					break;
-				}
-				CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPET, &soAVPVal), return __LINE__);
-				CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPET));
-				bEvenTriggerInstalled = true;
-			}
-			CHECK_FCT (fd_msg_avp_add (p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI) );
-		}
 	}
 
 	return 0;
@@ -1393,96 +1407,21 @@ avp * pcrf_make_HWUR ()
 	return psoAVPHWUR;
 }
 
-int set_ULCh_event_trigger (
-	SSessionInfo &p_soSessInfo,
-	msg_or_avp *p_psoMsgOrAVP)
-{
-	/* PCRF-113 15.12.2016 */
-	return 0;
-	/***********************/
-
-	int iRetVal = 0;
-	avp *psoAVP;
-	avp_value soAVPValue;
-
-	/* Event-Trigger */
-	switch (p_soSessInfo.m_uiPeerDialect) {
-	case GX_3GPP: /* Gx */
-		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
-		soAVPValue.i32 = 13;	/* USER_LOCATION_CHANGE */
-		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
-		CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
-		break; /* Gx */
-	}
-
-	return iRetVal;
-}
-
-int set_RAT_CHANGE_event_trigger (
-	SSessionInfo &p_soSessInfo,
-	msg_or_avp *p_psoMsgOrAVP)
-{
-	int iRetVal = 0;
-	avp *psoAVP;
-	avp_value soAVPValue;
-
-	/* Event-Trigger */
-	switch (p_soSessInfo.m_uiPeerDialect) {
-	case GX_3GPP: /* Gx */
-		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
-		soAVPValue.i32 = 2;		/* RAT_CHANGE */
-		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
-		CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
-		break; /* Gx */
-	}
-
-	return iRetVal;
-}
-
-int set_TETHERING_REPORT_event_trigger(
+int set_event_trigger(
   SSessionInfo &p_soSessInfo,
-  msg_or_avp *p_psoMsgOrAVP)
+  msg_or_avp *p_psoMsgOrAVP,
+  int32_t p_iTrigId )
 {
-  /* PCRF-115 23.12.2016 */
-  return 0;
-  /***********************/
-
   int iRetVal = 0;
   avp *psoAVP;
   avp_value soAVPValue;
 
-  /* Event-Trigger */
-  switch (p_soSessInfo.m_uiPeerDialect) {
-  case GX_3GPP: /* Gx */
-    CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
-    soAVPValue.i32 = 101;		/* TETHERING_REPORT */
-    CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
-    CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
-    break; /* Gx */
-  }
+  CHECK_FCT( fd_msg_avp_new( g_psoDictEventTrigger, 0, &psoAVP ) );
+  soAVPValue.i32 = p_iTrigId;
+  CHECK_FCT( fd_msg_avp_setvalue( psoAVP, &soAVPValue ) );
+  CHECK_FCT( fd_msg_avp_add( p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP ) );
 
   return iRetVal;
-}
-
-int set_777_event_trigger (
-	SSessionInfo &p_soSessInfo,
-	msg_or_avp *p_psoMsgOrAVP)
-{
-	int iRetVal = 0;
-	avp *psoAVP;
-	avp_value soAVPValue;
-
-	/* Event-Trigger */
-	switch (p_soSessInfo.m_uiPeerDialect) {
-	case GX_PROCERA: /* Gx Procera */
-		CHECK_FCT(fd_msg_avp_new(g_psoDictEventTrigger, 0, &psoAVP));
-		soAVPValue.i32 = 777;		/* 777 */
-		CHECK_FCT(fd_msg_avp_setvalue(psoAVP, &soAVPValue));
-		CHECK_FCT(fd_msg_avp_add(p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVP));
-		break; /* Gx */
-	}
-
-	return iRetVal;
 }
 
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo)
