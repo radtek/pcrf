@@ -200,6 +200,11 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
 
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 {
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 
@@ -251,6 +256,11 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 
 int pcrf_db_pool_restore( otl_connect *p_pcoDBConn )
 {
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
+  }
+
 	int iFnRes;
 
 	/* для начала самая простая проверка */
@@ -289,6 +299,11 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn )
 
 int pcrf_db_pool_connect( otl_connect *p_pcoDBConn )
 {
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
 
 	try {
@@ -318,15 +333,20 @@ int pcrf_db_pool_connect( otl_connect *p_pcoDBConn )
 
 void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn)
 {
-	if (p_pcoDBConn) {
-		if (p_pcoDBConn->connected) {
-			p_pcoDBConn->logoff ();
-		}
-	}
+  if ( NULL != p_pcoDBConn ) {
+    if ( 0 != p_pcoDBConn->connected ) {
+      p_pcoDBConn->logoff();
+    }
+  }
 }
 
 int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn )
 {
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
+  }
+
 	int iRetVal = 0;
 	otl_nocommit_stream coStream;
 	try {

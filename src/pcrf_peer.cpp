@@ -6,95 +6,100 @@ extern CLog *g_pcoLog;
 std::vector<SPeerInfo> g_vectPeerList;
 
 /* функция загружает список клиентов */
-int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn);
+int app_pcrf_load_peer_info( std::vector<SPeerInfo> &p_vectPeerList, otl_connect *p_pcoDBConn );
 
 /* функция проводит валидации клиента */
 int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)(struct peer_info *));
 
 /* функция формирует список клиентов */
-int app_pcrf_load_peer ()
+int app_pcrf_load_peer()
 {
-	int iRetVal = 0;
-	otl_connect *pcoDBConn = NULL;
+  int iRetVal = 0;
+  otl_connect *pcoDBConn = NULL;
 
-	do {
+  do {
     if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
     } else {
-			break;
-		}
-		iRetVal = app_pcrf_load_peer_info (g_vectPeerList, *pcoDBConn);
-		if (iRetVal) {
-			break;
-		}
-		iRetVal = fd_peer_validate_register (app_pcrf_peer_validate);
-		if (iRetVal) {
-			break;
-		}
-	} while (0);
+      break;
+    }
+    iRetVal = app_pcrf_load_peer_info( g_vectPeerList, pcoDBConn );
+    if ( iRetVal ) {
+      break;
+    }
+    iRetVal = fd_peer_validate_register( app_pcrf_peer_validate );
+    if ( iRetVal ) {
+      break;
+    }
+  } while ( 0 );
 
-	if (pcoDBConn) {
-		pcrf_db_pool_rel(pcoDBConn, __FUNCTION__);
-		pcoDBConn = NULL;
-	}
+  if ( pcoDBConn ) {
+    pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
+    pcoDBConn = NULL;
+  }
 
-	return iRetVal;
+  return iRetVal;
 }
 
-int app_pcrf_load_peer_info(std::vector<SPeerInfo> &p_vectPeerList, otl_connect &p_coDBConn)
+int app_pcrf_load_peer_info( std::vector<SPeerInfo> &p_vectPeerList, otl_connect *p_pcoDBConn )
 {
-	int iRetVal = 0;
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
+  }
+
+  int iRetVal = 0;
   int iRepeat = 1;
 
-	otl_nocommit_stream coStream;
+  otl_nocommit_stream coStream;
 
   sql_repeat:
 
-	try {
-		SPeerInfo soPeerInfo;
-		otl_value<std::string> coHostName;
-		otl_value<std::string> coRealm;
-		otl_value<unsigned> coDialect;
+  try {
+    SPeerInfo soPeerInfo;
+    otl_value<std::string> coHostName;
+    otl_value<std::string> coRealm;
+    otl_value<unsigned> coDialect;
 
-		coStream.open (
-			10,
-			"select "
-				"host_name,"
-				"realm,"
-				"protocol_id "
-			"from "
-				"ps.peer",
-			p_coDBConn);
-		while (! coStream.eof ()) {
+    coStream.open(
+      10,
+      "select "
+      "host_name,"
+      "realm,"
+      "protocol_id "
+      "from "
+      "ps.peer",
+      *p_pcoDBConn );
+    while ( ! coStream.eof() ) {
       soPeerInfo.m_coHostName = "";
       soPeerInfo.m_coHostReal = "";
       soPeerInfo.m_uiPeerDialect = 0;
-			coStream
-				>> coHostName
-				>> coRealm
-				>> coDialect;
-			if (! coHostName.is_null ()) {
-				soPeerInfo.m_coHostName = coHostName;
+      coStream
+        >> coHostName
+        >> coRealm
+        >> coDialect;
+      if ( ! coHostName.is_null() ) {
+        soPeerInfo.m_coHostName = coHostName;
       }
-      if (! coRealm.is_null()) {
+      if ( ! coRealm.is_null() ) {
         soPeerInfo.m_coHostReal = coRealm;
       }
-      soPeerInfo.m_uiPeerDialect = ((0 == coDialect.is_null()) ? coDialect.v : GX_UNDEF);
-			p_vectPeerList.push_back (soPeerInfo);
-		}
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( &p_coDBConn ) ) {
+      soPeerInfo.m_uiPeerDialect = ( ( 0 == coDialect.is_null() ) ? coDialect.v : GX_UNDEF );
+      p_vectPeerList.push_back( soPeerInfo );
+    }
+  } catch ( otl_exception &coExcept ) {
+    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
       --iRepeat;
       goto sql_repeat;
     }
-		if (0 != coExcept.code) {
-  		iRetVal = coExcept.code;
+    if ( 0 != coExcept.code ) {
+      iRetVal = coExcept.code;
     } else {
-			iRetVal = -1;
-		}
-	}
+      iRetVal = -1;
+    }
+  }
 
-	return iRetVal;
+  return iRetVal;
 }
 
 int app_pcrf_peer_compare (peer_info &p_soLeft, SPeerInfo &p_soRight)
