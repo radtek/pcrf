@@ -299,7 +299,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
       UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
   } else {
-    stat_measure( g_psoSessionCacheStat, "inserterd", &coTM );
+    stat_measure( g_psoSessionCacheStat, "inserted", &coTM );
   }
 
   /* сохраняем связку между сессиями */
@@ -673,6 +673,8 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   if (iter != g_pmapSessionCache->end ()) {
     if ( NULL != iter->second ) {
       delete iter->second;
+    } else {
+      LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
     }
     g_pmapSessionCache->erase (iter);
     stat_measure( g_psoSessionCacheStat, "removed", &coTM );
