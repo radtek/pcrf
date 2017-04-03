@@ -166,6 +166,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
       }
     }
+    coStream.close();
   } catch (otl_exception &coExcept) {
     UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'; var info: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text, coExcept.var_info);
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {

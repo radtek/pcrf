@@ -24,7 +24,6 @@ struct SSQLRequestInfo
 
 struct SSQLQueue {
   std::list<SSQLRequestInfo>         m_listSQLQueue;   /* очередь SQL-запросов */
-  std::map<std::string, otl_stream*> m_mapOTLStream;   /* список OTL-потоков */
   pthread_t                          m_threadSQLQueue; /* дескриптор потока обработки очереди */
   pthread_mutex_t                    m_mutexSQLQueue;  /* мьютекс доступа к очереди запросов */
 };
@@ -70,11 +69,6 @@ void pcrf_sql_queue_fini()
   for ( unsigned i = 0; i < g_uiQueueCount; ++i ) {
     pthread_mutex_destroy( &(g_pmsoSQLQueue[i].m_mutexSQLQueue) );
     pthread_join( g_pmsoSQLQueue[ i ].m_threadSQLQueue, NULL );
-
-    for ( std::map<std::string, otl_stream*>::iterator iter = g_pmsoSQLQueue[ i ].m_mapOTLStream.begin(); iter != g_pmsoSQLQueue[ i ].m_mapOTLStream.end(); ++iter ) {
-      iter->second->close();
-      delete iter->second;
-    }
   }
 
   LOG_D( "leave: %s", __FUNCTION__ );
@@ -155,7 +149,7 @@ static void pcrf_sql_queue_dump_request( const char *p_pszStatementText, const S
  * функция возвращает ненулевое значение если при выполнении возникла ошибка, связанная с подключением к БД
  * в остальных случаях (успешное выполнение запроса или ошибка в самом запросе) функция возвращает 0
  */
-static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo *p_psoSQLReqInfo, std::map<std::string, otl_stream*> &p_mapOTLStream )
+static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo *p_psoSQLReqInfo )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
@@ -167,19 +161,10 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
 
   CTimeMeasurer coTM;
   int iRetVal = 0;
-  otl_stream *pcoStream;
 
   try {
-    std::map<std::string, otl_stream*>::iterator iterStream;
-
-    iterStream = p_mapOTLStream.find( p_psoSQLReqInfo->m_pszReqName );
-    if ( iterStream != p_mapOTLStream.end() ) {
-      pcoStream = iterStream->second;
-    } else {
-      pcoStream = new otl_stream( 1, p_psoSQLReqInfo->m_pszRequest, *p_pcoDBConn, NULL, p_psoSQLReqInfo->m_pszReqName );
-
-      p_mapOTLStream.insert( std::pair<std::string, otl_stream*>( p_psoSQLReqInfo->m_pszReqName, pcoStream ) );
-    }
+    otl_stream coStream( 1, p_psoSQLReqInfo->m_pszRequest, *p_pcoDBConn, NULL, p_psoSQLReqInfo->m_pszReqName );
+    coStream.set_commit( 0 );
 
     /* передаем параметры зароса */
     std::list<SSQLQueueParam>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
@@ -191,40 +176,42 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
       }
       switch ( iter->m_eParamType ) {
         case m_eSQLParamType_Int:
-          *pcoStream << * reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
+          coStream << * reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
           LOG_D( "%s: %d", __FUNCTION__, reinterpret_cast<otl_value<int>*>( iter->m_pvParam )->v );
           break;
         case m_eSQLParamType_UInt:
-          *pcoStream << * reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
+          coStream << * reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
           LOG_D( "%s: %u", __FUNCTION__, reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam )->v );
           break;
         case m_eSQLParamType_StdString:
-          *pcoStream << * reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
+          coStream << * reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
           LOG_D( "%s: %s", __FUNCTION__, reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam )->v.c_str() );
           break;
         case m_eSQLParamType_Char:
-          *pcoStream << * reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
+          coStream << * reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
           LOG_D( "%s: %s", __FUNCTION__, reinterpret_cast<otl_value<char*>*>( iter->m_pvParam )->v );
           break;
         case m_eSQLParamType_OTLDateTime:
-          *pcoStream << * reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
+          coStream << * reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
           LOG_D( "%s: datetime", __FUNCTION__ );
           break;
         default:
           LOG_D( "%s: unsupported parameter type: %u", iter->m_eParamType );
       }
     }
-    pcoStream->check_end_of_row();
-    LOG_D( "commited: %u", pcoStream->get_rpc() );
+    coStream.check_end_of_row();
+    p_pcoDBConn->commit();
+    LOG_D( "commited: %u", coStream.get_rpc() );
     stat_measure( g_psoSQLQueueStat, "operated", &coTM );
 #ifdef _DEBUG
     stat_measure( g_psoSQLQueueStat, p_psoSQLReqInfo->m_pszReqName, &coTM );
 #endif
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; description: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     pcrf_sql_queue_dump_request( coExcept.stm_text, p_psoSQLReqInfo );
     iRetVal = coExcept.code;
-    pcoStream->clean();
+    p_pcoDBConn->rollback();
     stat_measure( g_psoSQLQueueStat, "failed", &coTM );
   }
 
@@ -315,7 +302,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
     if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
       std::list<SSQLRequestInfo>::iterator iter = psoSQLQueue->m_listSQLQueue.begin();
       while ( iter != psoSQLQueue->m_listSQLQueue.end() ) {
-        if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ), psoSQLQueue->m_mapOTLStream ) ) {
+        if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ) ) ) {
         } else {
           /* при обработке возникла ошибка,
            * если она связана с подключением к БД, то будет предпринята попытка восстановления соединения 

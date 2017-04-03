@@ -215,6 +215,7 @@ static void * pcrf_session_rule_load_list(void*)
       pcrf_session_rule_cache_insert_local( strSessionId, strRuleName, true );
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
+    coStream.close();
     UTL_LOG_N( *g_pcoLog, "session rule list is initialized successfully in '%s'; rule session count: '%u'", mcTime, g_mapSessRuleLst.size() );
   } catch (otl_exception &coExcept) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );

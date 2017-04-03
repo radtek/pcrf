@@ -264,6 +264,7 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
       }
     }
     p_pcoDBConn->commit();
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     p_pcoDBConn->rollback();
@@ -286,8 +287,6 @@ void pcrf_db_insert_rule (
   pcrf_session_rule_cache_insert(p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v);
 
   std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
-  otl_value<std::string> *pcoSessionId = new otl_value<std::string>(  );
-  otl_value<std::string> *pcoRuleName = new otl_value<std::string>(  );
   otl_value<otl_datetime> coDateTime;
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
@@ -409,6 +408,7 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
       p_soMsgInfo.m_psoSessInfo->m_strSubscriberId = "";
       iRetVal = 1403;
     }
+    coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -469,6 +469,7 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
         pcrf_local_refresh_queue_add(soSessInfo);
 			}
 		}
+    coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -526,6 +527,7 @@ int pcrf_server_db_load_active_rules(
 			soRule.m_bIsActivated = true;
 			p_vectActive.push_back (soRule);
 		}
+    coStream.close();
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -559,7 +561,7 @@ void pcrf_parse_rule_row( std::string &p_strRuleRow, std::vector<std::string> &p
   if ( stEnd != std::string::npos && 0 != stEnd) {
     p_vectRuleList.push_back( p_strRuleRow.substr( 0, stEnd ) );
   } else {
-    UTL_LOG_D( *p_coLog, "invalid rule row: length: '%d'; content: '%s'", stEnd, p_strRuleRow.substr.c_str() );
+    UTL_LOG_D( *g_pcoLog, "invalid rule row: length: '%d'; content: '%s'", stEnd, p_strRuleRow.c_str() );
     return;
   }
 
@@ -576,7 +578,7 @@ void pcrf_parse_rule_row( std::string &p_strRuleRow, std::vector<std::string> &p
       pcrf_server_db_insert_refqueue( "subscriber_id", p_strSubscriberId, &( coRefreshTime.v ), NULL );
     }
   } else if ( p_strRuleRow.length() < stEnd ) {
-    UTL_LOG_D( *p_coLog, "invalid date/time lentgth: '%d'; content: '%s'", p_strRuleRow.length() - stEnd, p_strRuleRow.substr( stEnd ).c_str() );
+    UTL_LOG_D( *g_pcoLog, "invalid date/time lentgth: '%d'; content: '%s'", p_strRuleRow.length() - stEnd, p_strRuleRow.substr( stEnd ).c_str() );
   }
 }
 
@@ -643,6 +645,7 @@ int pcrf_load_abon_rule_list(
       LOG_D( "rule list: '%s'", strSQLResult.c_str() );
       pcrf_parse_rule_list( strSQLResult, p_vectRuleList, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -700,6 +703,7 @@ int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSu
         p_strFramedIPAddress.c_str() );
       iRetVal = 1403;
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -755,6 +759,7 @@ int pcrf_server_find_ugw_sess_byframedip( otl_connect *p_pcoDBConn, std::string 
         p_strFramedIPAddress.c_str() );
       iRetVal = 1403;
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -933,6 +938,7 @@ int pcrf_server_load_session_info( otl_connect *p_pcoDBConn, SMsgDataForDB &p_so
       iRetVal = 1403;
       UTL_LOG_E( *g_pcoLog, "session not found in the database : session-id: '%s'", p_strSessionId.c_str() );
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "session info: code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
@@ -1050,6 +1056,7 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
       }
     }
     p_pcoDBConn->commit();
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     p_pcoDBConn->rollback();
@@ -1148,6 +1155,7 @@ int pcrf_procera_db_load_sess_list( otl_connect *p_pcoDBConn, otl_value<std::str
         >> soSessInfo.m_coOriginRealm;
       p_vectSessList.push_back( soSessInfo );
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {

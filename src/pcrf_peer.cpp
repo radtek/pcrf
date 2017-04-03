@@ -86,6 +86,7 @@ int app_pcrf_load_peer_info( std::vector<SPeerInfo> &p_vectPeerList, otl_connect
       soPeerInfo.m_uiPeerDialect = ( ( 0 == coDialect.is_null() ) ? coDialect.v : GX_UNDEF );
       p_vectPeerList.push_back( soPeerInfo );
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {

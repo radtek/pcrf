@@ -233,7 +233,7 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 			char mcTimeInterval[256];
 			psoTmp->m_iIsBusy = 0;
 			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
-      UTL_LOG_D(*g_pcoLog, "released DB connection: '%u'; '%x:%s' in '%s';", psoTmp->m_uiNumber, pthread_self(), p_pszClient, mcTimeInterval);
+      UTL_LOG_D(*g_pcoLog, "released DB connection: '%p'; '%x:%s' in '%s';", psoTmp->m_pcoDBConn, pthread_self(), p_pszClient, mcTimeInterval);
 		} else {
 			UTL_LOG_F(*g_pcoLog, "connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}
@@ -367,9 +367,7 @@ int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn )
 	} catch (otl_exception &coExcept) {
 		UTL_LOG_E(*g_pcoLog, "DB connection: '%p': error code: '%d'; message: '%s'; query: '%s'", p_pcoDBConn, coExcept.code, coExcept.msg, coExcept.stm_text);
 		iRetVal = coExcept.code;
-		if (coStream.good()) {
-			coStream.close();
-		}
+		coStream.close();
 	}
 
 	return iRetVal;

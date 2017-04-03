@@ -839,6 +839,8 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   switch ( uiReqType ) {
     case PCRF_CMD_INSERT_SESSION:
       pcrf_session_cache_insert_local( strSessionId, psoCache, pstrParentSessionId );
+      /* объект использован по назначению, больше он нам не понадобится */
+      psoCache = NULL;
       break;
     case PCRF_CMD_REMOVE_SESSION:
       pcrf_session_cache_remove_local( strSessionId );
@@ -867,6 +869,10 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   }
   if ( NULL != pstrRuleName ) {
     delete pstrRuleName;
+  }
+  /* если объект не понадобился уничтожаем его */
+  if ( NULL != psoCache ) {
+    delete psoCache;
   }
 
   return iRetVal;
@@ -1013,6 +1019,7 @@ static int pcrf_session_cache_init_node ()
       }
       g_pvectNodeList->push_back (soNode);
     }
+    coStream.close();
   } catch (otl_exception &coExept) {
     UTL_LOG_F (*g_pcoLog, "can not load node list: error: '%d'; description: '%s'", coExept.code, coExept.msg);
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {
@@ -1154,6 +1161,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
         UTL_LOG_N( *g_pcoLog, "session list is loaded in '%s'; session count: '%u'", mcDuration, g_pmapSessionCache->size() );
       }
     }
+    coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     iRetVal = coExcept.code;
