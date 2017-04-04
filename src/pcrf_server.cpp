@@ -61,6 +61,26 @@ static std::map<std::string,int32_t> *g_pmapTetering = NULL;
 SStat *g_psoDBStat;
 SStat *g_psoGxSesrverStat;
 
+/* параметры потока обработки CCR */
+struct SCCRCBData {
+  SMsgDataForDB   *m_psoMsgInfoCache;
+  otl_connect     *m_pcoDBConn;
+  pthread_mutex_t m_mutexWait;
+};
+
+static void * pcrf_server_ccr_cb_thread( void *p_pvParam )
+{
+  CHECK_FCT_DO( pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, NULL ), pthread_exit( NULL ) );
+
+  SCCRCBData *psoData = reinterpret_cast<SCCRCBData*>( p_pvParam );
+
+  /* освобождаем мьютекс */
+  CHECK_FCT_DO( pthread_mutex_unlock( &psoData->m_mutexWait ), pthread_exit( NULL ) );
+
+  /* выходим из функции */
+  pthread_exit( NULL );
+}
+
 static int app_pcrf_ccr_cb(
   msg ** p_ppsoMsg,
   avp * p_psoAVP,
