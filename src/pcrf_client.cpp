@@ -303,7 +303,7 @@ int pcrf_client_rar (
   } else {
     timespec soTimeSpec;
 
-    CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, p_uiUsec)), goto out);
+    CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, 0, p_uiUsec)), goto out);
     CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_raa, psoMsgStFnParam, pcrf_client_req_expire, &soTimeSpec)), goto out);
   }
 
@@ -539,7 +539,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
   p_pvArg = p_pvArg;
 
   /* задаем время завершения ожидания семафора */
-  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
+  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
   /* очередь сессий на обновление */
   std::vector<SRefQueue> vectQueue;
   std::vector<SRefQueue>::iterator iter;
@@ -563,7 +563,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     }
 
     /* задаем время следующего запуска */
-    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
+    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
     /* запрашиваем подключение к БД */
     if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {

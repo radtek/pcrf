@@ -40,6 +40,13 @@ int pcrf_rule_cache_init()
   CHECK_FCT(pthread_mutex_init(&g_mutexUpdateTimer, NULL));
   CHECK_FCT(pthread_mutex_lock(&g_mutexUpdateTimer));
   CHECK_FCT(pthread_create(&g_threadUpdate, NULL, pcrf_rule_cache_update, NULL));
+
+  UTL_LOG_N( *g_pcoLog,
+    "rule cache is initialized successfully!\n"
+    "\tstorage capasity is '%u' records",
+    g_pmapRule->max_size() );
+
+  return 0;
 }
 
 void pcrf_rule_cache_fini()
@@ -308,24 +315,23 @@ int pcrf_rule_cache_get_rule_info(
 
 static void *pcrf_rule_cache_update(void *p_pvParam)
 {
-  timeval soTimeVal;
   timespec soTimeSpec;
   int iFnRes;
   std::map<std::string, SDBAbonRule> *pmapNew = NULL, *pmapTmp;
 
   while (0 != g_iWork) {
-    CHECK_FCT_DO(gettimeofday(&soTimeVal, NULL), goto clean_and_exit);
-    soTimeSpec.tv_sec = soTimeVal.tv_sec;
-    soTimeSpec.tv_sec += 60;
-    soTimeSpec.tv_nsec = soTimeVal.tv_usec;
-    soTimeSpec.tv_nsec *= 1000;
+    if ( NULL != pmapNew ) {
+      delete pmapNew;
+      pmapNew = NULL;
+    }
+    CHECK_FCT_DO( pcrf_make_timespec_timeout( soTimeSpec, 60, 0 ), goto clean_and_exit );
     iFnRes = pthread_mutex_timedlock( &g_mutexUpdateTimer, &soTimeSpec );
     if (0 == g_iWork) {
       break;
     }
     if (ETIMEDOUT == iFnRes) {
       pmapNew = new std::map<std::string, SDBAbonRule>;
-      CHECK_FCT_DO(pcrf_rule_cache_load_rule_list(pmapNew), goto clean_and_exit);
+      CHECK_FCT_DO( pcrf_rule_cache_load_rule_list( pmapNew ), continue );
       pmapTmp = g_pmapRule;
       CHECK_FCT_DO(pthread_mutex_lock(&g_mutexRuleCache), goto clean_and_exit);
       g_pmapRule = pmapNew;

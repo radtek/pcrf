@@ -104,14 +104,21 @@ int pcrf_session_cache_init ()
   /* создаем семафор */
   CHECK_FCT(pthread_mutex_init (&g_mutexSCLowPrio, NULL));
   CHECK_FCT( pthread_mutex_init (&g_mutexSessionCache, NULL) );
+  /* загрузка списка нод */
+  CHECK_FCT( pcrf_session_cache_init_node() );
   /* создаем поток для обработки входящих команд */
   CHECK_FCT( pthread_create (&g_thrdSessionCacheReceiver, NULL, pcrf_session_cache_receiver, NULL) );
-  /* загрузка списка нод */
-  CHECK_FCT( pcrf_session_cache_init_node () );
 
   g_module_is_initialized = true;
 
-  UTL_LOG_N(*g_pcoLog, "session cache is initialized successfully");
+  UTL_LOG_N( *g_pcoLog,
+    "session cache is initialized successfully!\n"
+    "\tsession storage capasity is '%u' records\n"
+    "\tparent link storage capasity is '%u' records\n"
+    "\tchild link storage capasity is '%u' records",
+    g_pmapSessionCache->max_size(),
+    g_pmapParent->max_size(),
+    g_pmapChild->max_size() );
 
   return 0;
 }
@@ -150,12 +157,13 @@ void pcrf_session_cache_fini (void)
   }
 }
 
-int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiAddUSec)
+int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_t p_uiAddUSec)
 {
   timeval soTimeVal;
 
   CHECK_FCT( gettimeofday( &soTimeVal, NULL ) );
   p_soTimeSpec.tv_sec = soTimeVal.tv_sec;
+  p_soTimeSpec.tv_sec += p_uiSec;
   if ((soTimeVal.tv_usec + p_uiAddUSec) < USEC_PER_SEC) {
     p_soTimeSpec.tv_nsec = (soTimeVal.tv_usec + p_uiAddUSec) * NSEC_PER_USEC;
   } else {
@@ -716,7 +724,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   std::string *pstrRuleName = NULL;
 
   /* парсинг запроса */
-  CHECK_FCT( coPSPack.Parse( reinterpret_cast<const SPSRequest*>( p_pmucBuf ), static_cast<size_t>( p_stMsgLen ), uiPackNum, uiReqType, uiPackLen, mmap ) );
+  CHECK_FCT_DO( coPSPack.Parse( reinterpret_cast<const SPSRequest*>( p_pmucBuf ), static_cast<size_t>( p_stMsgLen ), uiPackNum, uiReqType, uiPackLen, mmap ), goto clean_and_exit );
 
   /* обходим все атрибуты запроса */
   for ( iter = mmap.begin(); iter != mmap.end(); ++iter ) {
@@ -1043,15 +1051,17 @@ static void pcrf_session_cache_fini_node ()
     g_send_sock = -1;
   }
 
-  std::vector<SNode>::iterator iter = g_pvectNodeList->begin();
-  for (; iter != g_pvectNodeList->end (); ++iter) {
-    if (NULL != iter->m_diamid) {
-      free (iter->m_diamid);
-      iter->m_diamid = NULL;
-    }
-    if (NULL != iter->m_diamrlm) {
-      free (iter->m_diamrlm);
-      iter->m_diamrlm = NULL;
+  if ( NULL != g_pvectNodeList ) {
+    std::vector<SNode>::iterator iter = g_pvectNodeList->begin();
+    for ( ; iter != g_pvectNodeList->end(); ++iter ) {
+      if ( NULL != iter->m_diamid ) {
+        free( iter->m_diamid );
+        iter->m_diamid = NULL;
+      }
+      if ( NULL != iter->m_diamrlm ) {
+        free( iter->m_diamrlm );
+        iter->m_diamrlm = NULL;
+      }
     }
   }
 }
@@ -1122,14 +1132,14 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           memset( &req, 0, sizeof( struct dict_enumval_request ) );
 
           /* First, get the enumerated type of the IP-CAN-Type AVP (this is fast, no need to cache the object) */
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &( req.type_obj ), ENOENT ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &( req.type_obj ), ENOENT ), delete psoSessCache;  continue );
 
           /* Now search for the value given as parameter */
           req.search.enum_name = const_cast<char*>( psoSessCache->m_coIPCANType.v.c_str() );
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), delete psoSessCache; continue );
 
           /* finally retrieve its data */
-          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), continue );
+          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), delete psoSessCache; continue );
 
           /* copy the found value, we're done */
           psoSessCache->m_iIPCANType = req.search.enum_value.i32;
@@ -1140,14 +1150,14 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           memset( &req, 0, sizeof( struct dict_enumval_request ) );
 
           /* First, get the enumerated type of the RAT-Type AVP (this is fast, no need to cache the object) */
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &( req.type_obj ), ENOENT ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &( req.type_obj ), ENOENT ), delete psoSessCache; continue );
 
           /* Now search for the value given as parameter */
           req.search.enum_name = const_cast<char*>( psoSessCache->m_coRATType.v.c_str() );
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), delete psoSessCache; continue );
 
           /* finally retrieve its data */
-          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), continue );
+          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), delete psoSessCache; continue );
 
           /* copy the found value, we're done */
           psoSessCache->m_iRATType = req.search.enum_value.i32;

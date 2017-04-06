@@ -17,7 +17,9 @@ struct SDBPoolInfo {
 	otl_connect *m_pcoDBConn;
 	volatile int m_iIsBusy;
 	SDBPoolInfo *m_psoNext;
+#ifdef DEBUG
 	CTimeMeasurer *m_pcoTM;
+#endif
 };
 
 /* указатели на пул подключений к БД */
@@ -76,7 +78,9 @@ int pcrf_db_pool_init (void)
 			/* создаем объект класса подключения к БД */
 			psoTmp->m_pcoDBConn = new otl_connect;
 			psoTmp->m_pcoDBConn->otl_initialize(1);
+#ifdef DEBUG
 			psoTmp->m_pcoTM = new CTimeMeasurer();
+#endif
 			if (psoTmp->m_pcoDBConn) {
         CHECK_POSIX_DO( pcrf_db_pool_connect( psoTmp->m_pcoDBConn ), goto fn_error );
 			}
@@ -116,8 +120,10 @@ void pcrf_db_pool_fin (void)
 			}
 			delete g_psoDBPoolHead->m_pcoDBConn;
 			g_psoDBPoolHead->m_pcoDBConn = NULL;
+#ifdef DEBUG
 			delete g_psoDBPoolHead->m_pcoTM;
 			g_psoDBPoolHead->m_pcoTM = NULL;
+#endif
 		}
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
@@ -139,7 +145,7 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
   /* инициализация значения */
   *p_ppcoDBConn = NULL;
 
-  pcrf_make_timespec_timeout( soWaitTime, p_uiWaitUSec );
+  pcrf_make_timespec_timeout( soWaitTime, 0, p_uiWaitUSec );
 
   /* ждем когда освободится семафор или истечет таймаут */
   if ( 0 != ( iFnRes = sem_timedwait( &g_tDBPoolSem, &soWaitTime ) ) ) {
@@ -180,9 +186,11 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
   if ( psoTmp ) {
     /* помечаем подключение как занятое */
     psoTmp->m_iIsBusy = 1;
-    psoTmp->m_pcoTM->Set();
     ( *p_ppcoDBConn ) = psoTmp->m_pcoDBConn;
     iRetVal = 0;
+#ifdef DEBUG
+    psoTmp->m_pcoTM->Set();
+#endif
     UTL_LOG_D( *g_pcoLog, "selected DB connection: '%p'; '%x:%s';", psoTmp->m_pcoDBConn, pthread_self(), p_pszClient );
   } else {
     iRetVal = -2222;
@@ -232,8 +240,10 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 		if (psoTmp->m_iIsBusy) {
 			char mcTimeInterval[256];
 			psoTmp->m_iIsBusy = 0;
+#ifdef DEBUG
 			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
       UTL_LOG_D(*g_pcoLog, "released DB connection: '%p'; '%x:%s' in '%s';", psoTmp->m_pcoDBConn, pthread_self(), p_pszClient, mcTimeInterval);
+#endif
 		} else {
 			UTL_LOG_F(*g_pcoLog, "connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}

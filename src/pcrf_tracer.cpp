@@ -187,7 +187,7 @@ static void pcrf_tracer (
 
   /* если нет необходимости трассировки */
   if (0 == g_psoConf->m_iTraceReq) {
-    if ( pmcBuf ) {
+    if ( NULL != pmcBuf ) {
       fd_cleanup_buffer( pmcBuf );
     }
     return;

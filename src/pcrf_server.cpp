@@ -328,7 +328,7 @@ static int app_pcrf_ccr_cb(
         CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 2 ), /* continue */ );
       }
       /* TETHERING_REPORT */
-#if 0 /* PCRF-115 23.12.2016 */
+#if 1 /* выключено в соответсвии с PCRF-115 23.12.2016 */ /* включено в соответствии с PCRF-146 06.04.2017 */
       if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
         CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
       }
@@ -1240,92 +1240,96 @@ int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 	return iRetVal;
 }
 
-int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull)
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull )
 {
-	/* если список пуст выходим из функции */
-	if (0 == p_soSessInfo.m_mapMonitInfo.size())
-		return 0;
+  /* если список пуст выходим из функции */
+  if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
+  } else {
+    return 0;
+  }
 
-	avp *psoAVPUMI = NULL; /* Usage-Monitoring-Information */
-	avp *psoAVPGSU = NULL; /* Granted-Service-Unit */
-	avp *psoAVPChild = NULL;
-	union avp_value soAVPVal;
+  avp *psoAVPUMI = NULL; /* Usage-Monitoring-Information */
+  avp *psoAVPGSU = NULL; /* Granted-Service-Unit */
+  avp *psoAVPChild = NULL;
+  union avp_value soAVPVal;
 
-	std::map<std::string,SDBMonitoringInfo>::iterator iterMonitInfo = p_soSessInfo.m_mapMonitInfo.begin ();
-	for (; iterMonitInfo != p_soSessInfo.m_mapMonitInfo.end (); ++iterMonitInfo) {
-		/* если не задана ни одна квота */
-		if (iterMonitInfo->second.m_coDosageTotalOctets.is_null ()
-				&& iterMonitInfo->second.m_coDosageOutputOctets.is_null()
-				&& iterMonitInfo->second.m_coDosageInputOctets.is_null()) {
-			continue;
-		}
-		/* Usage-Monitoring-Information */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringInformation, 0, &psoAVPUMI), return __LINE__);
-		/* Monitoring-Key */
-		{
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictMonitoringKey, 0, &psoAVPChild), return __LINE__);
-			soAVPVal.os.data = (uint8_t *) iterMonitInfo->first.data();
-			soAVPVal.os.len = (size_t) iterMonitInfo->first.length();
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-		}
-		/* Granted-Service-Unit */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictGrantedServiceUnit, 0, &psoAVPGSU), return __LINE__);
-		/* CC-Total-Octets */
-		if (! iterMonitInfo->second.m_coDosageTotalOctets.is_null ()) {
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCTotalOctets, 0, &psoAVPChild), return __LINE__);
-			soAVPVal.u64 = iterMonitInfo->second.m_coDosageTotalOctets.v;
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-			/* put 'CC-Total-Octets' into 'Granted-Service-Unit' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-		} else {
-			/* CC-Input-Octets */
-			if (! iterMonitInfo->second.m_coDosageInputOctets.is_null ()) {
-				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCInputOctets, 0, &psoAVPChild), return __LINE__);
-				soAVPVal.u64 = iterMonitInfo->second.m_coDosageInputOctets.v;
-				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-				/* put 'CC-Input-Octets' into 'Granted-Service-Unit' */
-				CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-			}
-			/* CC-Output-Octets */
-			if (! iterMonitInfo->second.m_coDosageOutputOctets.is_null ()) {
-				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictCCOutputOctets, 0, &psoAVPChild), return __LINE__);
-				soAVPVal.u64 = iterMonitInfo->second.m_coDosageOutputOctets.v;
-				CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-				/* put 'CC-Output-Octets' into 'Granted-Service-Unit' */
-				CHECK_FCT_DO (fd_msg_avp_add (psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-			}
-		}
-		/* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
-		CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU), return __LINE__);
-		/* дополнительные параметры */
-		if (!p_bFull && 2 == p_soSessInfo.m_uiPeerDialect) {
-			/* Usage-Monitoring-Level */
-			CHECK_FCT_DO(fd_msg_avp_new(g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return __LINE__);
-			soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-			CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVPChild, &soAVPVal), return __LINE__);
-			/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-			CHECK_FCT_DO(fd_msg_avp_add(psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-		}
-		if (p_bFull) {
-			/* Usage-Monitoring-Level */
-			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringLevel, 0, &psoAVPChild), return __LINE__);
-			soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-			/* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-			CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
-			/* Usage-Monitoring-Report */
-      if (GX_PROCERA != p_soSessInfo.m_uiPeerDialect) {
-			  CHECK_FCT_DO (fd_msg_avp_new (g_psoDictUsageMonitoringReport, 0, &psoAVPChild), return __LINE__);
-			  soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
-			  CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return __LINE__);
-			  /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
-			  CHECK_FCT_DO (fd_msg_avp_add (psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild), return __LINE__);
+  std::map<std::string, SDBMonitoringInfo>::iterator iterMonitInfo = p_soSessInfo.m_mapMonitInfo.begin();
+  for ( ; iterMonitInfo != p_soSessInfo.m_mapMonitInfo.end(); ++iterMonitInfo ) {
+    /* если не задана ни одна квота */
+    if ( 0 == iterMonitInfo->second.m_coDosageTotalOctets.is_null()
+      || 0 == iterMonitInfo->second.m_coDosageOutputOctets.is_null()
+      || 0 == iterMonitInfo->second.m_coDosageInputOctets.is_null() ) {
+    } else {
+      continue;
+    }
+    /* Usage-Monitoring-Information */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringInformation, 0, &psoAVPUMI ), return __LINE__ );
+    /* Monitoring-Key */
+    {
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictMonitoringKey, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.os.data = (uint8_t *)iterMonitInfo->first.data();
+      soAVPVal.os.len = (size_t)iterMonitInfo->first.length();
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+    }
+    /* Granted-Service-Unit */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictGrantedServiceUnit, 0, &psoAVPGSU ), return __LINE__ );
+    /* CC-Total-Octets */
+    if ( 0 == iterMonitInfo->second.m_coDosageTotalOctets.is_null() ) {
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictCCTotalOctets, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.u64 = iterMonitInfo->second.m_coDosageTotalOctets.v;
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      /* put 'CC-Total-Octets' into 'Granted-Service-Unit' */
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+    } else {
+      /* CC-Input-Octets */
+      if ( 0 == iterMonitInfo->second.m_coDosageInputOctets.is_null() ) {
+        CHECK_FCT_DO( fd_msg_avp_new( g_psoDictCCInputOctets, 0, &psoAVPChild ), return __LINE__ );
+        soAVPVal.u64 = iterMonitInfo->second.m_coDosageInputOctets.v;
+        CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+        /* put 'CC-Input-Octets' into 'Granted-Service-Unit' */
+        CHECK_FCT_DO( fd_msg_avp_add( psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
       }
-		}
-	}
+      /* CC-Output-Octets */
+      if ( 0 == iterMonitInfo->second.m_coDosageOutputOctets.is_null() ) {
+        CHECK_FCT_DO( fd_msg_avp_new( g_psoDictCCOutputOctets, 0, &psoAVPChild ), return __LINE__ );
+        soAVPVal.u64 = iterMonitInfo->second.m_coDosageOutputOctets.v;
+        CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+        /* put 'CC-Output-Octets' into 'Granted-Service-Unit' */
+        CHECK_FCT_DO( fd_msg_avp_add( psoAVPGSU, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+      }
+    }
+    /* put 'Granted-Service-Unit' into 'Usage-Monitoring-Information' */
+    CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPGSU ), return __LINE__ );
+    /* дополнительные параметры */
+    if ( !p_bFull && GX_CISCO_SCE == p_soSessInfo.m_uiPeerDialect ) {
+      /* Usage-Monitoring-Level */
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+    }
+    if ( p_bFull ) {
+      /* Usage-Monitoring-Level */
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+      /* Usage-Monitoring-Report */
+      if ( GX_PROCERA != p_soSessInfo.m_uiPeerDialect ) {
+        CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringReport, 0, &psoAVPChild ), return __LINE__ );
+        soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
+        CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+        /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
+        CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+      }
+    }
+    CHECK_FCT( fd_msg_avp_add( p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI ) );
+  }
 
-	return 0;
+  return 0;
 }
 
 avp * pcrf_make_HWUR ()

@@ -344,7 +344,7 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
 #define USEC_PER_SEC    1000000L
 #define NSEC_PER_SEC    1000000000L
 /* функция добавляет заданное значение p_uiAddUSec (мксек) к p_soTimeVal и записывает полученное значние в p_soTimeSpec */
-int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiAddUSec);
+int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_t p_uiAddUSec);
 
 /* преобразование ip-адреса к десятичному виду точками с качестве разделителей */
 void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
