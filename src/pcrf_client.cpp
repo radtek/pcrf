@@ -598,7 +598,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     clear_and_continue:
     vectQueue.clear();
     /* если мы получили в распоряжение подключение к БД его надо освободить */
-    if ( pcoDBConn ) {
+    if ( NULL != pcoDBConn ) {
       pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
       pcoDBConn = NULL;
     }

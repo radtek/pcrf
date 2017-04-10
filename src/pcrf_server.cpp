@@ -55,7 +55,7 @@ int pcrf_make_subscription_id (msg *p_soAns, otl_value<std::string> &p_coEndUser
 /* формирование запроса на завершение сессии Procera */
 int pcrf_procera_terminate_session( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coUGWSessionId );
 
-static std::map<std::string,int32_t> *g_pmapTetering = NULL;
+static std::map<std::string,int32_t> *g_pmapTethering = NULL;
 
 /* указатели на объекты учета статистики */
 SStat *g_psoDBStat;
@@ -193,7 +193,8 @@ static int app_pcrf_ccr_cb(
       iSessNotFound = pcrf_server_load_session_info( pcoDBConn, soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
       /* загрузка данных сессии UGW для обслуживания запроса SCE */
       if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-        if ( 0 != iSessNotFound ) {
+        if ( 0 == iSessNotFound ) {
+        } else {
           /* если сессия ugw не найдена просим завершить ее. таким образом избавляемся от сессий, неизвестных pcrf */
           psoSessShouldBeTerm = new SSessionInfo;
           psoSessShouldBeTerm->m_coSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
@@ -414,9 +415,9 @@ static int app_pcrf_ccr_cb(
               }
               break;
             case 101: /* TETHERING_REPORT */
-#if 0 /* PCRF-115 23.12.2016 */
-              if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-                pcrf_server_db_insert_tetering_info( soMsgInfoCache );
+#if 1 /* PCRF-115 23.12.2016 */ /* включено в соответствии с PCRF-146 06.04.2017 */
+              if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && 0 == soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.is_null() ) {
+                pcrf_server_db_insert_tethering_info( soMsgInfoCache );
                 /* TETHERING_REPORT */
                 if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
                   CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
@@ -433,38 +434,38 @@ static int app_pcrf_ccr_cb(
                 soRule.m_coRuleGroupFlag = 0;
                 soRule.m_coRuleName = "/PSM/Policies/Redirect_blocked_device";
 
-                if ( NULL != g_pmapTetering ) {
+                if ( NULL != g_pmapTethering ) {
                 } else {
-                  g_pmapTetering = new std::map<std::string, int32_t>;
+                  g_pmapTethering = new std::map<std::string, int32_t>;
                 }
 
-                iter = g_pmapTetering->find( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
-                if ( iter == g_pmapTetering->end() ) {
-                  if ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null() ) {
+                iter = g_pmapTethering->find( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
+                if ( iter == g_pmapTethering->end() ) {
+                  if ( soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.is_null() ) {
                   } else {
-                    switch ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v ) {
+                    switch ( soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.v ) {
                       case 0:
                         soRule.m_bIsActivated = true;
                         vectActive.push_back( soRule );
                       default:
                         soRule.m_bIsRelevant = true;
                         vectAbonRules.push_back( soRule );
-                        g_pmapTetering->insert( std::make_pair( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, 1 ) );
+                        g_pmapTethering->insert( std::make_pair( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, 1 ) );
                     }
                   }
                 } else {
-                  if ( soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.is_null() ) {
+                  if ( soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.is_null() ) {
                     switch ( iter->second ) {
                       case 0:
-                        g_pmapTetering->erase( iter );
+                        g_pmapTethering->erase( iter );
                         break;
                       default:
                         soRule.m_bIsRelevant = true;
                         vectAbonRules.push_back( soRule );
                     }
                   } else {
-                    if ( 0 == soMsgInfoCache.m_psoReqInfo->m_coTeteringFlag.v ) {
-                      g_pmapTetering->erase( iter );
+                    if ( 0 == soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.v ) {
+                      g_pmapTethering->erase( iter );
                     } else {
                       soRule.m_bIsRelevant = true;
                       vectAbonRules.push_back( soRule );
@@ -1623,14 +1624,14 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
     case 2011:  /* Huawai */
       switch (psoAVPHdr->avp_code) {
       case 2029: /* X-HW-Tethering-Status */
-        p_psoMsgInfo->m_psoReqInfo->m_coTeteringFlag = psoAVPHdr->avp_value->u32;
+        p_psoMsgInfo->m_psoReqInfo->m_coTetheringFlag = psoAVPHdr->avp_value->u32;
         break;
       }
       break;    /* Huawai */
     case 15397: /* Procera */
       switch (psoAVPHdr->avp_code) {
-      case 777: /* Procera-Tetering-Flag */
-        p_psoMsgInfo->m_psoReqInfo->m_coTeteringFlag = psoAVPHdr->avp_value->u32;
+      case 777: /* Procera-Tethering-Flag */
+        p_psoMsgInfo->m_psoReqInfo->m_coTetheringFlag = psoAVPHdr->avp_value->u32;
         break;
       }
       break; /* Procera */

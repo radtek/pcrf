@@ -286,25 +286,25 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
     /* ждем некоторое время */
     CHECK_FCT_DO( pcrf_make_timespec_timeout( soTS, 0, 100000 ), goto clean_and_exit );
     iFnRes = pthread_mutex_timedlock( &mutexSQLQueueTimer, &soTS );
-    /* проверка указателя на наличие объекта подключения к БД */
-    if ( NULL != pcoDBConn ) {
-      /* проверим, надо ли восстанавливать подключение */
-      if ( -1 == iRestoreConnection ) {
-        /* пытаемся восстановить подключение */
-        if ( -1 == (iRestoreConnection = pcrf_db_pool_restore( pcoDBConn ) ) ) {
-          /* если восстановить подключение не удалось */
+    if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
+      /* проверка указателя на наличие объекта подключения к БД */
+      if ( NULL != pcoDBConn ) {
+        /* проверим, надо ли восстанавливать подключение */
+        if ( -1 == iRestoreConnection ) {
+          /* пытаемся восстановить подключение */
+          if ( -1 == (iRestoreConnection = pcrf_db_pool_restore( pcoDBConn ) ) ) {
+            /* если восстановить подключение не удалось */
+            continue;
+          }
+        }
+      } else {
+        /* запрашиваем подключение из пула если это необходимо */
+        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+        } else {
+          /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
           continue;
         }
       }
-    } else {
-      /* запрашиваем подключение из пула если это необходимо */
-      if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
-      } else {
-        /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
-        continue;
-      }
-    }
-    if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
       std::list<SSQLRequestInfo>::iterator iter = psoSQLQueue->m_listSQLQueue.begin();
       while ( iter != psoSQLQueue->m_listSQLQueue.end() ) {
         if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ) ) ) {

@@ -32,7 +32,7 @@ int app_pcrf_load_peer()
     }
   } while ( 0 );
 
-  if ( pcoDBConn ) {
+  if ( NULL != pcoDBConn ) {
     pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
     pcoDBConn = NULL;
   }

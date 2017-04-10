@@ -118,7 +118,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
-  otl_value<uint32_t> m_coTeteringFlag;
+  otl_value<uint32_t> m_coTetheringFlag;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
   SRequestInfo() { m_iCCRequestType = 0; }
@@ -268,7 +268,7 @@ struct avp * pcrf_make_CRI( SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule
 /* функция заполнения avp Usage-Monitoring-Information */
 int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull = true);
 /* запись TETHERING_REPORT в БД */
-void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo );
+void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */
 int set_event_trigger( SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP, int32_t p_iTrigId );
 
