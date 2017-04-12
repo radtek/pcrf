@@ -138,7 +138,7 @@ void pcrf_session_cache_fini (void)
     std::map<std::string, SSessionCache*>::iterator iter = g_pmapSessionCache->begin();
     for ( ; iter != g_pmapSessionCache->end(); ++iter ) {
       if ( NULL != iter->second ) {
-        delete iter->second;
+        delete &(*iter->second);
       }
     }
     delete g_pmapSessionCache;
@@ -300,7 +300,8 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   /* если в кеше уже есть такая сессия обновляем ее значения */
   if (! insertResult.second) {
     if (insertResult.first != g_pmapSessionCache->end()) {
-      insertResult.first->second = p_psoSessionInfo;
+      *(insertResult.first->second) = *p_psoSessionInfo;
+      delete p_psoSessionInfo;
       pcrf_session_cache_update_child(p_strSessionId, p_psoSessionInfo);
       stat_measure( g_psoSessionCacheStat, "updated", &coTM );
     } else {
@@ -325,19 +326,20 @@ clean_and_exit:
   return;
 }
 
-static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
+static inline int pcrf_session_cache_fill_payload( SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen )
 {
-  if (p_uiDataLen + sizeof(*p_psoPayload) <= p_stMaxSize) {
+  if ( p_uiDataLen + sizeof( *p_psoPayload ) <= p_stMaxSize ) {
     /* все в порядке */
   } else {
     /* размера буфера не достаточно */
+    LOG_E( "%s: data length: %d; buffer size; %u; vendor id: %u; avp id: %u", __FUNCTION__, p_uiDataLen, p_stMaxSize, p_uiVendId, p_uiAVPId );
     return EINVAL;
   }
   p_psoPayload->m_uiVendId = p_uiVendId;
   p_psoPayload->m_uiAVPId = p_uiAVPId;
   p_psoPayload->m_uiPadding = 0;
-  p_psoPayload->m_uiPayloadLen = p_uiDataLen + sizeof(*p_psoPayload);
-  memcpy(reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload), p_pvData, p_uiDataLen);
+  p_psoPayload->m_uiPayloadLen = p_uiDataLen + sizeof( *p_psoPayload );
+  memcpy( reinterpret_cast<char*>( p_psoPayload ) + sizeof( *p_psoPayload ), p_pvData, p_uiDataLen );
 
   return 0;
 }
@@ -617,9 +619,8 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
-  pcrf_session_cache_insert_local( p_coSessionId.v, psoTmp, p_pstrParentSessionId );
-
   pcrf_session_cache_cmd2remote( p_coSessionId.v, psoTmp, static_cast<uint16_t>( PCRF_CMD_INSERT_SESSION ), p_pstrParentSessionId );
+  pcrf_session_cache_insert_local( p_coSessionId.v, psoTmp, p_pstrParentSessionId );
 
   return;
 }
@@ -680,7 +681,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
     if ( NULL != iter->second ) {
-      delete iter->second;
+      delete &(*iter->second);
     } else {
       LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
     }
