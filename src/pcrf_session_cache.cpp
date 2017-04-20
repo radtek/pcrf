@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <list>
 
+#include <unordered_map>
+
 #include "utils/log/log.h"
 extern CLog *g_pcoLog;
 
@@ -46,9 +48,9 @@ struct SNode {
 };
 
 /* хранилище для информации о сессиях */
-static std::map<std::string,SSessionCache*> *g_pmapSessionCache;
-static std::map<std::string,std::list<std::string> > *g_pmapParent;
-static std::map<std::string,std::string> *g_pmapChild;
+static std::unordered_map<std::string,SSessionCache*> *g_pmapSessionCache;
+static std::unordered_map<std::string,std::list<std::string> > *g_pmapParent;
+static std::unordered_map<std::string,std::string> *g_pmapChild;
 
 /* для организации низкоприоритетного доступа к хранилищу */
 static pthread_mutex_t g_mutexSCLowPrio;
@@ -91,9 +93,9 @@ int pcrf_session_cache_init ()
   /* инициализация ветки статистики */
   g_psoSessionCacheStat = stat_get_branch ("session cache");
   /* создаем кеш сессий */
-  g_pmapSessionCache = new std::map<std::string,SSessionCache*>;
-  g_pmapParent = new std::map<std::string,std::list<std::string> >;
-  g_pmapChild = new std::map<std::string,std::string>;
+  g_pmapSessionCache = new std::unordered_map<std::string,SSessionCache*>;
+  g_pmapParent = new std::unordered_map<std::string,std::list<std::string> >;
+  g_pmapChild = new std::unordered_map<std::string,std::string>;
   /* загружаем список сессий из БД */
   pthread_t tThread;
   if (0 == pthread_create(&tThread, NULL, pcrf_session_cache_load_session_list, NULL)) {
@@ -135,7 +137,7 @@ void pcrf_session_cache_fini (void)
   CHECK_FCT_DO( pthread_mutex_destroy (&g_mutexSessionCache), /* continue */ );
   /* удаляем кеш */
   if (NULL != g_pmapSessionCache) {
-    std::map<std::string, SSessionCache*>::iterator iter = g_pmapSessionCache->begin();
+    std::unordered_map<std::string, SSessionCache*>::iterator iter = g_pmapSessionCache->begin();
     for ( ; iter != g_pmapSessionCache->end(); ++iter ) {
       if ( NULL != iter->second ) {
         delete &(*iter->second);
@@ -176,9 +178,9 @@ int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiSec, uint32
 
 static inline void pcrf_session_cache_update_child (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo)
 {
-  std::map<std::string,std::list<std::string> >::iterator iterParent = g_pmapParent->find (p_strSessionId);
+  std::unordered_map<std::string,std::list<std::string> >::iterator iterParent = g_pmapParent->find (p_strSessionId);
   std::list<std::string>::iterator iterList;
-  std::map<std::string,SSessionCache*>::iterator iterCache;
+  std::unordered_map<std::string,SSessionCache*>::iterator iterCache;
 
   if (iterParent != g_pmapParent->end()) {
     for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
@@ -201,7 +203,7 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
 
 static inline void pcrf_session_cache_rm_parent2child_link (std::string &p_strSessionId, std::string &p_strParentSessionId)
 {
-  std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
+  std::unordered_map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
   if (iter != g_pmapParent->end()) {
     for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
       if (*iterLst == p_strSessionId) {
@@ -215,7 +217,7 @@ static inline void pcrf_session_cache_rm_parent2child_link (std::string &p_strSe
 
 static inline void pcrf_session_cache_mk_parent2child (std::string &p_strSessionId, std::string &p_strParentSessionId)
 {
-  std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
+  std::unordered_map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
   if (iter != g_pmapParent->end ()) {
     iter->second.push_back (p_strSessionId);
   } else {
@@ -235,7 +237,7 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
   pcrf_session_cache_mk_parent2child (p_strSessionId, *p_pstrParentSessionId);
 
   /* создаем линк к родителю */
-  std::pair<std::map<std::string,std::string>::iterator,bool> pair;
+  std::pair<std::unordered_map<std::string,std::string>::iterator,bool> pair;
   pair = g_pmapChild->insert (std::pair<std::string,std::string> (p_strSessionId, *p_pstrParentSessionId));
   /* если связка уже существует */
   if (! pair.second) {
@@ -249,16 +251,16 @@ static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionI
         pcrf_session_cache_mk_parent2child(p_strSessionId, *p_pstrParentSessionId);
       }
     } else {
-      UTL_LOG_E(*g_pcoLog, "insertion of child2parent link failed: map: size: '%u'; max size: '%u'", g_pmapChild->size(), g_pmapChild->max_size());
+      UTL_LOG_E(*g_pcoLog, "insertion of child2parent link failed: unordered_map: size: '%u'; max size: '%u'", g_pmapChild->size(), g_pmapChild->max_size());
     }
   }
 }
 
 static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
 {
-  std::map<std::string,std::list<std::string> >::iterator iterParent;
+  std::unordered_map<std::string,std::list<std::string> >::iterator iterParent;
   std::list<std::string>::iterator iterList;
-  std::map<std::string,std::string>::iterator iterChild;
+  std::unordered_map<std::string,std::string>::iterator iterChild;
 
   iterParent = g_pmapParent->find (p_strSessionId);
   /* если сессия родительская */
@@ -287,7 +289,7 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
 static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, std::string *p_pstrParentSessionId, bool p_bLowPriority = false)
 {
   CTimeMeasurer coTM;
-  std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
+  std::pair<std::unordered_map<std::string,SSessionCache*>::iterator,bool> insertResult;
 
   if (p_bLowPriority) {
     CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSCLowPrio), goto clean_and_exit);
@@ -305,7 +307,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
       pcrf_session_cache_update_child(p_strSessionId, p_psoSessionInfo);
       stat_measure( g_psoSessionCacheStat, "updated", &coTM );
     } else {
-      UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
+      UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: unordered_map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
   } else {
     stat_measure( g_psoSessionCacheStat, "inserted", &coTM );
@@ -630,7 +632,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   CTimeMeasurer coTM;
 
   int iRetVal = 0;
-  std::map<std::string,SSessionCache*>::iterator iter;
+  std::unordered_map<std::string,SSessionCache*>::iterator iter;
 
   CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), iRetVal = ETIMEDOUT;  goto clean_and_exit );
 
@@ -671,7 +673,7 @@ clean_and_exit:
 static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
-  std::map<std::string,SSessionCache*>::iterator iter;
+  std::unordered_map<std::string,SSessionCache*>::iterator iter;
 
   /* дожадаемся освобождения мьютекса */
   CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
