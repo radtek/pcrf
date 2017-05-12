@@ -68,53 +68,57 @@ void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
 
 int pcrf_client_db_load_session_list( otl_connect *p_pcoDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList )
 {
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
+  LOG_D( "enter: %s", __FUNCTION__ );
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   /* очищаем список перед выполнением */
   p_vectSessionList.clear();
 
-  sql_repeat:
+  if ( 0 == p_soReqQueue.m_strIdentifierType.compare( "subscriber_id" ) ) {
+    if ( 0 == pcrf_session_cache_get_subscriber_session_id( p_soReqQueue.m_strIdentifier, p_vectSessionList ) ) {
+    } else {
+      if ( NULL != p_pcoDBConn ) {
+      } else {
+        return EINVAL;
+      }
 
-  try {
-    otl_nocommit_stream coStream;
+      sql_repeat:
 
-    std::string strSessionId;
-    if ( 0 == p_soReqQueue.m_strIdentifierType.compare( "subscriber_id" ) ) {
-      coStream.open(
+      try {
+        otl_nocommit_stream coStream;
+
+        std::string strSessionId;
+        coStream.open(
         10,
         "select session_id from ps.sessionList where subscriber_id = :subscriber_id/*char[64]*/ and time_end is null",
         *p_pcoDBConn );
-      coStream
-        << p_soReqQueue.m_strIdentifier;
-      while ( !coStream.eof() ) {
         coStream
-          >> strSessionId;
-        p_vectSessionList.push_back( strSessionId );
-      }
+          << p_soReqQueue.m_strIdentifier;
+        while ( 0 == coStream.eof() ) {
+          coStream
+            >> strSessionId;
+          p_vectSessionList.push_back( strSessionId );
+        }
       coStream.close();
-    } else if ( 0 == p_soReqQueue.m_strIdentifierType.compare( "session_id" ) ) {
-      p_vectSessionList.push_back( p_soReqQueue.m_strIdentifier );
-    } else {
-      UTL_LOG_F( *g_pcoLog, "unsupported identifier type: '%s'", p_soReqQueue.m_strIdentifierType.c_str() );
-      iRetVal = -1;
+      } catch ( otl_exception &coExcept ) {
+        UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+        if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+          --iRepeat;
+          goto sql_repeat;
+        }
+        iRetVal = coExcept.code;
+      }
     }
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
+  } else if ( 0 == p_soReqQueue.m_strIdentifierType.compare( "session_id" ) ) {
+    p_vectSessionList.push_back( p_soReqQueue.m_strIdentifier );
+  } else {
+    UTL_LOG_F( *g_pcoLog, "unsupported identifier type: '%s'", p_soReqQueue.m_strIdentifierType.c_str() );
+    iRetVal = -1;
   }
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+  LOG_D( "leave: %s", __FUNCTION__ );
 
   return iRetVal;
 }

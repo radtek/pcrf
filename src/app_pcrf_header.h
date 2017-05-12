@@ -315,8 +315,10 @@ int pcrf_client_rar(
   SMsgDataForDB p_soReqInfo,
   std::vector<SDBAbonRule> *p_pvectActiveRules,
   std::vector<SDBAbonRule> &p_vectAbonRules,
+  std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec );
+  uint32_t p_uiUsec,
+  bool p_bUMIFull );
 
 /* функция для Procera - формирование значения правила о локации пользователя */
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
@@ -336,6 +338,8 @@ void pcrf_session_cache_remove (std::string &p_strSessionId);
 /* передача данных другим нодам */
 struct SSessionCache;
 void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
+/* получение списка session-id по subscriber-id */
+int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId );
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
@@ -384,3 +388,6 @@ void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, con
   SSQLQueueParam soParam( p_eSQLParamType, tParam );
   p_plistParameters->push_back( soParam );
 }
+
+/* отправка запроса на предоставление данных Usage-Monitoring */
+int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::string> *p_plistMonitKey );

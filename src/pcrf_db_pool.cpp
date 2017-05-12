@@ -15,7 +15,7 @@ extern CLog *g_pcoLog;
 /* структура для хранения сведений о пуле */
 struct SDBPoolInfo {
 	otl_connect *m_pcoDBConn;
-	volatile int m_iIsBusy;
+  pthread_mutex_t m_mutexLock;
 	SDBPoolInfo *m_psoNext;
 #ifdef DEBUG
 	CTimeMeasurer *m_pcoTM;
@@ -27,10 +27,6 @@ static SDBPoolInfo *g_psoDBPoolHead = NULL;
 
 /* семафор для организации очереди на получение сободного подключения к БД */
 static sem_t g_tDBPoolSem;
-/* мьютекс для безопасного поиска свободного подключения */
-static pthread_mutex_t g_tMutexMinor;
-static pthread_mutex_t g_tMutex;
-static int g_iMutexInitialized = 0;
 
 /* проверочный запрос по умолчанию */
 static const char *g_pcszDefCheckReq = "select to_char(sysdate,'ddmmyyyy') from dual";
@@ -54,11 +50,6 @@ int pcrf_db_pool_init (void)
 	/* инициализация семафора */
 	CHECK_POSIX_DO (sem_init (&g_tDBPoolSem, 0, iPoolSize), goto fn_error);
 
-	/* инициализация мьютекса поиска свободного подключения */
-	CHECK_POSIX_DO (pthread_mutex_init (&g_tMutexMinor, NULL), goto fn_error);
-	CHECK_POSIX_DO (pthread_mutex_init (&g_tMutex, NULL), goto fn_error);
-
-	g_iMutexInitialized = 1;
 	/* инициализация пула БД */
 	SDBPoolInfo *psoTmp;
 	SDBPoolInfo *psoLast;
@@ -68,6 +59,7 @@ int pcrf_db_pool_init (void)
 			psoTmp = new SDBPoolInfo;
 			/* инициализация структуры */
 			memset (psoTmp, 0, sizeof (*psoTmp));
+      CHECK_POSIX_DO( pthread_mutex_init( &psoTmp->m_mutexLock, NULL ), goto fn_error );
 			/* укладываем всех в список */
 			if (NULL == g_psoDBPoolHead) {
 				g_psoDBPoolHead = psoTmp;
@@ -112,13 +104,15 @@ void pcrf_db_pool_fin (void)
 	while (psoTmp) {
 		psoTmp = g_psoDBPoolHead->m_psoNext;
 		if (g_psoDBPoolHead->m_pcoDBConn) {
-			if (g_psoDBPoolHead->m_iIsBusy) {
-				g_psoDBPoolHead->m_pcoDBConn->cancel ();
-			}
-			if (g_psoDBPoolHead->m_pcoDBConn->connected) {
+      if ( 0 != pthread_mutex_trylock( &g_psoDBPoolHead->m_mutexLock ) ) {
+        g_psoDBPoolHead->m_pcoDBConn->cancel();
+      }
+      if (g_psoDBPoolHead->m_pcoDBConn->connected) {
 				pcrf_db_pool_logoff (g_psoDBPoolHead->m_pcoDBConn);
 			}
-			delete g_psoDBPoolHead->m_pcoDBConn;
+      pthread_mutex_unlock( &g_psoDBPoolHead->m_mutexLock );
+      pthread_mutex_destroy( &g_psoDBPoolHead->m_mutexLock );
+      delete g_psoDBPoolHead->m_pcoDBConn;
 			g_psoDBPoolHead->m_pcoDBConn = NULL;
 #ifdef DEBUG
 			delete g_psoDBPoolHead->m_pcoTM;
@@ -127,12 +121,6 @@ void pcrf_db_pool_fin (void)
 		}
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
-	}
-	/* освобождаем ресурсы, занятые мьютексом */
-	if (g_iMutexInitialized) {
-		pthread_mutex_destroy (&g_tMutex);
-		pthread_mutex_destroy (&g_tMutexMinor);
-		g_iMutexInitialized = 0;
 	}
 }
 
@@ -157,35 +145,20 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
   }
 
   /* начинаем поиск свободного подключения */
-  /* блокируем доступ к участку кода для безопасного поиска */
-  /* ??? для ожидания используем ту же временную метку, чтобы полное ожидание не превышало заданного значения таймаута ??? */
-  if ( 0 != ( iRetVal = pthread_mutex_lock( &g_tMutexMinor ) ) ) {
-    sem_post( &g_tDBPoolSem );
-    UTL_LOG_F( *g_pcoLog, "can not lock minor mutex: error code: '%u'; description: '%s'", iRetVal, strerror( iRetVal ) );
-    return iRetVal;
-  }
-  if ( 0 != ( iRetVal = pthread_mutex_lock( &g_tMutex ) ) ) {
-    pthread_mutex_unlock( &g_tMutexMinor );
-    sem_post( &g_tDBPoolSem );
-    UTL_LOG_F( *g_pcoLog, "can not lock mutex: error code: '%u'; description: '%s'", iRetVal, strerror( iRetVal ) );
-    return iRetVal;
-  }
-
   SDBPoolInfo *psoTmp = g_psoDBPoolHead;
   /* обходим весь пул начиная с головы пока не дойдем до конца */
   while ( psoTmp ) {
     /* если подключения занято идем дальше */
-    if ( psoTmp->m_iIsBusy ) {
-      psoTmp = psoTmp->m_psoNext;
-    } else {
-      /* в противном случае завершаем обход */
+    if ( 0 == pthread_mutex_trylock( &psoTmp->m_mutexLock ) ) {
+      /* нашли свободное подключение */
       break;
+    } else {
+      psoTmp = psoTmp->m_psoNext;
     }
   }
   /* на всякий случай, проверим указатель */
   if ( psoTmp ) {
     /* помечаем подключение как занятое */
-    psoTmp->m_iIsBusy = 1;
     ( *p_ppcoDBConn ) = psoTmp->m_pcoDBConn;
     iRetVal = 0;
 #ifdef DEBUG
@@ -195,12 +168,6 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
   } else {
     iRetVal = -2222;
     UTL_LOG_F( *g_pcoLog, "unexpected error: free db connection not found" );
-  }
-  if ( 0 != ( iFnRes = pthread_mutex_unlock( &g_tMutex ) ) ) {
-    UTL_LOG_F( *g_pcoLog, "can not unlock mutex: error code: '%u'", iFnRes );
-  }
-  if ( 0 != ( iFnRes = pthread_mutex_unlock( &g_tMutexMinor ) ) ) {
-    UTL_LOG_F( *g_pcoLog, "can not unlock minor mutex: error code: '%u'", iFnRes );
   }
 
   return iRetVal;
@@ -219,12 +186,6 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
   /* suppress compiler warining */
   p_pszClient = p_pszClient;
 
-	/* устанавливаем блокировку на участок кода */
-	iRetVal = pthread_mutex_lock (&g_tMutex);
-	/* если возникла ошибка ожидания мьютекса */
-	if (iRetVal) {
-		return iRetVal;
-	}
 	/* обходим весь список */
 	while (psoTmp) {
 		/* если нашли искомое подключение */
@@ -237,14 +198,14 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 	/* на всякий случай проверяем указатель */
 	if (psoTmp) {
 		/* метим подключение как незанятое */
-		if (psoTmp->m_iIsBusy) {
-			char mcTimeInterval[256];
-			psoTmp->m_iIsBusy = 0;
+    if ( 0 == pthread_mutex_unlock( &psoTmp->m_mutexLock ) ) {
 #ifdef DEBUG
-			psoTmp->m_pcoTM->GetDifference(NULL, mcTimeInterval, sizeof(mcTimeInterval));
-      UTL_LOG_D(*g_pcoLog, "released DB connection: '%p'; '%x:%s' in '%s';", psoTmp->m_pcoDBConn, pthread_self(), p_pszClient, mcTimeInterval);
+      char mcTimeInterval[ 256 ];
+
+      psoTmp->m_pcoTM->GetDifference( NULL, mcTimeInterval, sizeof( mcTimeInterval ) );
+      UTL_LOG_D( *g_pcoLog, "released DB connection: '%p'; '%x:%s' in '%s';", psoTmp->m_pcoDBConn, pthread_self(), p_pszClient, mcTimeInterval );
 #endif
-		} else {
+    } else {
 			UTL_LOG_F(*g_pcoLog, "connection is already freely: %p", psoTmp->m_pcoDBConn);
 		}
 		/* освобождаем семафор */
@@ -253,12 +214,6 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 		/* такого быть не должно */
     UTL_LOG_F(*g_pcoLog, "connection is not exists: %p; client: %s", p_pcoDBConn, p_pszClient);
 		iRetVal = -2000;
-	}
-	/* снимаем блокировку участка кода */
-	iRetVal = pthread_mutex_unlock (&g_tMutex);
-	/* если разблокировка мьютекса выполнилась неудачно */
-	if (iRetVal) {
-		/* это плохо, что делать в данном случае? */
 	}
 
 	return iRetVal;

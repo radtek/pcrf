@@ -15,7 +15,7 @@ static pthread_mutex_t g_mutexRuleCache;
 /* объект сбора статистики */
 static SStat *g_psoRuleCahceStat;
 /* флаг продолжения работы */
-static volatile int g_iWork;
+static volatile int g_iRuleCacheWork;
 /* мьютекс, используемый в качестве таймера обновления локального хранилища */
 static pthread_mutex_t g_mutexUpdateTimer;
 /* дескриптор потока обновления локального хранилища */
@@ -36,7 +36,7 @@ int pcrf_rule_cache_init()
   g_pmapRule = new std::map<std::string, SDBAbonRule>;
   CHECK_FCT(pcrf_rule_cache_load_rule_list(g_pmapRule));
   CHECK_FCT(pthread_mutex_init(&g_mutexRuleCache, NULL));
-  g_iWork = 1;
+  g_iRuleCacheWork = 1;
   CHECK_FCT(pthread_mutex_init(&g_mutexUpdateTimer, NULL));
   CHECK_FCT(pthread_mutex_lock(&g_mutexUpdateTimer));
   CHECK_FCT(pthread_create(&g_threadUpdate, NULL, pcrf_rule_cache_update, NULL));
@@ -51,7 +51,7 @@ int pcrf_rule_cache_init()
 
 void pcrf_rule_cache_fini()
 {
-  g_iWork = 0;
+  g_iRuleCacheWork = 0;
   CHECK_FCT_DO(pthread_mutex_unlock(&g_mutexUpdateTimer), /* continue */ );
   if (0 != g_threadUpdate) {
     CHECK_FCT_DO( pthread_mutex_unlock( &g_mutexUpdateTimer ), /* continue */ );
@@ -116,9 +116,9 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         "left join ps.monitoring_key mk on r.monitoring_key_id = mk.id "
         "left join ps.redirection_server rs on r.redirection_server_id = rs.id",
       *pcoDBConn);
-    while (0 == coStream.eof()) {
+    while ( 0 == coStream.eof() && 0 != g_iRuleCacheWork ) {
       {
-        SDBAbonRule soAbonRule(true);
+        SDBAbonRule soAbonRule( true );
         coStream
           >> soAbonRule.m_coRuleName
           >> uiRuleId
@@ -139,13 +139,13 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
           >> soAbonRule.m_coRedirectAddressType
           >> soAbonRule.m_coRedirectServerAddress;
         /* обрабатываем ключ мониторинга */
-        if (0 == coMonitKey.is_null()) {
-          soAbonRule.m_vectMonitKey.push_back(coMonitKey.v);
+        if ( 0 == coMonitKey.is_null() ) {
+          soAbonRule.m_vectMonitKey.push_back( coMonitKey.v );
         }
         /* загружаем Flow-Description правила */
-        CHECK_FCT_DO(load_rule_flows(pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr), /* continue */ );
+        CHECK_FCT_DO( load_rule_flows( pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr ), /* continue */ );
         /* сохраняем правило в локальном хранилище */
-        p_pmapRule->insert(std::pair<std::string,SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
+        p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_coRuleName.v, soAbonRule ) );
       }
     }
     coStream.close();
@@ -319,14 +319,14 @@ static void *pcrf_rule_cache_update(void *p_pvParam)
   int iFnRes;
   std::map<std::string, SDBAbonRule> *pmapNew = NULL, *pmapTmp;
 
-  while (0 != g_iWork) {
+  while (0 != g_iRuleCacheWork) {
     if ( NULL != pmapNew ) {
       delete pmapNew;
       pmapNew = NULL;
     }
     CHECK_FCT_DO( pcrf_make_timespec_timeout( soTimeSpec, 60, 0 ), goto clean_and_exit );
     iFnRes = pthread_mutex_timedlock( &g_mutexUpdateTimer, &soTimeSpec );
-    if (0 == g_iWork) {
+    if (0 == g_iRuleCacheWork) {
       break;
     }
     if (ETIMEDOUT == iFnRes) {

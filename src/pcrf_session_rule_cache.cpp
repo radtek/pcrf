@@ -4,6 +4,8 @@
 
 extern CLog *g_pcoLog;
 
+static volatile bool g_bSessionRuleCacheWork = true;
+
 #include <list>
 
 /* хранилище информации о правилах сессий */
@@ -45,6 +47,7 @@ int pcrf_session_rule_list_init()
 
 void pcrf_session_rule_list_fini()
 {
+  g_bSessionRuleCacheWork = false;
   /* освобождаем занятые ресурсы */
   CHECK_FCT_DO(pthread_mutex_destroy(&g_mutexSessRuleLst), /* continue */);
   CHECK_FCT_DO(pthread_mutex_destroy(&g_mutexSRLLowPrior), /* continue */);
@@ -213,7 +216,7 @@ static void * pcrf_session_rule_load_list(void*)
       1000,
       "select session_id, rule_name from ps.sessionRule where time_end is null",
       *pcoDBConn );
-    while(0 == coStream.eof()) {
+    while ( 0 == coStream.eof() && g_bSessionRuleCacheWork ) {
       coStream
         >> strSessionId
         >> strRuleName;
