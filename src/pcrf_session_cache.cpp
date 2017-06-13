@@ -11,6 +11,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <list>
+#include <set>
 
 #include "utils/log/log.h"
 extern CLog *g_pcoLog;
@@ -51,7 +52,7 @@ static std::map<std::string,std::list<std::string> > *g_pmapParent;
 static std::map<std::string,std::string> *g_pmapChild;
 /* индекс хранилища сессий по subscriber-id */
 /* ключ - subscriber-id, значение - список сессий */
-static std::map<std::string, std::list<std::string> > *g_pmapSubscriberId;
+static std::map<std::string, std::set<std::string> > *g_pmapSubscriberId;
 
 /* блокировка мьютекса */
 static inline int pcrf_session_cache_lock( pthread_mutex_t p_mmutexLock[], int &p_iPrio )
@@ -122,7 +123,7 @@ int pcrf_session_cache_init ()
   g_pmapSessionCache = new std::map<std::string,SSessionCache*>;
   g_pmapParent = new std::map<std::string,std::list<std::string> >;
   g_pmapChild = new std::map<std::string,std::string>;
-  g_pmapSubscriberId = new std::map<std::string, std::list<std::string> >;
+  g_pmapSubscriberId = new std::map<std::string, std::set<std::string> >;
   /* загружаем список сессий из БД */
   pthread_t tThread;
   if (0 == pthread_create(&tThread, NULL, pcrf_session_cache_load_session_list, NULL)) {
@@ -320,7 +321,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 {
   CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
-  std::pair<std::map<std::string, std::list<std::string> >::iterator, bool> insertSubscrIdRes;
+  std::pair<std::map<std::string, std::set<std::string> >::iterator, bool> insertSubscrIdRes;
   int iPrio;
 
   if ( !p_bLowPriority ) {
@@ -349,15 +350,15 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 
   /* создаем индекс по subscriber-id */
   if ( p_psoSessionInfo && 0 == p_psoSessionInfo->m_coSubscriberId.is_null() ) {
-    std::list<std::string> listSessionIdList;
+    std::set<std::string> setSessionIdList;
 
-    listSessionIdList.push_back( p_strSessionId );
-    insertSubscrIdRes = g_pmapSubscriberId->insert( std::pair < std::string, std::list<std::string> >( p_psoSessionInfo->m_coSubscriberId.v, listSessionIdList ) );
+    setSessionIdList.insert( p_strSessionId );
+    insertSubscrIdRes = g_pmapSubscriberId->insert( std::pair < std::string, std::set<std::string> >( p_psoSessionInfo->m_coSubscriberId.v, setSessionIdList ) );
     if ( insertSubscrIdRes.second ) {
       /* если создана новая запись */
     } else {
       /* если запись уже существует */
-      insertSubscrIdRes.first->second.push_back( p_strSessionId );
+      insertSubscrIdRes.first->second.insert( p_strSessionId );
     }
   }
 
@@ -715,17 +716,12 @@ clean_and_exit:
 
 static void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubscriberId, std::string &p_strSessionId )
 {
-  std::map<std::string, std::list<std::string> >::iterator iter = g_pmapSubscriberId->find( p_strSubscriberId );
+  std::map<std::string, std::set<std::string> >::iterator iter = g_pmapSubscriberId->find( p_strSubscriberId );
 
   if ( iter != g_pmapSubscriberId->end() ) {
-    std::list<std::string>::iterator iterSessId = iter->second.begin();
-
-    while ( iterSessId != iter->second.end() ) {
-      if ( *iterSessId == p_strSessionId ) {
-        iterSessId = iter->second.erase( iterSessId );
-      } else {
-        ++iterSessId;
-      }
+    std::set<std::string>::iterator iterSessId = iter->second.find( p_strSessionId );
+    if ( iterSessId != iter->second.end() ) {
+      iter->second.erase( iterSessId );
     }
   }
 }
@@ -1314,14 +1310,14 @@ int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId
 
   int iRetVal = 0;
   int iPrio = 1;
-  std::map<std::string, std::list<std::string> >::iterator iter;
+  std::map<std::string, std::set<std::string> >::iterator iter;
 
   CHECK_FCT_DO( ( iRetVal = pcrf_session_cache_lock( g_mmutexSessionCache, iPrio ) ), goto clean_and_exit );
 
   iter = g_pmapSubscriberId->find( p_strSubscriberId );
 
   if ( iter != g_pmapSubscriberId->end() ) {
-    for ( std::list<std::string>::iterator iterList = iter->second.begin(); iterList != iter->second.end(); ++ iterList ) {
+    for ( std::set<std::string>::iterator iterList = iter->second.begin(); iterList != iter->second.end(); ++ iterList ) {
       p_vectSessionId.push_back( *iterList );
     }
     LOG_D( "session list size: %d", p_vectSessionId.size() );
