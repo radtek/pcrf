@@ -514,14 +514,16 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     }
 #endif
     /* USAGE_REPORT */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_3GPP:
-      case GX_PROCERA:
-        listEventTrigger.push_back( 33 );
-        break;
-      case GX_CISCO_SCE:
-        listEventTrigger.push_back( 26 );
-        break;
+    if ( 0 != soSessInfo.m_psoSessInfo->m_mapMonitInfo.size() ) {
+      switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+        case GX_3GPP:
+        case GX_PROCERA:
+          listEventTrigger.push_back( 33 );
+          break;
+        case GX_CISCO_SCE:
+          listEventTrigger.push_back( 26 );
+          break;
+      }
     }
     /* посылаем RAR-запрос */
     CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0, false ), /* continue */ );

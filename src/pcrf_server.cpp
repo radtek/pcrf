@@ -341,14 +341,17 @@ static int app_pcrf_ccr_cb(
         CHECK_FCT_DO( pcrf_make_subscription_id( ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164 ), /* continue */ );
       }
       /* USAGE_REPORT */
-      switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-        case GX_3GPP:
-        case GX_PROCERA:
-          CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 33 ), /* continue */ );
-          break;
-        case GX_CISCO_SCE:
-          CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 26 ), /* continue */ );
-          break;
+      if ( 0 != soMsgInfoCache.m_psoSessInfo->m_mapMonitInfo.size() ) {
+        /* если заданы ключи мониторинга */
+        switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+          case GX_3GPP:
+          case GX_PROCERA:
+            CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 33 ), /* continue */ );
+            break;
+          case GX_CISCO_SCE:
+            CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 26 ), /* continue */ );
+            break;
+        }
       }
       /* Usage-Monitoring-Information */
       CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
