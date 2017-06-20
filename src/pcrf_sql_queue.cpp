@@ -36,10 +36,10 @@ int pcrf_sql_queue_init()
   LOG_D( "enter: %s", __FUNCTION__ );
 
   /* определяем количество очередей */
-  if ( 2 < g_psoConf->m_iDBPoolSize ) {
-    g_uiQueueCount = 2;
+  g_uiQueueCount = g_psoConf->m_iDBPoolSize / 6;
+  if ( 0 != g_uiQueueCount ) {
   } else {
-    g_uiQueueCount = 1;
+    return EINVAL;
   }
 
   /* выделяем память под массив очередей */
