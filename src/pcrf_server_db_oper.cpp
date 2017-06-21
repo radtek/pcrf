@@ -1221,7 +1221,7 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 	return iRetVal;
 }
 
-void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo )
+void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo )
 {
   std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
   otl_value<std::string> coSubscriber( p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
@@ -1229,7 +1229,7 @@ void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo )
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId,   m_eSQLParamType_StdString);
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI, m_eSQLParamType_StdString );
   pcrf_sql_queue_add_param( plistParam, coSubscriber,                               m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTeteringFlag, m_eSQLParamType_UInt );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTetheringFlag, m_eSQLParamType_UInt );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginHost,  m_eSQLParamType_StdString );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginRealm, m_eSQLParamType_StdString );
 

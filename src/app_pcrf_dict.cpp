@@ -850,7 +850,7 @@ int app_pcrf_dict_init (void)
     CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL));
 	}
 
-	/* Procera-Tetering-Flag */
+	/* Procera-Tethering-Flag */
 	{
 		/* 
 			Unsigned32. 
@@ -858,7 +858,7 @@ int app_pcrf_dict_init (void)
 		dict_avp_data data = { 
 		777,									                /* Code */
 		15397,								                /* Vendor */
-		(char *) "Procera-Tetering-Flag",     /* Name */
+		(char *) "Procera-Tethering-Flag",     /* Name */
 		AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY, /* Fixed flags */
 		AVP_FLAG_VENDOR,						          /* Fixed flag values */
 		AVP_TYPE_UNSIGNED32						        /* base type of data */

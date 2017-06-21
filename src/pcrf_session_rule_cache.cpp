@@ -4,6 +4,8 @@
 
 extern CLog *g_pcoLog;
 
+static volatile bool g_bSessionRuleCacheWork = true;
+
 #include <list>
 
 /* хранилище информации о правилах сессий */
@@ -35,11 +37,17 @@ int pcrf_session_rule_list_init()
   CHECK_FCT(pthread_mutex_init(&g_mutexSRLLowPrior, NULL));
   CHECK_FCT(pthread_mutex_init(&g_mutexSessRuleLst, NULL));
 
+  UTL_LOG_N( *g_pcoLog,
+    "session rule cache is initialized successfully!\n"
+    "\tstorage capasity is '%u' records",
+    g_mapSessRuleLst.max_size() );
+
   return 0;
 }
 
 void pcrf_session_rule_list_fini()
 {
+  g_bSessionRuleCacheWork = false;
   /* освобождаем занятые ресурсы */
   CHECK_FCT_DO(pthread_mutex_destroy(&g_mutexSessRuleLst), /* continue */);
   CHECK_FCT_DO(pthread_mutex_destroy(&g_mutexSRLLowPrior), /* continue */);
@@ -208,7 +216,7 @@ static void * pcrf_session_rule_load_list(void*)
       1000,
       "select session_id, rule_name from ps.sessionRule where time_end is null",
       *pcoDBConn );
-    while(0 == coStream.eof()) {
+    while ( 0 == coStream.eof() && g_bSessionRuleCacheWork ) {
       coStream
         >> strSessionId
         >> strRuleName;
@@ -216,7 +224,7 @@ static void * pcrf_session_rule_load_list(void*)
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
     coStream.close();
-    UTL_LOG_N( *g_pcoLog, "session rule list is initialized successfully in '%s'; rule session count: '%u'", mcTime, g_mapSessRuleLst.size() );
+    UTL_LOG_N( *g_pcoLog, "session rule list is initialized successfully in '%s'; session rule count: '%u'", mcTime, g_mapSessRuleLst.size() );
   } catch (otl_exception &coExcept) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {

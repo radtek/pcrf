@@ -145,8 +145,10 @@ int pcrf_client_rar (
 	SMsgDataForDB p_soReqInfo,
 	std::vector<SDBAbonRule> *p_pvectActiveRules,
 	std::vector<SDBAbonRule> &p_vectAbonRules,
+  std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec)
+  uint32_t p_uiUsec,
+  bool p_bUMIFull )
 {
 	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
@@ -230,29 +232,13 @@ int pcrf_client_rar (
 	}
 
 	/* Event-Trigger */
-	/* RAT_CHANGE */
-  if ( GX_3GPP == p_soReqInfo.m_psoSessInfo->m_uiPeerDialect ) {
-    CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 2 ), /* continue */ );
-  }
-	/* USER_LOCATION_CHANGE */
-#if 0 /* PCRF-113 15.12.2016 */
-  if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-    CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
-  }
-#endif
-
-  /* USAGE_REPORT */
-  switch ( p_soReqInfo.m_psoSessInfo->m_uiPeerDialect ) {
-    case GX_3GPP:
-    case GX_PROCERA:
-      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 33 ), /* continue */ );
-      break;
-    case GX_CISCO_SCE:
-      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, 26 ), /* continue */ );
-      break;
+  if ( NULL != p_plistTrigger ) {
+    for ( std::list<int32_t>::iterator iter = p_plistTrigger->begin(); iter != p_plistTrigger->end(); ++iter ) {
+      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, *iter ), /* continue */ );
+    }
   }
   /* Usage-Monitoring-Information */
-	CHECK_POSIX_DO(pcrf_make_UMI(psoReq, *(p_soReqInfo.m_psoSessInfo), false), /* continue */);
+  CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_soReqInfo.m_psoSessInfo ), p_bUMIFull ), /* continue */ );
 
 	/* Charging-Rule-Remove */
   if (NULL != p_pvectActiveRules) {
@@ -303,7 +289,7 @@ int pcrf_client_rar (
   } else {
     timespec soTimeSpec;
 
-    CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, p_uiUsec)), goto out);
+    CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, 0, p_uiUsec)), goto out);
     CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_raa, psoMsgStFnParam, pcrf_client_req_expire, &soTimeSpec)), goto out);
   }
 
@@ -449,80 +435,101 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
 {
   int iRetVal = 0;
   std::vector<std::string> vectSessionList;
+  std::list<int32_t> listEventTrigger;
 
   /* загружаем из БД список сессий абонента */
   CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
 
   /* обходим все сессии абонента */
   for ( std::vector<std::string>::iterator iterSess = vectSessionList.begin(); iterSess != vectSessionList.end(); ++iterSess ) {
-    {
-      /* сведения о сессии */
-      SMsgDataForDB soSessInfo;
-      /* список правил профиля абонента */
-      std::vector<SDBAbonRule> vectAbonRules;
-      /* список активных правил абонента */
-      std::vector<SDBAbonRule> vectActive;
+    listEventTrigger.clear();
+    /* сведения о сессии */
+    SMsgDataForDB soSessInfo;
+    /* список правил профиля абонента */
+    std::vector<SDBAbonRule> vectAbonRules;
+    /* список активных правил абонента */
+    std::vector<SDBAbonRule> vectActive;
 
-      /* инициализация структуры хранения данных сообщения */
-      CHECK_FCT_DO( pcrf_server_DBstruct_init( &soSessInfo ), goto clear_and_continue );
-      /* задаем идентификтор сессии */
-      soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
-      /* загружаем из БД информацию о сессии абонента */
-      {
-        /* ищем информацию о базовой сессии в кеше */
-        if ( 0 != pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v ) ) {
-          goto clear_and_continue;
+    /* инициализация структуры хранения данных сообщения */
+    CHECK_FCT_DO( pcrf_server_DBstruct_init( &soSessInfo ), goto clear_and_continue );
+    /* задаем идентификтор сессии */
+    soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
+    /* загружаем из БД информацию о сессии абонента */
+    {
+      /* ищем информацию о базовой сессии в кеше */
+      if ( 0 != pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v ) ) {
+        goto clear_and_continue;
+      }
+      /* необходимо определить диалект хоста */
+      CHECK_POSIX_DO( pcrf_peer_dialect( *soSessInfo.m_psoSessInfo ), goto clear_and_continue );
+      /* для Procera нам понадобится дополнительная информация */
+      if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+        SSessionInfo soUGWSessInfo;
+        std::string strUGWSessionId;
+        if ( 0 == pcrf_server_find_ugw_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
+          strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
+          /* ищем информацию о базовой сессии в кеше */
+          pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, strUGWSessionId );
         }
-        /* необходимо определить диалект хоста */
-        CHECK_POSIX_DO( pcrf_peer_dialect( *soSessInfo.m_psoSessInfo ), goto clear_and_continue );
-        /* для Procera нам понадобится дополнительная информация */
-        if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-          SSessionInfo soUGWSessInfo;
-          std::string strUGWSessionId;
-          if ( 0 == pcrf_server_find_ugw_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
-            strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
-            /* ищем информацию о базовой сессии в кеше */
-            pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, strUGWSessionId );
-          }
-        }
       }
-      /* проверяем, подключен ли пир к freeDiameterd */
-      if ( !pcrf_peer_is_connected( *soSessInfo.m_psoSessInfo ) ) {
-        iRetVal = ENOTCONN;
-        UTL_LOG_E( *g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str(), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str() );
-        goto clear_and_continue;
-      }
-      /* если в поле action задано значение abort_session */
-      if ( !p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare( "abort_session" ) ) {
-        CHECK_POSIX_DO( pcrf_client_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
-        goto clear_and_continue;
-      }
-      /* загружаем из БД правила абонента */
-      CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( p_pcoDBConn, soSessInfo, vectAbonRules ), );
-      /* если у абонента нет активных политик завершаем его сессию */
-      if ( 0 == vectAbonRules.size() ) {
-        CHECK_POSIX_DO( pcrf_client_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
-        goto clear_and_continue;
-      }
-      /* загружаем список активных правил */
-      CHECK_POSIX_DO( pcrf_server_db_load_active_rules( p_pcoDBConn, soSessInfo, vectActive ), /* continue */ );
-      /* формируем список неактуальных правил */
-      CHECK_POSIX_DO( pcrf_server_select_notrelevant_active( vectAbonRules, vectActive ), );
-      /* загружаем информацию о мониторинге */
-      CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
-      /* проверяем наличие изменений в политиках */
-      if ( !pcrf_client_is_any_changes( vectActive, vectAbonRules ) ) {
-        UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
-        goto clear_and_continue;
-      }
-      /* посылаем RAR-запрос */
-      CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, NULL, 0 ), /* continue */ );
-      /* освобождаем ресуры*/
-      clear_and_continue:
-      pcrf_server_DBStruct_cleanup( &soSessInfo );
-      if ( iRetVal )
+    }
+    /* проверяем, подключен ли пир к freeDiameterd */
+    if ( !pcrf_peer_is_connected( *soSessInfo.m_psoSessInfo ) ) {
+      iRetVal = ENOTCONN;
+      UTL_LOG_E( *g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str(), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str() );
+      goto clear_and_continue;
+    }
+    /* если в поле action задано значение abort_session */
+    if ( !p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare( "abort_session" ) ) {
+      CHECK_POSIX_DO( pcrf_client_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
+      goto clear_and_continue;
+    }
+    /* загружаем из БД правила абонента */
+    CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( p_pcoDBConn, soSessInfo, vectAbonRules ), );
+    /* если у абонента нет активных политик завершаем его сессию */
+    if ( 0 == vectAbonRules.size() ) {
+      CHECK_POSIX_DO( pcrf_client_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
+      goto clear_and_continue;
+    }
+    /* загружаем список активных правил */
+    CHECK_POSIX_DO( pcrf_server_db_load_active_rules( p_pcoDBConn, soSessInfo, vectActive ), /* continue */ );
+    /* формируем список неактуальных правил */
+    CHECK_POSIX_DO( pcrf_server_select_notrelevant_active( vectAbonRules, vectActive ), );
+    /* загружаем информацию о мониторинге */
+    CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
+    /* проверяем наличие изменений в политиках */
+    if ( !pcrf_client_is_any_changes( vectActive, vectAbonRules ) ) {
+      UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
+      goto clear_and_continue;
+    }
+    /* готовим список триггеров */
+    /* RAT_CHANGE */
+    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      listEventTrigger.push_back( 2 );
+    }
+    /* USER_LOCATION_CHANGE */
+#if 0 /* PCRF-113 15.12.2016 */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      listEvenTrigger.push_back( 13 );
+    }
+#endif
+    /* USAGE_REPORT */
+    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      case GX_3GPP:
+      case GX_PROCERA:
+        listEventTrigger.push_back( 33 );
+        break;
+      case GX_CISCO_SCE:
+        listEventTrigger.push_back( 26 );
         break;
     }
+    /* посылаем RAR-запрос */
+    CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0, false ), /* continue */ );
+    /* освобождаем ресуры*/
+    clear_and_continue:
+    pcrf_server_DBStruct_cleanup( &soSessInfo );
+    if ( iRetVal )
+      break;
   }
 
   return iRetVal;
@@ -539,7 +546,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
   p_pvArg = p_pvArg;
 
   /* задаем время завершения ожидания семафора */
-  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
+  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
   /* очередь сессий на обновление */
   std::vector<SRefQueue> vectQueue;
   std::vector<SRefQueue>::iterator iter;
@@ -563,7 +570,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     }
 
     /* задаем время следующего запуска */
-    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ) * USEC_PER_SEC );
+    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
     /* запрашиваем подключение к БД */
     if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
@@ -598,7 +605,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     clear_and_continue:
     vectQueue.clear();
     /* если мы получили в распоряжение подключение к БД его надо освободить */
-    if ( pcoDBConn ) {
+    if ( NULL != pcoDBConn ) {
       pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
       pcoDBConn = NULL;
     }
@@ -618,7 +625,9 @@ static void sig_oper(void)
 {
   LOG_D("enter into '%s'", __FUNCTION__);
 
-  pcrf_server_db_insert_refqueue( "subscriber_id", "101957192/627511524@IRBiS", NULL, NULL );
+  SRefQueue soRefreshQueue = { "", "101957192/627511524@IRBiS", "subscriber_id", otl_value<std::string>( "" ) };
+
+  pcrf_client_operate_refqueue_record( NULL, soRefreshQueue );
 
   LOG_D("leave '%s'", __FUNCTION__);
 }

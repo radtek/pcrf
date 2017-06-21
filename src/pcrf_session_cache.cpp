@@ -11,6 +11,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <list>
+#include <set>
 
 #include "utils/log/log.h"
 extern CLog *g_pcoLog;
@@ -49,21 +50,49 @@ struct SNode {
 static std::map<std::string,SSessionCache*> *g_pmapSessionCache;
 static std::map<std::string,std::list<std::string> > *g_pmapParent;
 static std::map<std::string,std::string> *g_pmapChild;
+/* индекс хранилища сессий по subscriber-id */
+/* ключ - subscriber-id, значение - список сессий */
+static std::map<std::string, std::set<std::string> > *g_pmapSubscriberId;
 
-/* для организации низкоприоритетного доступа к хранилищу */
-static pthread_mutex_t g_mutexSCLowPrio;
-/* мьютекс для организации доступа к хранилищу */
-static pthread_mutex_t g_mutexSessionCache;
+/* блокировка мьютекса */
+static inline int pcrf_session_cache_lock( pthread_mutex_t p_mmutexLock[], int &p_iPrio )
+{
+  int i;
+
+  i = p_iPrio;
+  --i;
+  p_iPrio = 0;
+  for ( ; i >= 0; --i ) {
+    CHECK_FCT( pthread_mutex_lock( &p_mmutexLock[i] ) );
+    ++p_iPrio;
+  }
+
+  ASSERT( i == -1 );
+
+  return 0;
+}
+/* разблокировка мьютекса */
+static inline void pcrf_session_cache_ulck( pthread_mutex_t p_mmutexUlck[], int p_iPrio )
+{
+  int i = 0;
+
+  for ( ; i < p_iPrio; ++i ) {
+    CHECK_FCT_DO( pthread_mutex_unlock( &p_mmutexUlck[ i ] ), break );
+  }
+
+  ASSERT( i == p_iPrio );
+}
+/* массив мьютексов для организации доступа к хранилищу с приоритетами */
+static pthread_mutex_t g_mmutexSessionCache[3];
 
 /* список нод */
 static std::vector<SNode> *g_pvectNodeList;
 
 /* поток для обработки входящих команд */
 static pthread_t    g_thrdSessionCacheReceiver;
-static volatile bool g_lets_work = true;
+static volatile bool g_bSessionListWork = true;
 static std::string  g_strLocalIPAddress = "0.0.0.0";
 static uint16_t     g_uiLocalPort = 7777;
-static volatile bool g_module_is_initialized = false;
 static void * pcrf_session_cache_receiver (void *p_vParam);
 #define POLL_TIMEOUT 100
 
@@ -94,6 +123,7 @@ int pcrf_session_cache_init ()
   g_pmapSessionCache = new std::map<std::string,SSessionCache*>;
   g_pmapParent = new std::map<std::string,std::list<std::string> >;
   g_pmapChild = new std::map<std::string,std::string>;
+  g_pmapSubscriberId = new std::map<std::string, std::set<std::string> >;
   /* загружаем список сессий из БД */
   pthread_t tThread;
   if (0 == pthread_create(&tThread, NULL, pcrf_session_cache_load_session_list, NULL)) {
@@ -101,17 +131,23 @@ int pcrf_session_cache_init ()
   }
   /* создаем список нод */
   g_pvectNodeList = new std::vector<SNode>;
-  /* создаем семафор */
-  CHECK_FCT(pthread_mutex_init (&g_mutexSCLowPrio, NULL));
-  CHECK_FCT( pthread_mutex_init (&g_mutexSessionCache, NULL) );
+  /* создаем мьютекс */
+  for ( int i = 0; i < sizeof( g_mmutexSessionCache ) / sizeof( *g_mmutexSessionCache ); ++i ) {
+    CHECK_FCT( pthread_mutex_init( &g_mmutexSessionCache[i], NULL ) );
+  }
+  /* загрузка списка нод */
+  CHECK_FCT( pcrf_session_cache_init_node() );
   /* создаем поток для обработки входящих команд */
   CHECK_FCT( pthread_create (&g_thrdSessionCacheReceiver, NULL, pcrf_session_cache_receiver, NULL) );
-  /* загрузка списка нод */
-  CHECK_FCT( pcrf_session_cache_init_node () );
 
-  g_module_is_initialized = true;
-
-  UTL_LOG_N(*g_pcoLog, "session cache is initialized successfully");
+  UTL_LOG_N( *g_pcoLog,
+    "session cache is initialized successfully!\n"
+    "\tsession storage capasity is '%u' records\n"
+    "\tparent link storage capasity is '%u' records\n"
+    "\tchild link storage capasity is '%u' records",
+    g_pmapSessionCache->max_size(),
+    g_pmapParent->max_size(),
+    g_pmapChild->max_size() );
 
   return 0;
 }
@@ -119,19 +155,20 @@ int pcrf_session_cache_init ()
 void pcrf_session_cache_fini (void)
 {
   /* останавливаем поток обработки команд */
-  g_lets_work = false;
+  g_bSessionListWork = false;
   if (0 != g_thrdSessionCacheReceiver) {
     CHECK_FCT_DO(pthread_join(g_thrdSessionCacheReceiver, NULL), /* continue */ );
   }
-  /* уничтожаем семафор */
-  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutexSCLowPrio), /* continue */ );
-  CHECK_FCT_DO( pthread_mutex_destroy (&g_mutexSessionCache), /* continue */ );
+  /* уничтожаем мьютекс */
+  for ( int i = 0; i < sizeof( g_mmutexSessionCache ) / sizeof( *g_mmutexSessionCache ); ++i ) {
+    CHECK_FCT_DO( pthread_mutex_destroy( &g_mmutexSessionCache[i] ), /* continue */ );
+  }
   /* удаляем кеш */
   if (NULL != g_pmapSessionCache) {
     std::map<std::string, SSessionCache*>::iterator iter = g_pmapSessionCache->begin();
     for ( ; iter != g_pmapSessionCache->end(); ++iter ) {
       if ( NULL != iter->second ) {
-        delete iter->second;
+        delete &(*iter->second);
       }
     }
     delete g_pmapSessionCache;
@@ -142,6 +179,9 @@ void pcrf_session_cache_fini (void)
   if (NULL != g_pmapChild) {
     delete g_pmapChild;
   }
+  if ( NULL != g_pmapSubscriberId ) {
+    delete g_pmapSubscriberId;
+  }
   /* освобождаем ресурсы нод */
   pcrf_session_cache_fini_node ();
   /* удаляем список нод */
@@ -150,12 +190,13 @@ void pcrf_session_cache_fini (void)
   }
 }
 
-int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiAddUSec)
+int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_t p_uiAddUSec)
 {
   timeval soTimeVal;
 
   CHECK_FCT( gettimeofday( &soTimeVal, NULL ) );
   p_soTimeSpec.tv_sec = soTimeVal.tv_sec;
+  p_soTimeSpec.tv_sec += p_uiSec;
   if ((soTimeVal.tv_usec + p_uiAddUSec) < USEC_PER_SEC) {
     p_soTimeSpec.tv_nsec = (soTimeVal.tv_usec + p_uiAddUSec) * NSEC_PER_USEC;
   } else {
@@ -280,18 +321,23 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 {
   CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
+  std::pair<std::map<std::string, std::set<std::string> >::iterator, bool> insertSubscrIdRes;
+  int iPrio;
 
-  if (p_bLowPriority) {
-    CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSCLowPrio), goto clean_and_exit);
+  if ( !p_bLowPriority ) {
+    iPrio = 1;
+  } else {
+    iPrio = 3;
   }
 
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto unlock_low_priority );
+  CHECK_FCT_DO( pcrf_session_cache_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache*> (p_strSessionId, p_psoSessionInfo));
   /* если в кеше уже есть такая сессия обновляем ее значения */
   if (! insertResult.second) {
     if (insertResult.first != g_pmapSessionCache->end()) {
+      delete &( *( insertResult.first->second ) );
       insertResult.first->second = p_psoSessionInfo;
       pcrf_session_cache_update_child(p_strSessionId, p_psoSessionInfo);
       stat_measure( g_psoSessionCacheStat, "updated", &coTM );
@@ -302,34 +348,43 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
     stat_measure( g_psoSessionCacheStat, "inserted", &coTM );
   }
 
+  /* создаем индекс по subscriber-id */
+  if ( p_psoSessionInfo && 0 == p_psoSessionInfo->m_coSubscriberId.is_null() ) {
+    std::set<std::string> setSessionIdList;
+
+    setSessionIdList.insert( p_strSessionId );
+    insertSubscrIdRes = g_pmapSubscriberId->insert( std::pair < std::string, std::set<std::string> >( p_psoSessionInfo->m_coSubscriberId.v, setSessionIdList ) );
+    if ( insertSubscrIdRes.second ) {
+      /* если создана новая запись */
+    } else {
+      /* если запись уже существует */
+      insertSubscrIdRes.first->second.insert( p_strSessionId );
+    }
+  }
+
   /* сохраняем связку между сессиями */
   pcrf_session_cache_mk_link2parent(p_strSessionId, p_pstrParentSessionId);
 
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
-
-unlock_low_priority:
-  if (p_bLowPriority) {
-    CHECK_FCT_DO(pthread_mutex_unlock(&g_mutexSCLowPrio), /* continue */);
-  }
-
-clean_and_exit:
+  clean_and_exit:
+  pcrf_session_cache_ulck( g_mmutexSessionCache, iPrio );
 
   return;
 }
 
-static inline int pcrf_session_cache_fill_payload (SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen)
+static inline int pcrf_session_cache_fill_payload( SPayloadHdr *p_psoPayload, size_t p_stMaxSize, uint16_t p_uiVendId, uint16_t p_uiAVPId, const void *p_pvData, uint16_t p_uiDataLen )
 {
-  if (p_uiDataLen + sizeof(*p_psoPayload) <= p_stMaxSize) {
+  if ( p_uiDataLen + sizeof( *p_psoPayload ) <= p_stMaxSize ) {
     /* все в порядке */
   } else {
     /* размера буфера не достаточно */
+    LOG_E( "%s: data length: %d; buffer size; %u; vendor id: %u; avp id: %u", __FUNCTION__, p_uiDataLen, p_stMaxSize, p_uiVendId, p_uiAVPId );
     return EINVAL;
   }
   p_psoPayload->m_uiVendId = p_uiVendId;
   p_psoPayload->m_uiAVPId = p_uiAVPId;
   p_psoPayload->m_uiPadding = 0;
-  p_psoPayload->m_uiPayloadLen = p_uiDataLen + sizeof(*p_psoPayload);
-  memcpy(reinterpret_cast<char*>(p_psoPayload) + sizeof(*p_psoPayload), p_pvData, p_uiDataLen);
+  p_psoPayload->m_uiPayloadLen = p_uiDataLen + sizeof( *p_psoPayload );
+  memcpy( reinterpret_cast<char*>( p_psoPayload ) + sizeof( *p_psoPayload ), p_pvData, p_uiDataLen );
 
   return 0;
 }
@@ -609,9 +664,8 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
-  pcrf_session_cache_insert_local( p_coSessionId.v, psoTmp, p_pstrParentSessionId );
-
   pcrf_session_cache_cmd2remote( p_coSessionId.v, psoTmp, static_cast<uint16_t>( PCRF_CMD_INSERT_SESSION ), p_pstrParentSessionId );
+  pcrf_session_cache_insert_local( p_coSessionId.v, psoTmp, p_pstrParentSessionId );
 
   return;
 }
@@ -621,9 +675,10 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   CTimeMeasurer coTM;
 
   int iRetVal = 0;
+  int iPrio = 2;
   std::map<std::string,SSessionCache*>::iterator iter;
 
-  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), iRetVal = ETIMEDOUT;  goto clean_and_exit );
+  CHECK_FCT_DO( pcrf_session_cache_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
@@ -651,28 +706,44 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     stat_measure( g_psoSessionCacheStat, "miss", &coTM );
     iRetVal = EINVAL;
   }
-  /* освобождаем мьютекс */
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
 
 clean_and_exit:
+  /* освобождаем мьютекс */
+  pcrf_session_cache_ulck( g_mmutexSessionCache, iPrio );
 
   return iRetVal;
+}
+
+static void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubscriberId, std::string &p_strSessionId )
+{
+  std::map<std::string, std::set<std::string> >::iterator iter = g_pmapSubscriberId->find( p_strSubscriberId );
+
+  if ( iter != g_pmapSubscriberId->end() ) {
+    std::set<std::string>::iterator iterSessId = iter->second.find( p_strSessionId );
+    if ( iterSessId != iter->second.end() ) {
+      iter->second.erase( iterSessId );
+    }
+  }
 }
 
 static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
   std::map<std::string,SSessionCache*>::iterator iter;
+  int iPrio = 3;
 
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
+  CHECK_FCT_DO( pcrf_session_cache_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
     if ( NULL != iter->second ) {
-      delete iter->second;
+      if ( 0 == iter->second->m_coSubscriberId.is_null() ) {
+        pcrf_session_cache_rm_subscriber_session_id( iter->second->m_coSubscriberId.v, p_strSessionId );
+      }
+      delete &(*iter->second);
     } else {
       LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
     }
@@ -680,10 +751,9 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
     stat_measure( g_psoSessionCacheStat, "removed", &coTM );
   }
 
-  /* освобождаем семафор */
-  CHECK_FCT_DO( pthread_mutex_unlock (&g_mutexSessionCache), /* continue */ );
-
 clean_and_exit:
+  /* освобождаем мьютекс */
+  pcrf_session_cache_ulck( g_mmutexSessionCache, iPrio );
 
   return;
 }
@@ -698,9 +768,35 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
 
-static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, const ssize_t p_stMsgLen )
+void pcrf_session_cache_ps_reply( int p_iSock, sockaddr_in *p_psoAddr, uint16_t p_uiReqType, uint32_t p_uiReqNum, int p_iResCode )
 {
+  LOG_D( "enter: %s", __FUNCTION__ );
+
+  CPSPacket coPSPack;
+  uint8_t muiBuf[ 256 ];
+  int iReqLen;
+  int iFnRes;
+
+  CHECK_FCT_DO( coPSPack.Init( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), p_uiReqNum, p_uiReqType ), return );
+  iReqLen = coPSPack.AddAttr( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), PS_RESULT, &p_iResCode, sizeof( p_iResCode ) );
+  if ( 0 < iReqLen ) {
+    iFnRes = sendto( p_iSock, muiBuf, iReqLen, 0, reinterpret_cast<sockaddr*>( p_psoAddr ), sizeof( *p_psoAddr ) );
+    if ( 0 < iFnRes ) {
+      LOG_D( "%s: sendto: success: %d bytes", __FUNCTION__, iFnRes );
+    } else {
+      LOG_E( "%s: sendto: error: %d", __FUNCTION__, errno );
+    }
+  }
+
+  LOG_D( "leave: %s", __FUNCTION__ );
+}
+
+static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, const ssize_t p_stMsgLen, int p_iSock, sockaddr_in *p_psoAddr )
+{
+  LOG_D( "enter: %s", __FUNCTION__ );
+
   int iRetVal = 0;
+  int iFnRes;
   CPSPacket coPSPack;
   uint32_t uiPackNum;
   uint16_t uiReqType;
@@ -714,12 +810,14 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   SSessionCache *psoCache = new SSessionCache;
   std::string *pstrParentSessionId = NULL;
   std::string *pstrRuleName = NULL;
+  std::list<std::string> *plistMonitKey = NULL;
 
   /* парсинг запроса */
-  CHECK_FCT( coPSPack.Parse( reinterpret_cast<const SPSRequest*>( p_pmucBuf ), static_cast<size_t>( p_stMsgLen ), uiPackNum, uiReqType, uiPackLen, mmap ) );
+  CHECK_FCT_DO( coPSPack.Parse( reinterpret_cast<const SPSRequest*>( p_pmucBuf ), static_cast<size_t>( p_stMsgLen ), uiPackNum, uiReqType, uiPackLen, mmap ), goto clean_and_exit );
 
   /* обходим все атрибуты запроса */
   for ( iter = mmap.begin(); iter != mmap.end(); ++iter ) {
+    LOG_D( "ps attr id: %#x; ps data len: %u", iter->first, iter->second.m_usDataLen );
     /* проверяем размр буфера */
     if ( stBufSize < iter->second.m_usDataLen ) {
       /* выделяем дополнительную память с запасом на будущее */
@@ -729,110 +827,134 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
       }
       pmucBuf = reinterpret_cast<uint8_t*>( malloc( stBufSize ) );
     }
-    psoPayload = reinterpret_cast<SPayloadHdr*>( pmucBuf );
-    memcpy( psoPayload, iter->second.m_pvData, iter->second.m_usDataLen );
-    switch ( psoPayload->m_uiVendId ) {
-      case 0:     /* Dimeter */
-        switch ( psoPayload->m_uiAVPId ) {
-          case 8:   /* Framed-IP-Address */
-            psoCache->m_coFramedIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coFramedIPAddr.set_non_null();
-            break;  /* Framed-IP-Address */
-          case 30:  /* Called-Station-Id */
-            psoCache->m_coCalledStationId.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coCalledStationId.set_non_null();
-            break;  /* Called-Station-Id */
-          case 263: /* Session-Id */
-            strSessionId.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            break;  /* Session-Id */
-          case 264: /* Origin-Host */
-            psoCache->m_coOriginHost.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coOriginHost.set_non_null();
-            break;  /* Origin-Host */
-          case 296: /* Origin-Realm */
-            psoCache->m_coOriginRealm.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coOriginRealm.set_non_null();
-            break;  /* Origin-Realm */
-          default:
-            UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+    switch ( iter->first ) {
+      case PS_SUBSCR: /* Subscriber-Id */
+        psoCache->m_coSubscriberId.v.insert( 0, reinterpret_cast<char*>( iter->second.m_pvData ), static_cast<size_t>( iter->second.m_usDataLen ) );
+        psoCache->m_coSubscriberId.set_non_null();
+        break;        /* Subscriber-Id */
+      case 1066:  /* Monitoring-Key */
+        if ( NULL == plistMonitKey ) {
+          plistMonitKey = new std::list<std::string>;
         }
-        break;    /* Diameter */
-      case 10415: /* 3GPP */
-        switch ( psoPayload->m_uiAVPId ) {
-          case 6:     /* SGSN-IP-Address */
-            psoCache->m_coSGSNIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coSGSNIPAddr.set_non_null();
-            break;    /* SGSN-IP-Address */
-          case 1027:  /* IP-CAN-Type */
-            if ( sizeof( psoCache->m_iIPCANType ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
-              psoCache->m_iIPCANType = *reinterpret_cast<int32_t*>( reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ) );
-            } else {
-              /* invalid data size */
-            }
-            break;    /* IP-CAN-Type */
-          case 1032:  /* RAT-Type */
-            if ( sizeof( psoCache->m_iRATType ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
-              psoCache->m_iRATType = *reinterpret_cast<int32_t*>( reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ) );
-            } else {
-              /* invalid data size */
-            }
-            break;    /* RAT-Type */
-          default:
-            UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
-        }
-        break;    /* 3GPP */
-      case 65535: /* Tenet */
-        switch ( psoPayload->m_uiAVPId ) {
-          case PS_SUBSCR: /* Subscriber-Id */
-            psoCache->m_coSubscriberId.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coSubscriberId.set_non_null();
-            break;        /* Subscriber-Id */
-          case PCRF_ATTR_CGI: /* CGI */
-            psoCache->m_coCGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coCGI.set_non_null();
-            break;            /* CGI */
-          case PCRF_ATTR_ECGI:  /* ECGI */
-            psoCache->m_coECGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coECGI.set_non_null();
-            break;              /* ECGI */
-          case PCRF_ATTR_IMEI:  /* IMEI-SV */
-            psoCache->m_coIMEISV.v.insert( 0, reinterpret_cast<const char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coIMEISV.set_non_null();
-            break;              /* IMEI-SV */
-          case PCRF_ATTR_IMSI:  /* End-User-IMSI */
-            psoCache->m_coEndUserIMSI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coEndUserIMSI.set_non_null();
-            break;              /* End-User-IMSI */
-          case PCRF_ATTR_PSES:  /* Parent-Session-Id */
-            pstrParentSessionId = new std::string;
-            pstrParentSessionId->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            break;              /* Parent-Session-Id */
-          case PCRF_ATTR_IPCANTYPE: /* IP-CAN-Type */
-            psoCache->m_coIPCANType.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coIPCANType.set_non_null();
-            break;                  /* IP-CAN-Type */
-          case PCRF_ATTR_RATTYPE: /* RAT-Type */
-            psoCache->m_coRATType.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            psoCache->m_coRATType.set_non_null();
-            break;                  /* RAT-Type */
-          case PCRF_ATTR_RULNM: /* Rule-Name */
-            pstrRuleName = new std::string;
-            pstrRuleName->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-            break;                  /* Rule-Name */
-          default:
-            UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
-        }
-        break;    /* Tenet */
-      default:
-        UTL_LOG_N( *g_pcoLog, "unsupported vendor: '%u'", psoPayload->m_uiVendId );
-    }
-  }
+        {
+          std::string strMonitKey;
 
-  /* если Session-Id не задан прерываем обработку */
-  if ( 0 != strSessionId.length() ) {
-  } else {
-    UTL_LOG_E( *g_pcoLog, "session id not defined" );
-    goto clean_and_exit;
+          strMonitKey.insert( 0, reinterpret_cast<char*>( iter->second.m_pvData ), static_cast<size_t>( iter->second.m_usDataLen ) );
+          plistMonitKey->push_back( strMonitKey );
+        }
+        break;    /* Monitoring-Key */
+      case PCRF_ATTR_AVP:
+        psoPayload = reinterpret_cast<SPayloadHdr*>( pmucBuf );
+        LOG_D( "vendor id: %u; avp id: %u; attr len: %u", psoPayload->m_uiVendId, psoPayload->m_uiAVPId, psoPayload->m_uiPayloadLen );
+        memcpy( psoPayload, iter->second.m_pvData, iter->second.m_usDataLen );
+        switch ( psoPayload->m_uiVendId ) {
+          case 0:     /* Dimeter */
+            switch ( psoPayload->m_uiAVPId ) {
+              case 8:   /* Framed-IP-Address */
+                psoCache->m_coFramedIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coFramedIPAddr.set_non_null();
+                break;  /* Framed-IP-Address */
+              case 30:  /* Called-Station-Id */
+                psoCache->m_coCalledStationId.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coCalledStationId.set_non_null();
+                break;  /* Called-Station-Id */
+              case 263: /* Session-Id */
+                strSessionId.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                break;  /* Session-Id */
+              case 264: /* Origin-Host */
+                psoCache->m_coOriginHost.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coOriginHost.set_non_null();
+                break;  /* Origin-Host */
+              case 296: /* Origin-Realm */
+                psoCache->m_coOriginRealm.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coOriginRealm.set_non_null();
+                break;  /* Origin-Realm */
+              default:
+                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+            }
+            break;    /* Diameter */
+          case 10415: /* 3GPP */
+            switch ( psoPayload->m_uiAVPId ) {
+              case 6:     /* SGSN-IP-Address */
+                psoCache->m_coSGSNIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coSGSNIPAddr.set_non_null();
+                break;    /* SGSN-IP-Address */
+              case 1027:  /* IP-CAN-Type */
+                if ( sizeof( psoCache->m_iIPCANType ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
+                  psoCache->m_iIPCANType = *reinterpret_cast<int32_t*>( reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ) );
+                } else {
+                  /* invalid data size */
+                }
+                break;    /* IP-CAN-Type */
+              case 1032:  /* RAT-Type */
+                if ( sizeof( psoCache->m_iRATType ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
+                  psoCache->m_iRATType = *reinterpret_cast<int32_t*>( reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ) );
+                } else {
+                  /* invalid data size */
+                }
+                break;    /* RAT-Type */
+              case 1066:  /* Monitoring-Key */
+                if ( NULL == plistMonitKey ) {
+                  plistMonitKey = new std::list<std::string>;
+                }
+                {
+                  std::string strMonitKey;
+
+                  strMonitKey.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                  plistMonitKey->push_back( strMonitKey );
+                }
+                break;    /* Monitoring-Key */
+              default:
+                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+            }
+            break;    /* 3GPP */
+          case 65535: /* Tenet */
+            switch ( psoPayload->m_uiAVPId ) {
+              case PS_SUBSCR: /* Subscriber-Id */
+                psoCache->m_coSubscriberId.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coSubscriberId.set_non_null();
+                break;        /* Subscriber-Id */
+              case PCRF_ATTR_CGI: /* CGI */
+                psoCache->m_coCGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coCGI.set_non_null();
+                break;            /* CGI */
+              case PCRF_ATTR_ECGI:  /* ECGI */
+                psoCache->m_coECGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coECGI.set_non_null();
+                break;              /* ECGI */
+              case PCRF_ATTR_IMEI:  /* IMEI-SV */
+                psoCache->m_coIMEISV.v.insert( 0, reinterpret_cast<const char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coIMEISV.set_non_null();
+                break;              /* IMEI-SV */
+              case PCRF_ATTR_IMSI:  /* End-User-IMSI */
+                psoCache->m_coEndUserIMSI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coEndUserIMSI.set_non_null();
+                break;              /* End-User-IMSI */
+              case PCRF_ATTR_PSES:  /* Parent-Session-Id */
+                pstrParentSessionId = new std::string;
+                pstrParentSessionId->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                break;              /* Parent-Session-Id */
+              case PCRF_ATTR_IPCANTYPE: /* IP-CAN-Type */
+                psoCache->m_coIPCANType.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coIPCANType.set_non_null();
+                break;                  /* IP-CAN-Type */
+              case PCRF_ATTR_RATTYPE: /* RAT-Type */
+                psoCache->m_coRATType.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coRATType.set_non_null();
+                break;                  /* RAT-Type */
+              case PCRF_ATTR_RULNM: /* Rule-Name */
+                pstrRuleName = new std::string;
+                pstrRuleName->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                break;                  /* Rule-Name */
+              default:
+                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+            }
+            break;    /* Tenet */
+          default:
+            UTL_LOG_N( *g_pcoLog, "unsupported vendor: '%u'", psoPayload->m_uiVendId );
+        }
+        break;
+    }
   }
 
   /* выполняем команду */
@@ -856,6 +978,10 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         pcrf_session_rule_cache_remove_rule_local( strSessionId, *pstrRuleName );
       }
       break;
+    case PCRF_CMD_SESS_USAGE:
+      iFnRes = pcrf_send_umi_rar( psoCache->m_coSubscriberId, plistMonitKey );
+      pcrf_session_cache_ps_reply( p_iSock, p_psoAddr, PCRF_CMD_SESS_USAGE, uiPackNum, iFnRes);
+      break;
     default:
       UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", uiReqType );
   }
@@ -874,6 +1000,11 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   if ( NULL != psoCache ) {
     delete psoCache;
   }
+  if ( NULL != plistMonitKey ) {
+    delete plistMonitKey;
+  }
+
+  LOG_D( "leave: %s", __FUNCTION__ );
 
   return iRetVal;
 }
@@ -898,11 +1029,6 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
     goto clean_and_exit;
   }
 
-  /* ждем пока модуль не инициализируется полностью */
-  while (! g_module_is_initialized && g_lets_work) {
-    sleep (0);
-  }
-
   /* привязываемся к локальному адресу */
   soAddr.sin_family = AF_INET;
   if (0 != inet_aton (g_strLocalIPAddress.c_str(), &soAddr.sin_addr)) {
@@ -914,7 +1040,7 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
   CHECK_FCT_DO( bind (iRecvSock, reinterpret_cast<sockaddr*>(&soAddr), sizeof(soAddr)), goto clean_and_exit );
 
   pmucBuf = reinterpret_cast<uint8_t*> (malloc (stBufSize));
-  while (g_lets_work) {
+  while (g_bSessionListWork) {
     soPollFD.fd = iRecvSock;
     soPollFD.events = POLLIN;
     soPollFD.revents = 0;
@@ -927,7 +1053,7 @@ static void * pcrf_session_cache_receiver (void *p_vParam)
           /* использование inet_ntoa в этом случае не опасно, т.к. обрабатываем по одному пакету за цикл */
         }
         if (0 < stRecv) {
-          pcrf_session_cache_process_request (reinterpret_cast<char*>(pmucBuf), stRecv);
+          pcrf_session_cache_process_request (reinterpret_cast<char*>(pmucBuf), stRecv, iRecvSock, &soAddr );
         }
       }
     }
@@ -1043,15 +1169,17 @@ static void pcrf_session_cache_fini_node ()
     g_send_sock = -1;
   }
 
-  std::vector<SNode>::iterator iter = g_pvectNodeList->begin();
-  for (; iter != g_pvectNodeList->end (); ++iter) {
-    if (NULL != iter->m_diamid) {
-      free (iter->m_diamid);
-      iter->m_diamid = NULL;
-    }
-    if (NULL != iter->m_diamrlm) {
-      free (iter->m_diamrlm);
-      iter->m_diamrlm = NULL;
+  if ( NULL != g_pvectNodeList ) {
+    std::vector<SNode>::iterator iter = g_pvectNodeList->begin();
+    for ( ; iter != g_pvectNodeList->end(); ++iter ) {
+      if ( NULL != iter->m_diamid ) {
+        free( iter->m_diamid );
+        iter->m_diamid = NULL;
+      }
+      if ( NULL != iter->m_diamrlm ) {
+        free( iter->m_diamrlm );
+        iter->m_diamrlm = NULL;
+      }
     }
   }
 }
@@ -1097,7 +1225,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
       *pcoDBConn );
     coStream
       << GX_3GPP;
-    while ( 0 == coStream.eof() ) {
+    while ( 0 == coStream.eof() && g_bSessionListWork ) {
       {
         std::string strSessionId;
         SSessionCache *psoSessCache = new SSessionCache;
@@ -1122,14 +1250,14 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           memset( &req, 0, sizeof( struct dict_enumval_request ) );
 
           /* First, get the enumerated type of the IP-CAN-Type AVP (this is fast, no need to cache the object) */
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &( req.type_obj ), ENOENT ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &( req.type_obj ), ENOENT ), delete psoSessCache;  continue );
 
           /* Now search for the value given as parameter */
           req.search.enum_name = const_cast<char*>( psoSessCache->m_coIPCANType.v.c_str() );
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), delete psoSessCache; continue );
 
           /* finally retrieve its data */
-          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), continue );
+          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), delete psoSessCache; continue );
 
           /* copy the found value, we're done */
           psoSessCache->m_iIPCANType = req.search.enum_value.i32;
@@ -1140,14 +1268,14 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           memset( &req, 0, sizeof( struct dict_enumval_request ) );
 
           /* First, get the enumerated type of the RAT-Type AVP (this is fast, no need to cache the object) */
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &( req.type_obj ), ENOENT ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &( req.type_obj ), ENOENT ), delete psoSessCache; continue );
 
           /* Now search for the value given as parameter */
           req.search.enum_name = const_cast<char*>( psoSessCache->m_coRATType.v.c_str() );
-          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), continue );
+          CHECK_FCT_DO( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ), delete psoSessCache; continue );
 
           /* finally retrieve its data */
-          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), continue );
+          CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), delete psoSessCache; continue );
 
           /* copy the found value, we're done */
           psoSessCache->m_iRATType = req.search.enum_value.i32;
@@ -1174,4 +1302,33 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
   }
 
   pthread_exit( NULL );
+}
+
+int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId )
+{
+  LOG_D( "enter: %s; subscriber-id: %s", __FUNCTION__, p_strSubscriberId.c_str() );
+
+  int iRetVal = 0;
+  int iPrio = 1;
+  std::map<std::string, std::set<std::string> >::iterator iter;
+
+  CHECK_FCT_DO( ( iRetVal = pcrf_session_cache_lock( g_mmutexSessionCache, iPrio ) ), goto clean_and_exit );
+
+  iter = g_pmapSubscriberId->find( p_strSubscriberId );
+
+  if ( iter != g_pmapSubscriberId->end() ) {
+    for ( std::set<std::string>::iterator iterList = iter->second.begin(); iterList != iter->second.end(); ++ iterList ) {
+      p_vectSessionId.push_back( *iterList );
+    }
+    LOG_D( "session list size: %d", p_vectSessionId.size() );
+  } else {
+    iRetVal = 1403;
+  }
+
+  clean_and_exit:
+  pcrf_session_cache_ulck( g_mmutexSessionCache, iPrio );
+
+  LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
+
+  return iRetVal;
 }

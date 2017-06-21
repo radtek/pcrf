@@ -118,7 +118,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
-  otl_value<uint32_t> m_coTeteringFlag;
+  otl_value<uint32_t> m_coTetheringFlag;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
   SRequestInfo() { m_iCCRequestType = 0; }
@@ -268,7 +268,7 @@ struct avp * pcrf_make_CRI( SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule
 /* функция заполнения avp Usage-Monitoring-Information */
 int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull = true);
 /* запись TETHERING_REPORT в БД */
-void pcrf_server_db_insert_tetering_info( SMsgDataForDB &p_soMsgInfo );
+void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */
 int set_event_trigger( SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP, int32_t p_iTrigId );
 
@@ -315,8 +315,10 @@ int pcrf_client_rar(
   SMsgDataForDB p_soReqInfo,
   std::vector<SDBAbonRule> *p_pvectActiveRules,
   std::vector<SDBAbonRule> &p_vectAbonRules,
+  std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec );
+  uint32_t p_uiUsec,
+  bool p_bUMIFull );
 
 /* функция для Procera - формирование значения правила о локации пользователя */
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
@@ -336,6 +338,8 @@ void pcrf_session_cache_remove (std::string &p_strSessionId);
 /* передача данных другим нодам */
 struct SSessionCache;
 void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
+/* получение списка session-id по subscriber-id */
+int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId );
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
@@ -344,7 +348,7 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
 #define USEC_PER_SEC    1000000L
 #define NSEC_PER_SEC    1000000000L
 /* функция добавляет заданное значение p_uiAddUSec (мксек) к p_soTimeVal и записывает полученное значние в p_soTimeSpec */
-int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiAddUSec);
+int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_t p_uiAddUSec);
 
 /* преобразование ip-адреса к десятичному виду точками с качестве разделителей */
 void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
@@ -384,3 +388,6 @@ void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, con
   SSQLQueueParam soParam( p_eSQLParamType, tParam );
   p_plistParameters->push_back( soParam );
 }
+
+/* отправка запроса на предоставление данных Usage-Monitoring */
+int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::string> *p_plistMonitKey );

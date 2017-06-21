@@ -36,10 +36,10 @@ int pcrf_sql_queue_init()
   LOG_D( "enter: %s", __FUNCTION__ );
 
   /* определяем количество очередей */
-  if ( 2 < g_psoConf->m_iDBPoolSize ) {
-    g_uiQueueCount = 2;
+  g_uiQueueCount = g_psoConf->m_iDBPoolSize / 6;
+  if ( 0 != g_uiQueueCount ) {
   } else {
-    g_uiQueueCount = 1;
+    return EINVAL;
   }
 
   /* выделяем память под массив очередей */
@@ -66,9 +66,12 @@ void pcrf_sql_queue_fini()
 
   g_iWork = 0;
 
-  for ( unsigned i = 0; i < g_uiQueueCount; ++i ) {
-    pthread_mutex_destroy( &(g_pmsoSQLQueue[i].m_mutexSQLQueue) );
-    pthread_join( g_pmsoSQLQueue[ i ].m_threadSQLQueue, NULL );
+  if ( NULL != g_pmsoSQLQueue ) {
+    for ( unsigned i = 0; i < g_uiQueueCount; ++i ) {
+      pthread_join( g_pmsoSQLQueue[ i ].m_threadSQLQueue, NULL );
+      pthread_mutex_destroy( &( g_pmsoSQLQueue[ i ].m_mutexSQLQueue ) );
+    }
+    delete[ ] g_pmsoSQLQueue;
   }
 
   LOG_D( "leave: %s", __FUNCTION__ );
@@ -230,13 +233,13 @@ void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
   }
 
   std::list<SSQLQueueParam>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
-  while ( iter != p_psoSQLReqInfo->m_plistParamList->end() ) {
+  for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
     if ( NULL != iter->m_pvParam ) {
       switch ( iter->m_eParamType ) {
         case m_eSQLParamType_Invalid:
           break;
         case m_eSQLParamType_Int:
-          delete reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
+          delete reinterpret_cast<otl_value<int>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_UInt:
           delete reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
@@ -245,16 +248,18 @@ void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
           delete reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_Char:
-          delete reinterpret_cast<otl_value<char>*>( iter->m_pvParam );
+          delete reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
           break;
         case m_eSQLParamType_OTLDateTime:
           delete reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
+          break;
+        default:
+          UTL_LOG_D( *g_pcoLog, "unsupported parameter type: '%u'", iter->m_eParamType );
           break;
       }
       iter->m_eParamType = m_eSQLParamType_Invalid;
       iter->m_pvParam = NULL;
     }
-    iter = p_psoSQLReqInfo->m_plistParamList->erase( iter );
   }
 
   delete p_psoSQLReqInfo->m_plistParamList;
@@ -279,27 +284,27 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
 
   while ( g_iWork ) {
     /* ждем некоторое время */
-    CHECK_FCT_DO( pcrf_make_timespec_timeout( soTS, 100000 ), goto clean_and_exit );
+    CHECK_FCT_DO( pcrf_make_timespec_timeout( soTS, 0, 100000 ), goto clean_and_exit );
     iFnRes = pthread_mutex_timedlock( &mutexSQLQueueTimer, &soTS );
-    /* проверка указателя на наличие объекта подключения к БД */
-    if ( NULL != pcoDBConn ) {
-      /* проверим, надо ли восстанавливать подключение */
-      if ( -1 == iRestoreConnection ) {
-        /* пытаемся восстановить подключение */
-        if ( -1 == (iRestoreConnection = pcrf_db_pool_restore( pcoDBConn ) ) ) {
-          /* если восстановить подключение не удалось */
+    if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
+      /* проверка указателя на наличие объекта подключения к БД */
+      if ( NULL != pcoDBConn ) {
+        /* проверим, надо ли восстанавливать подключение */
+        if ( -1 == iRestoreConnection ) {
+          /* пытаемся восстановить подключение */
+          if ( -1 == (iRestoreConnection = pcrf_db_pool_restore( pcoDBConn ) ) ) {
+            /* если восстановить подключение не удалось */
+            continue;
+          }
+        }
+      } else {
+        /* запрашиваем подключение из пула если это необходимо */
+        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+        } else {
+          /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
           continue;
         }
       }
-    } else {
-      /* запрашиваем подключение из пула если это необходимо */
-      if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
-      } else {
-        /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
-        continue;
-      }
-    }
-    if (ETIMEDOUT == iFnRes && 0 != g_iWork) {
       std::list<SSQLRequestInfo>::iterator iter = psoSQLQueue->m_listSQLQueue.begin();
       while ( iter != psoSQLQueue->m_listSQLQueue.end() ) {
         if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ) ) ) {
