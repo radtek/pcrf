@@ -391,3 +391,6 @@ void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, con
 
 /* отправка запроса на предоставление данных Usage-Monitoring */
 int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::string> *p_plistMonitKey );
+
+/* функция генерации cdr */
+int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData );

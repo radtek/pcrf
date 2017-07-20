@@ -13,6 +13,10 @@ struct SAppPCRFConf {
 	int m_iLook4StalledSession;
 	char *m_pszLogFileMask;
 	int m_iTraceReq;
+  int m_iGenerateCDR;
+  char *m_pszCDRMask;
+  char *m_pszCDRDir;
+  char *m_pszCDRComplDir;
 };
 
 extern struct SAppPCRFConf *g_psoConf;
@@ -78,6 +82,10 @@ void pcrf_session_rule_list_fini();
 int pcrf_sql_queue_init();
 /* деинициализация очереди sql-запросов */
 void pcrf_sql_queue_fini();
+
+int pcrf_cdr_init();
+void pcrf_cdr_fini();
+
 
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;

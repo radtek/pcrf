@@ -145,6 +145,22 @@
 				return TRACE_REQ;
 			}
 
+(?i:"generate_cdr")		{
+				return GEN_CDR;
+			}
+
+(?i:"cdr_mask")		{
+				return CDR_MASK;
+			}
+
+(?i:"cdr_dir")		{
+				return CDR_DIR;
+			}
+
+(?i:"cdr_completed_dir")		{
+				return CDR_CMPL_DIR;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

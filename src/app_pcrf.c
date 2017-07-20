@@ -37,6 +37,11 @@ static int pcrf_entry (char * conffile)
 	/* Install objects definitions for this app_pcrf application */
 	CHECK_FCT (app_pcrf_dict_init ());
 
+  /* инициализация модуля формирования CDR */
+  if ( 0 != g_psoConf->m_iGenerateCDR ) {
+    CHECK_FCT( pcrf_cdr_init() );
+  }
+
 	/* инициализация пула подключений к БД */
 	CHECK_FCT (pcrf_db_pool_init ());
 
@@ -78,6 +83,9 @@ void fd_ext_fini(void)
   pcrf_tracer_fini ();
   pcrf_sql_queue_fini();
 	pcrf_db_pool_fin ();
+  if ( 0 != g_psoConf->m_iGenerateCDR ) {
+    pcrf_cdr_fini();
+  }
 	stat_fin();
 	pcrf_logger_fini();
 }

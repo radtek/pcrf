@@ -235,6 +235,10 @@ static int app_pcrf_ccr_cb(
   /* сохраняем в БД запрос */
   pcrf_server_req_db_store( pcoDBConn, &soMsgInfoCache );
 
+  if ( 0 != g_psoConf->m_iGenerateCDR ) {
+    pcrf_cdr_write_cdr( soMsgInfoCache );
+  }
+
   /* загружаем правила из БД */
   switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
     default: /* DEFAULT */

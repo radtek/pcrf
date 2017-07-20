@@ -127,6 +127,10 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		LOOK4STALLEDSESSION
 %token 		LOG_FILE_MASK
 %token 		TRACE_REQ
+%token 		GEN_CDR
+%token 		CDR_MASK
+%token 		CDR_DIR
+%token 		CDR_CMPL_DIR
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -152,6 +156,10 @@ conffile:		/* empty grammar is OK */
 			| conffile look4stalledsession
 			| conffile log_file_mask
 			| conffile trace_req
+			| conffile generate_cdr
+			| conffile cdr_mask
+			| conffile cdr_dir
+			| conffile cdr_completed_dir
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -222,5 +230,32 @@ log_file_mask:		LOG_FILE_MASK '=' QSTRING ';'
 trace_req:		TRACE_REQ '=' INTEGER ';'
 			{
 				g_psoConf->m_iTraceReq = $3;
+			}
+			;
+
+generate_cdr:		GEN_CDR '=' INTEGER ';'
+			{
+				g_psoConf->m_iGenerateCDR = $3;
+			}
+			;
+
+cdr_mask:		CDR_MASK '=' QSTRING ';'
+			{
+				free (g_psoConf->m_pszCDRMask);
+				g_psoConf->m_pszCDRMask = $3;
+			}
+			;
+
+cdr_dir:		CDR_DIR '=' QSTRING ';'
+			{
+				free (g_psoConf->m_pszCDRComplDir);
+				g_psoConf->m_pszCDRDir = $3;
+			}
+			;
+
+cdr_completed_dir:		CDR_CMPL_DIR '=' QSTRING ';'
+			{
+				free (g_psoConf->m_pszCDRComplDir);
+				g_psoConf->m_pszCDRComplDir = $3;
 			}
 			;
