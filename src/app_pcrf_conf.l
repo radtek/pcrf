@@ -161,6 +161,10 @@
 				return CDR_CMPL_DIR;
 			}
 
+(?i:"cdr_interval")		{
+				return CDR_INTERVAL;
+			}
+
 	/* Valid single characters for yyparse */
 [=;]			{ return yytext[0]; }
 

@@ -60,6 +60,7 @@ struct SSessionInfo {
 	otl_value<std::string> m_coEndUserPrivate;
 	otl_value<std::string> m_coIMEI;
 	otl_value<std::string> m_coFramedIPAddress;
+  uint32_t               m_ui32FramedIPAddress;
 	otl_value<otl_datetime> m_coTimeEnd;
 	otl_value<std::string> m_coTermCause;
 	otl_value<uint32_t> m_coFeatureListId;	/* Feature-List-Id */
@@ -67,7 +68,11 @@ struct SSessionInfo {
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
-	SSessionInfo () { m_uiPeerDialect = GX_UNDEF; };
+  SSessionInfo()
+  {
+    m_uiPeerDialect = GX_UNDEF;
+    m_ui32FramedIPAddress = static_cast<uint32_t>( -1 );
+  };
 };
 struct SSessionUsageInfo {
 	otl_value<std::string> m_coMonitoringKey;

@@ -333,7 +333,7 @@ static int app_pcrf_ccr_cb(
         CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 2 ), /* continue */ );
       }
       /* TETHERING_REPORT */
-#if 1 /* выключено в соответсвии с PCRF-115 23.12.2016 */ /* включено в соответствии с PCRF-146 06.04.2017 */
+#if 0
       if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
         CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
       }
@@ -418,8 +418,8 @@ static int app_pcrf_ccr_cb(
                   break;
               }
               break;
+#if 0
             case 101: /* TETHERING_REPORT */
-#if 1 /* PCRF-115 23.12.2016 */ /* включено в соответствии с PCRF-146 06.04.2017 */
               if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && 0 == soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.is_null() ) {
                 pcrf_server_db_insert_tethering_info( soMsgInfoCache );
                 /* TETHERING_REPORT */
@@ -427,8 +427,8 @@ static int app_pcrf_ccr_cb(
                   CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
                 }
               }
-#endif
               break;
+#endif
             case 777:
               if ( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
                 SDBAbonRule soRule;
@@ -1459,6 +1459,10 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 			switch (psoAVPHdr->avp_code) {
 			case 8: /* Framed-IP-Address */
         pcrf_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_psoMsgInfo->m_psoSessInfo->m_coFramedIPAddress);
+        if ( psoAVPHdr->avp_value->os.len == sizeof( p_psoMsgInfo->m_psoSessInfo->m_ui32FramedIPAddress ) ) {
+          memcpy( reinterpret_cast<void*>(&p_psoMsgInfo->m_psoSessInfo->m_ui32FramedIPAddress), psoAVPHdr->avp_value->os.data, sizeof( p_psoMsgInfo->m_psoSessInfo->m_ui32FramedIPAddress ) );
+          p_psoMsgInfo->m_psoSessInfo->m_ui32FramedIPAddress = ntohl( p_psoMsgInfo->m_psoSessInfo->m_ui32FramedIPAddress );
+        }
 				break;
 			case 30: /* Called-Station-Id */
 				p_psoMsgInfo->m_psoSessInfo->m_coCalledStationId.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);

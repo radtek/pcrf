@@ -6,17 +6,18 @@ struct SAppPCRFConf {
 	char *m_pszDBUser;
 	char *m_pszDBPswd;
 	char *m_pszDBDummyReq;
-	int m_iDBPoolSize;
-	int m_iDBPoolWait;
-	int m_iDBReqInterval;
-	int m_iOperateRefreshQueue;
-	int m_iLook4StalledSession;
+	int   m_iDBPoolSize;
+	int   m_iDBPoolWait;
+	int   m_iDBReqInterval;
+	int   m_iOperateRefreshQueue;
+	int   m_iLook4StalledSession;
 	char *m_pszLogFileMask;
-	int m_iTraceReq;
-  int m_iGenerateCDR;
+	int   m_iTraceReq;
+  int   m_iGenerateCDR;
   char *m_pszCDRMask;
   char *m_pszCDRDir;
   char *m_pszCDRComplDir;
+  int   m_iCDRInterval;
 };
 
 extern struct SAppPCRFConf *g_psoConf;

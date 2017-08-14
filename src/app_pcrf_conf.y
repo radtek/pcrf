@@ -131,6 +131,7 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		CDR_MASK
 %token 		CDR_DIR
 %token 		CDR_CMPL_DIR
+%token 		CDR_INTERVAL
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -160,6 +161,7 @@ conffile:		/* empty grammar is OK */
 			| conffile cdr_mask
 			| conffile cdr_dir
 			| conffile cdr_completed_dir
+			| conffile cdr_interval
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -257,5 +259,11 @@ cdr_completed_dir:		CDR_CMPL_DIR '=' QSTRING ';'
 			{
 				free (g_psoConf->m_pszCDRComplDir);
 				g_psoConf->m_pszCDRComplDir = $3;
+			}
+			;
+
+cdr_interval:		CDR_INTERVAL '=' INTEGER ';'
+			{
+				g_psoConf->m_iCDRInterval = $3;
 			}
 			;

@@ -620,7 +620,7 @@ int pcrf_load_abon_rule_list(
     coStream.open(
       1,
       "begin "
-        ":rule_list/*char[4000],out/* := ps.GetSubRules2("
+        ":rule_list/*char[4000],out*/ := ps.GetSubRules2("
           ":subscriber_id/*char[64],in*/,"
           ":peer_dialect/*unsigned,in*/,"
           ":ip_can_type/*char[20],in*/,"

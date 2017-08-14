@@ -8,9 +8,11 @@
 static pthread_mutex_t g_mutexCDR;
 static pthread_mutex_t g_mutexCDRTimer;
 static pthread_t g_threadCDR;
-static char g_mcFileName[ 1024 ];
 static int g_iFile;
+static char g_mcFileName[ PATH_MAX ];
 
+#define CDR_INITIAL_NAME "%Y%m%d%H%M%S_cdr.txt"
+#define CDR_FILE_FLAG O_CREAT | O_APPEND | O_RDWR
 #define CDR_FILE_MODE S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
 
 int pcrf_cdr_make_timestamp( char *p_pszFileName, size_t p_stSize, const char *p_pszFormat )
@@ -40,59 +42,65 @@ int pcrf_cdr_make_timestamp( char *p_pszFileName, size_t p_stSize, const char *p
 
 void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
 {
-  /* формируем тип записи */
+  /* С„РѕСЂРјРёСЂСѓРµРј С‚РёРї Р·Р°РїРёСЃРё */
   switch ( p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
     case INITIAL_REQUEST:
-      p_strData = "start\t";
+      p_strData = "0\t";
     break;
     case TERMINATION_REQUEST:
-      p_strData = "stop\t";
+      p_strData = "1\t";
       break;
     default:
       p_strData.clear();
       return;
   }
 
-  /* формируем общие параметры */
-  /* записываем Session-Id */
+  /* С„РѕСЂРјРёСЂСѓРµРј РѕР±С‰РёРµ РїР°СЂР°РјРµС‚СЂС‹ */
+  /* Р·Р°РїРёСЃС‹РІР°РµРј Session-Id */
   if ( 0 == p_soReqData.m_psoSessInfo->m_coSessionId.is_null() ) {
     p_strData += p_soReqData.m_psoSessInfo->m_coSessionId.v;
   }
   p_strData += '\t';
 
-  /* формируем временную метку */
-  char mcTimeStamp[ 1024 ];
+  /* С„РѕСЂРјРёСЂСѓРµРј РІСЂРµРјРµРЅРЅСѓСЋ РјРµС‚РєСѓ */
+  time_t tmTm;
+  char mcString[ 1024 ];
+  int iFnRes;
 
-  if ( 0 == pcrf_cdr_make_timestamp( mcTimeStamp, sizeof( mcTimeStamp ), "%Y.%m.%d_%H:%M:%S" ) ) {
-    p_strData += mcTimeStamp;
-  } else {
-    p_strData.clear();
-    return;
+  if ( static_cast<time_t>( -1 ) != time( &tmTm ) ) {
+    iFnRes = snprintf( mcString, sizeof(mcString), "%d", tmTm );
+    if ( iFnRes > 0 && iFnRes < sizeof( mcString ) ) {
+      p_strData += mcString;
+      p_strData += '\t';
+    }
   }
 
-  /* формируем параметры, характерные для начала сессии */
+  /* С„РѕСЂРјРёСЂСѓРµРј РїР°СЂР°РјРµС‚СЂС‹, С…Р°СЂР°РєС‚РµСЂРЅС‹Рµ РґР»СЏ РЅР°С‡Р°Р»Р° СЃРµСЃСЃРёРё */
   if ( INITIAL_REQUEST == p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
     p_strData += '\t';
 
-    /* записываем imsi */
+    /* Р·Р°РїРёСЃС‹РІР°РµРј imsi */
     if ( 0 == p_soReqData.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
       p_strData += p_soReqData.m_psoSessInfo->m_coEndUserIMSI.v;
     }
     p_strData += '\t';
 
-    /* записываем Framed-IP-Address */
-    if ( 0 == p_soReqData.m_psoSessInfo->m_coFramedIPAddress.is_null() ) {
-      p_strData += p_soReqData.m_psoSessInfo->m_coFramedIPAddress.v;
+    /* Р·Р°РїРёСЃС‹РІР°РµРј Framed-IP-Address */
+    if ( static_cast<uint32_t>( -1 ) != p_soReqData.m_psoSessInfo->m_ui32FramedIPAddress ) {
+      iFnRes = snprintf( mcString, sizeof( mcString ), "%d", p_soReqData.m_psoSessInfo->m_ui32FramedIPAddress );
+      if ( iFnRes > 0 && iFnRes < sizeof( mcString ) ) {
+        p_strData += mcString;
+      }
     }
     p_strData += '\t';
 
-    /* записываем imeisv */
+    /* Р·Р°РїРёСЃС‹РІР°РµРј imeisv */
     if ( 0 == p_soReqData.m_psoSessInfo->m_coIMEI.is_null() ) {
       p_strData += p_soReqData.m_psoSessInfo->m_coIMEI.v;
     }
     p_strData += '\t';
 
-    /* записываем apn */
+    /* Р·Р°РїРёСЃС‹РІР°РµРј apn */
     if ( 0 == p_soReqData.m_psoSessInfo->m_coCalledStationId.is_null() ) {
       p_strData += p_soReqData.m_psoSessInfo->m_coCalledStationId.v;
     }
@@ -110,7 +118,7 @@ int pcrf_cdr_write_record( std::string &p_strData )
   }
 }
 
-int pcrf_cdr_make_filename( const char *p_pszDir, char *p_pszFileName, size_t p_stSize )
+int pcrf_cdr_make_filename( const char *p_pszDir, const char *p_pszFileMask, char *p_pszFileName, size_t p_stSize )
 {
   if ( NULL != p_pszDir ) {
   } else {
@@ -121,7 +129,7 @@ int pcrf_cdr_make_filename( const char *p_pszDir, char *p_pszFileName, size_t p_
   char mcTimeStamp[ 256 ];
   int iFnRes;
 
-  CHECK_FCT( pcrf_cdr_make_timestamp( mcTimeStamp, sizeof( mcTimeStamp ), g_psoConf->m_pszCDRMask ) );
+  CHECK_FCT( pcrf_cdr_make_timestamp( mcTimeStamp, sizeof( mcTimeStamp ), p_pszFileMask ) );
 
   iFnRes = snprintf( p_pszFileName, p_stSize, "%s%s", p_pszDir, mcTimeStamp );
   if ( 0 < iFnRes ) {
@@ -141,7 +149,7 @@ void pcrf_cdr_file_completed( const char *p_pszFileName )
   if ( NULL != g_psoConf->m_pszCDRComplDir ) {
     char mcNewFileName[ 1024 ];
 
-    CHECK_FCT_DO( pcrf_cdr_make_filename( g_psoConf->m_pszCDRComplDir, mcNewFileName, sizeof( mcNewFileName ) ), return );
+    CHECK_FCT_DO( pcrf_cdr_make_filename( g_psoConf->m_pszCDRComplDir, g_psoConf->m_pszCDRMask, mcNewFileName, sizeof( mcNewFileName ) ), return );
 
     if ( 0 == rename( p_pszFileName, mcNewFileName ) ) {
     } else {
@@ -152,7 +160,7 @@ void pcrf_cdr_file_completed( const char *p_pszFileName )
 
 void * pcrf_cdr_recreate_file( void *p_vParam )
 {
-  char mcNewFileName[ 1024 ];
+  char mcFileName[ 1024 ];
   int iNewFile = -1;
   int iTmpFile;
   size_t stLen;
@@ -161,32 +169,34 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
   timeval soTimeVal;
   timespec soTimeSpec;
 
-  /* готовим минутное ожидание */
+  if ( 0 == g_psoConf->m_iCDRInterval ) {
+    g_psoConf->m_iCDRInterval = 60;
+  }
+
+  /* РіРѕС‚РѕРІРёРј РѕР¶РёРґР°РЅРёРµ */
   CHECK_FCT_DO( gettimeofday( &soTimeVal, NULL ), pthread_exit(NULL) );
   soTimeSpec.tv_sec = soTimeVal.tv_sec;
-  soTimeSpec.tv_sec += 60;
+  soTimeSpec.tv_sec += g_psoConf->m_iCDRInterval;
   soTimeSpec.tv_nsec = 0;
 
-  while ( 0 != pthread_mutex_timedlock( &g_mutexCDRTimer, &soTimeSpec ) ) {
-    CHECK_FCT_DO( pcrf_cdr_make_filename(g_psoConf->m_pszCDRDir, mcNewFileName, sizeof(mcNewFileName)), pthread_exit( NULL ) );
-    if ( 0 != strcmp( mcNewFileName, g_mcFileName ) ) {
-      iNewFile = creat( mcNewFileName, CDR_FILE_MODE );
-      if ( -1 != iNewFile ) {
-      } else {
-        break;
-      }
-      iTmpFile = g_iFile;
-      CHECK_FCT_DO( pthread_mutex_lock( &g_mutexCDR ), pthread_exit( NULL ) );
-      g_iFile = iNewFile;
-      CHECK_FCT_DO( pthread_mutex_unlock( &g_mutexCDR ), pthread_exit( NULL ) );
-      close( iTmpFile );
-      pcrf_cdr_file_completed( g_mcFileName );
-      strcpy( g_mcFileName, mcNewFileName );
+  while ( ETIMEDOUT == pthread_mutex_timedlock( &g_mutexCDRTimer, &soTimeSpec ) ) {
+    CHECK_FCT_DO( pcrf_cdr_make_filename(g_psoConf->m_pszCDRDir, CDR_INITIAL_NAME, mcFileName, sizeof(mcFileName)), pthread_exit( NULL ) );
+    iNewFile = open( mcFileName, CDR_FILE_FLAG, CDR_FILE_MODE );
+    if ( -1 != iNewFile ) {
+    } else {
+      break;
     }
-    /* готовим минутное ожидание */
+    iTmpFile = g_iFile;
+    CHECK_FCT_DO( pthread_mutex_lock( &g_mutexCDR ), pthread_exit( NULL ) );
+    g_iFile = iNewFile;
+    CHECK_FCT_DO( pthread_mutex_unlock( &g_mutexCDR ), pthread_exit( NULL ) );
+    close( iTmpFile );
+    pcrf_cdr_file_completed( g_mcFileName );
+    strcpy( g_mcFileName, mcFileName );
+    /* РіРѕС‚РѕРІРёРј РѕР¶РёРґР°РЅРёРµ */
     CHECK_FCT_DO( gettimeofday( &soTimeVal, NULL ), break );
     soTimeSpec.tv_sec = soTimeVal.tv_sec;
-    soTimeSpec.tv_sec += 60;
+    soTimeSpec.tv_sec += g_psoConf->m_iCDRInterval;
     soTimeSpec.tv_nsec = 0;
   }
 
@@ -202,8 +212,8 @@ int pcrf_cdr_init()
     return EINVAL;
   }
 
-  CHECK_FCT( pcrf_cdr_make_filename( g_psoConf->m_pszCDRDir, g_mcFileName, sizeof( g_mcFileName ) ) );
-  g_iFile = creat( g_mcFileName, CDR_FILE_MODE );
+  CHECK_FCT( pcrf_cdr_make_filename( g_psoConf->m_pszCDRDir, CDR_INITIAL_NAME, g_mcFileName, sizeof( g_mcFileName ) ) );
+  g_iFile = open( g_mcFileName, CDR_FILE_FLAG, CDR_FILE_MODE );
   if ( -1 != g_iFile ) {
   } else {
     iRetVal = errno;
@@ -223,6 +233,8 @@ int pcrf_cdr_init()
 
 void pcrf_cdr_fini()
 {
+  close( g_iFile );
+  pcrf_cdr_file_completed( g_mcFileName );
   pthread_mutex_unlock( &g_mutexCDRTimer );
   pthread_mutex_destroy( &g_mutexCDR );
 }
