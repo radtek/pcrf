@@ -184,6 +184,11 @@ static int app_pcrf_ccr_cb(
       if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
         pcrf_procera_terminate_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coSessionId );
       }
+      /* если необходимо писать cdr */
+      if ( 0 != g_psoConf->m_iGenerateCDR && GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+        /* запрашиваем сведения о сессии из кэша */
+        pcrf_server_load_session_info( pcoDBConn, soMsgInfoCache, soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
+      }
       pcrf_session_cache_remove( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v );
       break;  /* TERMINATION_REQUEST */
     case UPDATE_REQUEST: /* UPDATE_REQUEST */
@@ -235,7 +240,8 @@ static int app_pcrf_ccr_cb(
   /* сохраняем в БД запрос */
   pcrf_server_req_db_store( pcoDBConn, &soMsgInfoCache );
 
-  if ( 0 != g_psoConf->m_iGenerateCDR ) {
+  /* если необходимо писать cdr */
+  if ( 0 != g_psoConf->m_iGenerateCDR && GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
     pcrf_cdr_write_cdr( soMsgInfoCache );
   }
 

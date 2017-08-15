@@ -75,14 +75,14 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
     }
   }
 
-  /* формируем параметры, характерные для начала сессии */
-  if ( INITIAL_REQUEST == p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
-    p_strData += '\t';
-
     /* записываем imsi */
     if ( 0 == p_soReqData.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
       p_strData += p_soReqData.m_psoSessInfo->m_coEndUserIMSI.v;
     }
+    p_strData += '\t';
+
+  /* формируем параметры, характерные для начала сессии */
+  if ( INITIAL_REQUEST == p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
     p_strData += '\t';
 
     /* записываем Framed-IP-Address */
