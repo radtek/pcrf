@@ -286,9 +286,9 @@ static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, s
 
 /* загружает описание правила */
 int pcrf_rule_cache_get_rule_info(
-  SMsgDataForDB &p_soMsgInfo,
+  SMsgDataForDB *p_psoMsgInfo,
   std::string &p_strRuleName,
-  std::vector<SDBAbonRule> &p_vectAbonRules)
+  SDBAbonRule &p_soRule)
 {
   CTimeMeasurer coTM;
 
@@ -299,9 +299,11 @@ int pcrf_rule_cache_get_rule_info(
   CHECK_FCT(pthread_mutex_lock(&g_mutexRuleCache));
   iter = g_pmapRule->find(p_strRuleName);
   if (iter != g_pmapRule->end()) {
-    p_vectAbonRules.push_back(iter->second);
-    for (iterMonitKey = iter->second.m_vectMonitKey.begin(); iterMonitKey != iter->second.m_vectMonitKey.end(); ++iterMonitKey) {
-      p_soMsgInfo.m_psoSessInfo->m_mapMonitInfo.insert(std::pair<std::string, SDBMonitoringInfo>(*iterMonitKey, SDBMonitoringInfo()));
+    p_soRule = iter->second;
+    if ( NULL != p_psoMsgInfo ) {
+      for (iterMonitKey = iter->second.m_vectMonitKey.begin(); iterMonitKey != iter->second.m_vectMonitKey.end(); ++iterMonitKey) {
+        p_psoMsgInfo->m_psoSessInfo->m_mapMonitInfo.insert(std::pair<std::string, SDBMonitoringInfo>(*iterMonitKey, SDBMonitoringInfo()));
+      }
     }
   } else {
     iRetVal = 1403;

@@ -23,7 +23,7 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
   for ( int i = 0; i < vectSessionList.size(); ++i ) {
     soInfo.m_psoReqInfo->m_vectUsageInfo.clear();
     LOG_D( "session-id: %s", vectSessionList[ i ].c_str() );
-    pcrf_server_load_session_info( NULL, soInfo, vectSessionList[ i ] );
+    pcrf_session_cache_get( vectSessionList[ i ], *soInfo.m_psoSessInfo, *soInfo.m_psoReqInfo );
     soInfo.m_psoSessInfo->m_coSessionId = vectSessionList[ i ];
     CHECK_POSIX_DO( ( iRetVal = pcrf_peer_dialect( *soInfo.m_psoSessInfo ) ), goto clean_and_exit );
     for ( std::list<std::string>::iterator iter = p_plistMonitKey->begin(); iter != p_plistMonitKey->end(); ++ iter ) {

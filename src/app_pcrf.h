@@ -22,6 +22,14 @@ struct SAppPCRFConf {
 
 extern struct SAppPCRFConf *g_psoConf;
 
+#ifdef WIN32
+typedef char uint8_t;
+typedef __int32 int32_t;
+typedef __int64 int64_t;
+typedef unsigned __int32 uint32_t;
+typedef unsigned __int64 uint64_t;
+#endif
+
 /* объекты словаря */
 extern struct dict_object *g_psoDictApp;
 extern struct dict_object *g_psoDictVend;

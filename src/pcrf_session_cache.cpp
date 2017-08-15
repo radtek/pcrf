@@ -970,7 +970,11 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
       break;
     case PCRF_CMD_INSERT_SESSRUL:
       if ( NULL != pstrRuleName ) {
-        pcrf_session_rule_cache_insert_local( strSessionId, *pstrRuleName );
+        SDBAbonRule soRule;
+
+        if ( 0 == pcrf_rule_cache_get_rule_info( NULL, *pstrRuleName, soRule ) ) {
+          pcrf_session_rule_cache_insert_local( strSessionId, soRule );
+        }
       }
       break;
     case PCRF_CMD_REMOVE_SESSRUL:

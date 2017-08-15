@@ -12,12 +12,8 @@
 #include <map>
 #include <list>
 
-#ifdef WIN32
-	typedef char uint8_t;
-	typedef __int32 int32_t;
-	typedef __int64 int64_t;
-	typedef unsigned __int32 uint32_t;
-	typedef unsigned __int64 uint64_t;
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* идентификаторы диалектов */
@@ -25,10 +21,6 @@
 #define GX_3GPP       1
 #define GX_CISCO_SCE  2
 #define GX_PROCERA    3
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* функции сервера */
 /* кешированные данные из запроса */
@@ -245,17 +237,15 @@ int pcrf_server_db_load_active_rules(
 	std::vector<SDBAbonRule> &p_vectActive);
 /* загрузка описания правила */
 int pcrf_rule_cache_get_rule_info(
-	SMsgDataForDB &p_soMsgInfo,
+	SMsgDataForDB *p_psoMsgInfo,
 	std::string &p_strRuleName,
-	std::vector<SDBAbonRule> &p_vectAbonRules);
+	SDBAbonRule &p_soRule);
 /* поиск сессии UGW для загрузки данных для SCE */
 int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
 /* поиск сессии UGW для загрузки данных для Procera */
 int pcrf_server_find_ugw_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
 /* поиск IP-CAN сессии */
 int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo );
-/* загрузка идентификатора абонента по Session-Id */
-int pcrf_server_load_session_info( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId );
 /* загрузка списка правил абонента из БД */
 int pcrf_load_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<std::string> &p_vectRuleList );
 /* загрузка Monitoring Key из БД */
@@ -275,7 +265,7 @@ int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_
 /* запись TETHERING_REPORT в БД */
 void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */
-int set_event_trigger( SSessionInfo &p_soSessInfo, msg_or_avp *p_psoMsgOrAVP, int32_t p_iTrigId );
+int set_event_trigger( msg_or_avp *p_psoMsgOrAVP, int32_t p_iTrigId );
 
 /* функция добавляет запись в очередь обновления политик */
 void pcrf_server_db_insert_refqueue(
@@ -329,7 +319,7 @@ int pcrf_client_rar(
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
 
 /* загрузка активных сессий Procera по ip-адресу */
-int pcrf_procera_db_load_sess_list( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
+int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
 
 /* функция для закрытия всех правил локации сессии Procera */
 int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
@@ -360,8 +350,8 @@ void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<s
 
 /* кэш правил сессии */
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
-void pcrf_session_rule_cache_insert(std::string &p_strSessionId, std::string &p_strRuleName);
-void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority = false);
+void pcrf_session_rule_cache_insert( std::string &p_strSessionId, SDBAbonRule &p_soRule );
+void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, SDBAbonRule &p_soRule, bool p_bLowPriority = false );
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);

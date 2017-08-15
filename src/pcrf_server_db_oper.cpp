@@ -284,7 +284,7 @@ void pcrf_db_insert_rule (
 	SSessionInfo &p_soSessInfo,
 	SDBAbonRule &p_soRule)
 {
-  pcrf_session_rule_cache_insert(p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v);
+  pcrf_session_rule_cache_insert( p_soSessInfo.m_coSessionId.v, p_soRule );
 
   std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
   otl_value<otl_datetime> coDateTime;
@@ -793,166 +793,6 @@ int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<
   stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 }
 
-int pcrf_server_load_session_info( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::string &p_strSessionId )
-{
-  if ( 0 == pcrf_session_cache_get( p_strSessionId, *( p_soMsgInfo.m_psoSessInfo ), *( p_soMsgInfo.m_psoReqInfo ) ) ) {
-    return 0;
-  }
-
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
-
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
-
-  sql_repeat:
-
-  try {
-    otl_nocommit_stream coStream;
-    otl_value<std::string> coIPCANType;
-    otl_value<std::string> coSGSNAddress;
-    otl_value<std::string> coRATType;
-    otl_value<std::string> coOriginHost;
-    otl_value<std::string> coOriginReal;
-    otl_value<std::string> coCGI;
-    otl_value<std::string> coECGI;
-    otl_value<std::string> coIMEI;
-
-    /* загружаем данные по сессии из БД */
-    coStream.open(
-      1,
-      "select "
-        "sl.subscriber_id,"
-        "sl.framed_ip_address,"
-        "sl.called_station_id,"
-        "sloc.ip_can_type,"
-        "sloc.sgsn_ip_address,"
-        "sloc.rat_type,"
-        "sl.origin_host,"
-        "sl.origin_realm,"
-        "sloc.cgi,"
-        "sloc.ecgi, "
-        "sl.IMEISV,"
-        "sl.end_user_imsi,"
-        "sl.end_user_e164 "
-      "from "
-        "ps.sessionList sl "
-        "left join ps.sessionLocation sloc on sl.session_id = sloc.session_id "
-      "where "
-        "sl.session_id = :session_id/*char[255]*/ "
-        "and sloc.time_end is null",
-      *p_pcoDBConn );
-    coStream
-      << p_strSessionId;
-    if ( ! coStream.eof() ) {
-      coStream
-        >> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-        >> p_soMsgInfo.m_psoSessInfo->m_coFramedIPAddress
-        >> p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
-        >> coIPCANType
-        >> coSGSNAddress
-        >> coRATType
-        >> coOriginHost
-        >> coOriginReal
-        >> coCGI
-        >> coECGI
-        >> coIMEI
-        >> p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI
-        >> p_soMsgInfo.m_psoSessInfo->m_coEndUserE164;
-      /* если из БД получено значение IP-CAN-Type и соответствующего атрибута не было в запросе */
-      if ( ! coIPCANType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.is_null() ) {
-        /* копируем значение, полученное из БД */
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = coIPCANType;
-        /* Find the enum value corresponding to the rescode string, this will give the class of error */
-        struct dict_object * enum_obj = NULL;
-        struct dict_enumval_request req;
-        memset( &req, 0, sizeof( struct dict_enumval_request ) );
-
-        /* First, get the enumerated type of the IP-CAN-Type AVP (this is fast, no need to cache the object) */
-        CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictIPCANType, &( req.type_obj ), ENOENT ) );
-
-        /* Now search for the value given as parameter */
-        req.search.enum_name = const_cast<char*>( coIPCANType.v.c_str() );
-        CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ) );
-
-        /* finally retrieve its data */
-        CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), return EINVAL );
-
-        /* copy the found value, we're done */
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = req.search.enum_value.i32;
-        LOG_D( "%s: IP-CAN-Type: '%d', '%s'", __FUNCTION__, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType, coIPCANType.v.c_str() );
-      }
-      /* если из БД получено значение RAT-Type и соответствующего атрибута не было в запросе */
-      if ( !coRATType.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null() ) {
-        /* копируем значение, полученное из БД */
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType = coRATType;
-        /* Find the enum value corresponding to the rescode string, this will give the class of error */
-        struct dict_object * enum_obj = NULL;
-        struct dict_enumval_request req;
-        memset( &req, 0, sizeof( struct dict_enumval_request ) );
-
-        /* First, get the enumerated type of the RAT-Type AVP (this is fast, no need to cache the object) */
-        CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictRATType, &( req.type_obj ), ENOENT ) );
-
-        /* Now search for the value given as parameter */
-        req.search.enum_name = const_cast<char *>( coRATType.v.c_str() );
-        CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_ENUMVAL, ENUMVAL_BY_STRUCT, &req, &enum_obj, ENOTSUP ) );
-
-        /* finally retrieve its data */
-        CHECK_FCT_DO( fd_dict_getval( enum_obj, &( req.search ) ), return EINVAL );
-
-        /* copy the found value, we're done */
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iRATType = req.search.enum_value.i32;
-        LOG_D( "%s: RAT-Type: '%d', '%s'", __FUNCTION__, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_iRATType, coRATType.v.c_str() );
-      }
-      /* если из БД получено значение 3GPP-SGSN-Address и соответствующего атрибута не было в запросе */
-      if ( ! coSGSNAddress.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null() ) {
-        /* копируем значение, полученное из БД */
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress = coSGSNAddress;
-      }
-      /* то же самое с Origin-Host */
-      if ( ! coOriginHost.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginHost.is_null() ) {
-        p_soMsgInfo.m_psoSessInfo->m_coOriginHost = coOriginHost;
-      }
-      /* то же самое с Origin-Realm */
-      if ( ! coOriginReal.is_null() && p_soMsgInfo.m_psoSessInfo->m_coOriginRealm.is_null() ) {
-        p_soMsgInfo.m_psoSessInfo->m_coOriginRealm = coOriginReal;
-      }
-      /* то же самое с CGI */
-      if ( ! coCGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI.is_null() ) {
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI = coCGI;
-      }
-      /* то же самое с ECGI */
-      if ( ! coECGI.is_null() && p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null() ) {
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI = coECGI;
-      }
-      /* то же самое с IMEI */
-      if ( ! coIMEI.is_null() && p_soMsgInfo.m_psoSessInfo->m_coIMEI.is_null() ) {
-        p_soMsgInfo.m_psoSessInfo->m_coIMEI = coIMEI;
-      }
-    } else {
-      /* no data found */
-      iRetVal = 1403;
-      UTL_LOG_E( *g_pcoLog, "session not found in the database : session-id: '%s'", p_strSessionId.c_str() );
-    }
-    coStream.close();
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "session info: code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
-  return iRetVal;
-}
-
 void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
 {
   std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
@@ -1014,6 +854,13 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 
 int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo )
 {
+  /* если список ключей мониторинга пуст */
+  if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
+  } else {
+    /* выходим ничего не делая */
+    return 0;
+  }
+
   if ( NULL != p_pcoDBConn ) {
   } else {
     return EINVAL;
@@ -1110,9 +957,11 @@ void pcrf_server_db_insert_refqueue (
     "insert refresh record" );
 }
 
-int pcrf_procera_db_load_sess_list( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
+int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
 {
-  if ( NULL != p_pcoDBConn ) {
+  otl_connect *pcoDBConn;
+
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     return EINVAL;
   }
@@ -1144,7 +993,7 @@ int pcrf_procera_db_load_sess_list( otl_connect *p_pcoDBConn, otl_value<std::str
         "and sl.framed_ip_address = sl2.framed_ip_address "
         "and p.protocol_id = :dialect_id /*int*/ "
         "and sl.time_end is null",
-      *p_pcoDBConn );
+      *pcoDBConn );
     coStream
       << p_coUGWSessionId
       << soSessInfo.m_uiPeerDialect;
@@ -1158,11 +1007,15 @@ int pcrf_procera_db_load_sess_list( otl_connect *p_pcoDBConn, otl_value<std::str
     coStream.close();
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {
       --iRepeat;
       goto sql_repeat;
     }
     iRetVal = coExcept.code;
+  }
+
+  if ( NULL != pcoDBConn ) {
+    CHECK_POSIX_DO( pcrf_db_pool_rel( reinterpret_cast<void *>( pcoDBConn ), __FUNCTION__ ), /*continue*/ );
   }
 
   stat_measure( g_psoDBStat, __FUNCTION__, &coTM );

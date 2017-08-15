@@ -9,7 +9,7 @@ static volatile bool g_bSessionRuleCacheWork = true;
 #include <list>
 
 /* хранилище информации о правилах сессий */
-static std::map<std::string, std::list<std::string> > g_mapSessRuleLst;
+static std::map<std::string, std::list<SDBAbonRule> > g_mapSessRuleLst;
 /* мьютекс доступа к хранилищу для операций с низким приоритетом */
 static pthread_mutex_t g_mutexSRLLowPrior;
 /* мьютекс доступа к хранилищу */
@@ -58,7 +58,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   CTimeMeasurer coTM;
   int iRetVal = 0;
   SDBAbonRule soRule;
-  std::map<std::string, std::list<std::string> >::iterator iter;
+  std::map<std::string, std::list<SDBAbonRule> >::iterator iter;
 
   soRule.m_bIsActivated = true;
 
@@ -70,8 +70,8 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   /* если сессия найдена */
   if (iter != g_mapSessRuleLst.end() && 0 < iter->second.size()) {
     /* обходим все активные правила */
-    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ++iterLst) {
-      soRule.m_coRuleName = *iterLst;
+    for (std::list<SDBAbonRule>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ++iterLst) {
+      soRule = *iterLst;
       /* сохраняем правилов в списке */
       p_vectActive.push_back(soRule);
     }
@@ -96,10 +96,10 @@ clean_and_exit:
   return iRetVal;
 }
 
-void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority)
+void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, SDBAbonRule &p_soRule, bool p_bLowPriority)
 {
   CTimeMeasurer coTM;
-  std::map<std::string, std::list<std::string> >::iterator iter;
+  std::map<std::string, std::list<SDBAbonRule> >::iterator iter;
 
   /* для операций с низким приоритетом проходим два уровня блокировки хранилища */
   /* блокируем мьютекс доступа к хранилищу с низким приотитетом */
@@ -113,13 +113,13 @@ void pcrf_session_rule_cache_insert_local(std::string &p_strSessionId, std::stri
   iter = g_mapSessRuleLst.find(p_strSessionId);
   if (iter != g_mapSessRuleLst.end()) {
     /* если нашли, то дополняем правил список ее */
-    iter->second.push_back(p_strRuleName);
+    iter->second.push_back( p_soRule );
     stat_measure(g_psoSessionRuleCacheStat, "rule inserted", &coTM);
   } else {
     /* если сессия не найдена добавляем ее в хранилище */
-    std::list<std::string> list;
-    list.push_back(p_strRuleName);
-    g_mapSessRuleLst.insert(std::pair<std::string, std::list<std::string> >(p_strSessionId, list));
+    std::list<SDBAbonRule> list;
+    list.push_back( p_soRule );
+    g_mapSessRuleLst.insert( std::pair<std::string, std::list<SDBAbonRule> >( p_strSessionId, list ) );
     stat_measure(g_psoSessionRuleCacheStat, "session inserted", &coTM);
   }
 
@@ -139,7 +139,7 @@ clean_and_exit:
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
-  std::map<std::string, std::list<std::string> >::iterator iter;
+  std::map<std::string, std::list<SDBAbonRule> >::iterator iter;
 
   /* блокируем доступ к хранилищу кэша правил сессий */
   CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSessRuleLst), goto clean_and_exit);
@@ -162,8 +162,8 @@ clean_and_exit:
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName)
 {
   CTimeMeasurer coTM;
-  std::map<std::string, std::list<std::string> >::iterator iter;
-  std::list<std::string>::iterator iterLst;
+  std::map<std::string, std::list<SDBAbonRule> >::iterator iter;
+  std::list<SDBAbonRule>::iterator iterLst;
 
   /* блокируем доступ к хранилищу */
   CHECK_FCT_DO(pthread_mutex_lock(&g_mutexSessRuleLst), goto clean_and_exit);
@@ -174,11 +174,11 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
   if (iter != g_mapSessRuleLst.end()) {
     /* обходим все правила */
     for (iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
-      if (0 == iterLst->compare(p_strRuleName)) {
+      if ( 0 == iterLst->m_coRuleName.is_null() && 0 == iterLst->m_coRuleName.v.compare( p_strRuleName ) ) {
         /* и удаляем найденное */
-        iterLst = iter->second.erase(iterLst);
+        iterLst = iter->second.erase( iterLst );
         /* фиксируем в модуле статистики успешное удаление правила */
-        stat_measure(g_psoSessionRuleCacheStat, "rule removed", &coTM);
+        stat_measure( g_psoSessionRuleCacheStat, "rule removed", &coTM );
       } else {
         ++iterLst;
       }
@@ -216,11 +216,19 @@ static void * pcrf_session_rule_load_list(void*)
       1000,
       "select session_id, rule_name from ps.sessionRule where time_end is null",
       *pcoDBConn );
+
+    std::vector<SDBAbonRule> vectAbonRules;
+
     while ( 0 == coStream.eof() && g_bSessionRuleCacheWork ) {
       coStream
         >> strSessionId
         >> strRuleName;
-      pcrf_session_rule_cache_insert_local( strSessionId, strRuleName, true );
+      {
+        SDBAbonRule soRule;
+        if ( 0 == pcrf_rule_cache_get_rule_info( NULL, strRuleName, soRule ) ) {
+          pcrf_session_rule_cache_insert_local( strSessionId, soRule, true );
+        }
+      }
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
     coStream.close();
@@ -241,17 +249,17 @@ clean_and_exit:
   pthread_exit(NULL);
 }
 
-void pcrf_session_rule_cache_insert(std::string &p_strSessionId, std::string &p_strRuleName)
+void pcrf_session_rule_cache_insert(std::string &p_strSessionId, SDBAbonRule &p_soRule)
 {
   /* проверяем параметры */
-  if (0 < p_strSessionId.length() && 0 < p_strRuleName.length()) {
+  if ( 0 < p_strSessionId.length() && 0 != p_soRule.m_coRuleName.is_null() && 0 < p_soRule.m_coRuleName.v.length() ) {
   } else {
-    UTL_LOG_E(*g_pcoLog, "invalid parameter values: session-id length: '%d'; rule-name length: '%d'", p_strSessionId.length(), p_strRuleName.length());
+    UTL_LOG_E( *g_pcoLog, "invalid parameter values: session-id or rule-name" );
     return;
   }
 
-  pcrf_session_rule_cache_insert_local(p_strSessionId, p_strRuleName);
-  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_strRuleName);
+  pcrf_session_rule_cache_insert_local( p_strSessionId, p_soRule );
+  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_soRule.m_coRuleName.v );
 }
 
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName)

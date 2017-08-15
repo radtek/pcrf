@@ -234,7 +234,7 @@ int pcrf_client_rar (
 	/* Event-Trigger */
   if ( NULL != p_plistTrigger ) {
     for ( std::list<int32_t>::iterator iter = p_plistTrigger->begin(); iter != p_plistTrigger->end(); ++iter ) {
-      CHECK_FCT_DO( set_event_trigger( *( p_soReqInfo.m_psoSessInfo ), psoReq, *iter ), /* continue */ );
+      CHECK_FCT_DO( set_event_trigger( psoReq, *iter ), /* continue */ );
     }
   }
   /* Usage-Monitoring-Information */
@@ -457,7 +457,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* загружаем из БД информацию о сессии абонента */
     {
       /* ищем информацию о базовой сессии в кеше */
-      if ( 0 != pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, soSessInfo.m_psoSessInfo->m_coSessionId.v ) ) {
+      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_coSessionId.v, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo ) ) {
         goto clear_and_continue;
       }
       /* необходимо определить диалект хоста */
@@ -469,7 +469,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
         if ( 0 == pcrf_server_find_ugw_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
           strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
           /* ищем информацию о базовой сессии в кеше */
-          pcrf_server_load_session_info( p_pcoDBConn, soSessInfo, strUGWSessionId );
+          pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo );
         }
       }
     }
