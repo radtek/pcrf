@@ -329,7 +329,7 @@ static int app_pcrf_ccr_cb(
       }
       /* Event-Trigger */
       /* USER_LOCATION_CHANGE */
-#if 0 /* PCRF-113 15.12.2016 */
+#if 1 /* PCRF-113 15.12.2016 */
       if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
         CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
       }
@@ -380,29 +380,23 @@ static int app_pcrf_ccr_cb(
           switch ( *iter ) {
             case 2:	/* RAT_CHANGE */
               /* Event-Trigger RAT_CHANGE */
-              if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-                CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 2 ), /* continue */ );
-              }
               if ( ! bCacheUPdated ) {
                 pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
                 bCacheUPdated = true;
               }
               break;
+#if 1 /* PCRF-113 15.12.2016 */
             case 13: /* USER_LOCATION_CHANGE */
               /* Event-Trigger USER_LOCATION_CHANGE */
               if ( pcrf_peer_is_dialect_used( GX_PROCERA ) ) {
                 CHECK_FCT_DO( pcrf_procera_change_uli( pcoDBConn, soMsgInfoCache ), /* continue */ );
               }
-#if 0 /* PCRF-113 15.12.2016 */
-              if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-                CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 13 ), /* continue */ );
-              }
-#endif
               if ( ! bCacheUPdated ) {
                 pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
                 bCacheUPdated = true;
               }
               break;
+#endif
             case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
               /* Default-EPS-Bearer-QoS */
               pcrf_make_DefaultEPSBearerQoS( ans, *soMsgInfoCache.m_psoReqInfo );
@@ -410,7 +404,6 @@ static int app_pcrf_ccr_cb(
               break;
             case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
               if ( GX_CISCO_SCE == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-                CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 26 ), /* continue */ );
                 /* Usage-Monitoring-Information */
                 CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ), false ), /* continue */ );
               }
@@ -419,7 +412,6 @@ static int app_pcrf_ccr_cb(
               switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
                 case GX_3GPP: /* Gx */
                 case GX_PROCERA: /* Gx Procera */
-                  CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 33 ), /* continue */ );
                   CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ), false ), /* continue */ );
                   break;
               }
@@ -428,10 +420,6 @@ static int app_pcrf_ccr_cb(
             case 101: /* TETHERING_REPORT */
               if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && 0 == soMsgInfoCache.m_psoReqInfo->m_coTetheringFlag.is_null() ) {
                 pcrf_server_db_insert_tethering_info( soMsgInfoCache );
-                /* TETHERING_REPORT */
-                if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-                  CHECK_FCT_DO( set_event_trigger( *( soMsgInfoCache.m_psoSessInfo ), ans, 101 ), /* continue */ );
-                }
               }
               break;
 #endif

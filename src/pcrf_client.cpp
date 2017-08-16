@@ -435,14 +435,12 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
 {
   int iRetVal = 0;
   std::vector<std::string> vectSessionList;
-  std::list<int32_t> listEventTrigger;
 
   /* загружаем из БД список сессий абонента */
   CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
 
   /* обходим все сессии абонента */
   for ( std::vector<std::string>::iterator iterSess = vectSessionList.begin(); iterSess != vectSessionList.end(); ++iterSess ) {
-    listEventTrigger.clear();
     /* сведения о сессии */
     SMsgDataForDB soSessInfo;
     /* список правил профиля абонента */
@@ -502,29 +500,8 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
       goto clear_and_continue;
     }
-    /* готовим список триггеров */
-    /* RAT_CHANGE */
-    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      listEventTrigger.push_back( 2 );
-    }
-    /* USER_LOCATION_CHANGE */
-#if 0 /* PCRF-113 15.12.2016 */
-    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-      listEvenTrigger.push_back( 13 );
-    }
-#endif
-    /* USAGE_REPORT */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_3GPP:
-      case GX_PROCERA:
-        listEventTrigger.push_back( 33 );
-        break;
-      case GX_CISCO_SCE:
-        listEventTrigger.push_back( 26 );
-        break;
-    }
     /* посылаем RAR-запрос */
-    CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0, false ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, NULL, NULL, 0, false ), /* continue */ );
     /* освобождаем ресуры*/
     clear_and_continue:
     pcrf_server_DBStruct_cleanup( &soSessInfo );
