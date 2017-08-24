@@ -45,10 +45,10 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
   /* формируем тип записи */
   switch ( p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
     case INITIAL_REQUEST:
-      p_strData = "0\t";
+      p_strData = "1\t";
     break;
     case TERMINATION_REQUEST:
-      p_strData = "1\t";
+      p_strData = "3\t";
       break;
     default:
       p_strData.clear();
@@ -71,15 +71,14 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
     iFnRes = snprintf( mcString, sizeof(mcString), "%d", tmTm );
     if ( iFnRes > 0 && iFnRes < sizeof( mcString ) ) {
       p_strData += mcString;
-      p_strData += '\t';
     }
   }
+  p_strData += '\t';
 
-    /* записываем imsi */
-    if ( 0 == p_soReqData.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
-      p_strData += p_soReqData.m_psoSessInfo->m_coEndUserIMSI.v;
-    }
-    p_strData += '\t';
+  /* записываем imsi */
+  if ( 0 == p_soReqData.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
+    p_strData += p_soReqData.m_psoSessInfo->m_coEndUserIMSI.v;
+  }
 
   /* формируем параметры, характерные для начала сессии */
   if ( INITIAL_REQUEST == p_soReqData.m_psoReqInfo->m_iCCRequestType ) {
@@ -197,6 +196,10 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
     CHECK_FCT_DO( gettimeofday( &soTimeVal, NULL ), break );
     soTimeSpec.tv_sec = soTimeVal.tv_sec;
     soTimeSpec.tv_sec += g_psoConf->m_iCDRInterval;
+    if ( 0 != ( soTimeSpec.tv_sec % g_psoConf->m_iCDRInterval ) ) {
+      soTimeSpec.tv_sec /= g_psoConf->m_iCDRInterval;
+      soTimeSpec.tv_sec *= g_psoConf->m_iCDRInterval;
+    }
     soTimeSpec.tv_nsec = 0;
   }
 
