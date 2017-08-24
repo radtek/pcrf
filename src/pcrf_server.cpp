@@ -57,15 +57,16 @@ int pcrf_procera_terminate_session( otl_value<std::string> &p_coUGWSessionId );
 /* формирование запроса на завершение сессии Procera */
 int pcrf_procera_oper_thetering_report( SMsgDataForDB &p_soRequestInfo, std::vector<SDBAbonRule> &p_vectAbonRule, std::vector<SDBAbonRule> &p_vectActiveRule );
 
-/* определиение набора необходимых действий при обработке CCR */
+/* определение набора необходимых действий при обработке CCR */
 #define ACTION_COPY_DEFBEARER           static_cast<unsigned int>(0x00000001)
 #define ACTION_UPDATE_SESSIONCACHE      static_cast<unsigned int>(0x00000002)
 #define ACTION_UPDATE_RULE              static_cast<unsigned int>(0x00000004)
+#define ACTION_UPDATE_QUOTA             static_cast<unsigned int>(0x00000008)
 
-#define ACTION_UGW_STORE_THET_INFO      static_cast<unsigned int>(0x00000008)
+#define ACTION_UGW_STORE_THET_INFO      static_cast<unsigned int>(0x00000010)
 
-#define ACTION_PROCERA_STORE_THET_INFO  static_cast<unsigned int>(0x00000010)
-#define ACTION_PROCERA_CHANGE_ULI       static_cast<unsigned int>(0x00000020)
+#define ACTION_PROCERA_STORE_THET_INFO  static_cast<unsigned int>(0x00000020)
+#define ACTION_PROCERA_CHANGE_ULI       static_cast<unsigned int>(0x00000040)
 
 unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soMsgInfoCache );
 
@@ -111,6 +112,7 @@ static int app_pcrf_ccr_cb(
 
   /* определяем набор действий, необходимых для формирования ответа */
   uiActionSet = pcrf_server_determine_action_set( soMsgInfoCache );
+  LOG_D( "Session-Id: %s: Action Set: %#x", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str(), uiActionSet );
 
   UTL_LOG_D( *g_pcoLog, "session-id: '%s'; peer: '%s@%s'; dialect: %u",
     soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str(),
@@ -140,21 +142,32 @@ static int app_pcrf_ccr_cb(
 
   int iFnRes;
   otl_connect *pcoDBConn = NULL;
-  /* список правил профиля абонента */
-  std::vector<SDBAbonRule> vectAbonRules;
-  /* список активных правил абонента */
-  std::vector<SDBAbonRule> vectActive;
+  std::vector<SDBAbonRule> vectAbonRules;    /* список правил профиля абонента */
+  std::vector<SDBAbonRule> vectActive;       /* список активных правил абонента */
   SSessionInfo *psoSessShouldBeTerm = NULL;
 
+  bool bRulesChanged = false;        /* признак того, что правила были изменены */
+  bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
+  std::vector<SDBAbonRule>::iterator iterAbonRule;
+
   /* запрашиваем объект класса для работы с БД */
-  iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC );
-  if ( 0 == iFnRes && NULL != pcoDBConn ) {
-  } else {
-    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
-      /* попытка оптимизации взаимодействия с ugw */
+  /* взаимодействие с БД необходимо лишь в случае INITIAL_REQUEST и UPDATE_REQUEST в сочетании с ACTION_UPDATE_RULE */
+  /* так же для всех запросов (временно), поступающих от клиентов с пропиетарными диалектами */
+  if ( ( uiActionSet & ACTION_UPDATE_RULE )
+    || ( uiActionSet & ACTION_UPDATE_QUOTA )
+    || INITIAL_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType
+    || GX_3GPP != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect )
+  {
+    iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC );
+    if ( 0 == iFnRes && NULL != pcoDBConn ) {
     } else {
-      uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
+      if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect && UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
+        /* попытка оптимизации взаимодействия с ugw */
+      } else {
+        uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
+      }
     }
+    LOG_D( "Session-Id: %s: Action DB connection is requested", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
   }
 
   /* дополняем данные запроса необходимыми параметрами */
@@ -264,24 +277,13 @@ static int app_pcrf_ccr_cb(
   }
 
   /* загружаем правила из БД */
-  switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
-    default: /* DEFAULT */
-      /* загружаем из БД правила абонента */
-      CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( pcoDBConn, soMsgInfoCache, vectAbonRules ), /* continue */ );
-      break; /* INITIAL_REQUEST */ /* DEFAULT */
-    case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
-      break; /* TERMINATION_REQUEST */
-  }
-
-  /* выполняем дополнительные действия с правилами */
-  switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
-    case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
-      break; /* TERMINATION_REQUEST */
-    default: /* DEFAULT */
-    case INITIAL_REQUEST: /* INITIAL_REQUEST */
-      /* загружаем информацию о мониторинге */
-      CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
-      break; /* DEFAULT */ /* INITIAL_REQUEST */
+  if ( UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType && ( uiActionSet & ACTION_UPDATE_RULE )
+    || INITIAL_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType
+    || GX_3GPP != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect )
+  {
+    /* загружаем из БД правила абонента */
+    CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( pcoDBConn, soMsgInfoCache, vectAbonRules ), /* continue */ );
+    LOG_D( "Session-Id: %s: abon rules information is loaded", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
   }
 
   answer:
@@ -337,43 +339,6 @@ static int app_pcrf_ccr_cb(
     CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), break );
   } while ( 0 );
 
-  /* задаем Event-Trigger */
-  switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
-    case INITIAL_REQUEST: /* INITIAL_REQUEST */
-    case UPDATE_REQUEST: /* UPDATE_REQUEST */
-      /* Event-Trigger RAT_CHANGE */
-      if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-        CHECK_FCT_DO( set_event_trigger( ans, 2 ), /* continue */ );
-      }
-#if 0
-      /* Event-Trigger TETHERING_REPORT */
-      if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-        CHECK_FCT_DO( set_event_trigger( ans, 101 ), /* continue */ );
-      }
-#endif
-#if 0 /* PCRF-113 15.12.2016 */
-      /* Event-Trigger USER_LOCATION_CHANGE */
-      if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-        CHECK_FCT_DO( set_event_trigger( ans, 13 ), /* continue */ );
-      }
-#endif
-      /* Event-Trigger USAGE_REPORT */
-      if ( 0 != soMsgInfoCache.m_psoSessInfo->m_mapMonitInfo.size() ) {
-        switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-          case GX_3GPP:
-          case GX_PROCERA:
-            CHECK_FCT_DO( set_event_trigger( ans, 33 ), /* continue */ );
-            break;
-          case GX_CISCO_SCE:
-            CHECK_FCT_DO( set_event_trigger( ans, 26 ), /* continue */ );
-            break;
-        }
-      }
-      break;
-    default:
-      break;
-  }
-
   switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
     case INITIAL_REQUEST: /* INITIAL_REQUEST */
       /* Supported-Features */
@@ -388,6 +353,11 @@ static int app_pcrf_ccr_cb(
         CHECK_FCT_DO( set_event_trigger( ans, 777 ), /* continue */ );
         CHECK_FCT_DO( pcrf_procera_make_subscription_id( ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164 ), /* continue */ );
       }
+      /* формируем список ключей мониторинга */
+      pcrf_make_mk_list( vectAbonRules, soMsgInfoCache.m_psoSessInfo );
+      /* запрашиваем информацию о ключах мониторинга */
+      CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+      LOG_D( "Session-Id: %s: monitoring key information is requested", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       /* Usage-Monitoring-Information */
       CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
       /* Charging-Rule-Install */
@@ -402,42 +372,108 @@ static int app_pcrf_ccr_cb(
         /* Default-EPS-Bearer-QoS */
         pcrf_make_DefaultEPSBearerQoS( ans, *soMsgInfoCache.m_psoReqInfo );
         CHECK_FCT_DO( pcrf_make_APNAMBR( ans, *soMsgInfoCache.m_psoReqInfo ), /* continue */ );
+        LOG_D( "Session-Id: %s: default bearer is accepted", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       if ( uiActionSet & ACTION_UPDATE_SESSIONCACHE ) {
         pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
+        LOG_D( "Session-Id: %s: session cache is updated", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       if ( uiActionSet & ACTION_PROCERA_CHANGE_ULI ) {
         CHECK_FCT_DO( pcrf_procera_change_uli( pcoDBConn, soMsgInfoCache ), /* continue */ );
+        LOG_D( "Session-Id: %s: user location is changed on procera", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       if ( uiActionSet & ACTION_UPDATE_RULE ) {
         /* загружаем список активных правил */
-        CHECK_POSIX_DO( pcrf_server_db_load_active_rules( pcoDBConn, soMsgInfoCache, vectActive ), /* continue */ );
-        /* Usage-Monitoring-Information */
-        CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+        CHECK_POSIX_DO( pcrf_session_rule_cache_get( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, vectActive ), /* continue */ );
         /* формируем список неактуальных правил */
-        CHECK_POSIX_DO( pcrf_server_select_notrelevant_active( vectAbonRules, vectActive ), );
+        pcrf_server_select_notrelevant_active( vectAbonRules, vectActive );
+        /* формируем список ключей мониторинга */
+        pcrf_make_mk_list( vectAbonRules , soMsgInfoCache.m_psoSessInfo );
+        /* запрашиваем информацию о ключах мониторинга */
+        CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+        LOG_D( "Session-Id: %s: monitoring key information is requested", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
         /* Charging-Rule-Remove */
         psoChildAVP = pcrf_make_CRR( *soMsgInfoCache.m_psoSessInfo, vectActive );
         /* put 'Charging-Rule-Remove' into answer */
         if ( psoChildAVP ) {
           CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), /*continue*/ );
         }
+        /* Usage-Monitoring-Information */
+        CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
         /* Charging-Rule-Install */
         psoChildAVP = pcrf_make_CRI( &soMsgInfoCache, vectAbonRules, ans );
         /* put 'Charging-Rule-Install' into answer */
         if ( psoChildAVP ) {
           CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), /*continue*/ );
         }
+        LOG_D( "Session-Id: %s: session rules are operated", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       if ( uiActionSet & ACTION_UGW_STORE_THET_INFO ) {
         pcrf_server_db_insert_tethering_info( soMsgInfoCache );
+        LOG_D( "Session-Id: %s: ugw thetering info is stored", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       if ( uiActionSet & ACTION_PROCERA_STORE_THET_INFO ) {
         if ( 0 == soMsgInfoCache.m_psoSessInfo->m_coSessionId.is_null() ) {
           pcrf_procera_oper_thetering_report( soMsgInfoCache, vectAbonRules, vectActive );
         }
+        LOG_D( "Session-Id: %s: procera thetering info is stored", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
       break; /* UPDATE_REQUEST */
+  }
+
+  /* обходим все правила */
+  if ( INITIAL_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType
+    || UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType && ( uiActionSet & ACTION_UPDATE_RULE ) ) {
+    for ( iterAbonRule = vectAbonRules.begin(); iterAbonRule != vectAbonRules.end(); ++iterAbonRule ) {
+      /* если найдены правила, подлежащие инсталляции */
+      if ( ! bRulesChanged && ! iterAbonRule->m_bIsActive && iterAbonRule->m_bIsRelevant ) {
+        bRulesChanged = true;
+      }
+      /* среди релевантных правил проверяем наличие ключей мониторинга */
+      if ( ! bMKInstalled && iterAbonRule->m_bIsRelevant && 0 != iterAbonRule->m_vectMonitKey.size() ) {
+        bMKInstalled = true;
+      }
+      /* ищем, есть ли правила, подлежащие удалению */
+      if ( ! bRulesChanged && iterAbonRule->m_bIsActive && ! iterAbonRule->m_bIsRelevant ) {
+        bRulesChanged = true;
+      }
+      /* если нашли оба признака дальше искать нет смысла */
+      if ( bRulesChanged && bMKInstalled ) {
+        break;
+      }
+    }
+  }
+
+  /* задаем Event-Trigger */
+  if( INITIAL_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType 
+    || UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType && bRulesChanged )
+  {
+    /* Event-Trigger RAT_CHANGE */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( ans, 2 ), /* continue */ );
+    }
+    /* Event-Trigger TETHERING_REPORT */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( ans, 101 ), /* continue */ );
+    }
+#if 0
+    /* Event-Trigger USER_LOCATION_CHANGE */
+    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+      CHECK_FCT_DO( set_event_trigger( ans, 13 ), /* continue */ );
+    }
+#endif
+    /* Event-Trigger USAGE_REPORT */
+    if ( bMKInstalled ) {
+      switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+        case GX_3GPP:
+        case GX_PROCERA:
+          CHECK_FCT_DO( set_event_trigger( ans, 33 ), /* continue */ );
+          break;
+        case GX_CISCO_SCE:
+          CHECK_FCT_DO( set_event_trigger( ans, 26 ), /* continue */ );
+          break;
+      }
+    }
   }
 
   cleanup_and_exit:
@@ -516,10 +552,8 @@ void pcrf_logger_fini(void)
 	g_pcoLog = NULL;
 }
 
-int pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive)
+void pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive)
 {
-	int iRetVal = 0;
-
 	/* обходим все активные правила */
 	std::vector<SDBAbonRule>::iterator iterRule;
 	std::vector<SDBAbonRule>::iterator iterActive;
@@ -530,13 +564,11 @@ int pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRu
 			/* если имена правил совпадают, значит активное правило актуально */
 			if (iterActive->m_coRuleName.v == iterRule->m_coRuleName.v) {
 				/* фиксируем, что правило активировано */
-				iterRule->m_bIsActivated = true;
+				iterRule->m_bIsActive = true;
 				iterActive->m_bIsRelevant = true;
 			}
 		}
-	}
-
-	return iRetVal;
+  }
 }
 
 avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
@@ -793,7 +825,7 @@ avp * pcrf_make_CRI (
 		switch (p_psoReqInfo->m_psoSessInfo->m_uiPeerDialect) {
     case GX_3GPP:     /* Gx */
     case GX_PROCERA: /* Gx Procera */
-      if (iter->m_bIsActivated) {
+      if (iter->m_bIsActive) {
 				continue;
 			}
 			/* Charging-Rule-Install */
@@ -854,7 +886,7 @@ avp * pcrf_make_CRI (
 				CHECK_FCT_DO (fd_msg_avp_add (p_soAns, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 			}
 			/* сохраняем выданную политику в БД */
-      if (! iter->m_bIsActivated) {
+      if (! iter->m_bIsActive) {
         pcrf_db_insert_rule( *( p_psoReqInfo->m_psoSessInfo ), *iter );
       }
 			break; /* Gx Cisco SCE */
@@ -1188,7 +1220,7 @@ int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 	return iRetVal;
 }
 
-int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull )
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo )
 {
   /* если список пуст выходим из функции */
   if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
@@ -1206,6 +1238,14 @@ int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p
 
   std::map<std::string, SDBMonitoringInfo>::iterator iterMonitInfo = p_soSessInfo.m_mapMonitInfo.begin();
   for ( ; iterMonitInfo != p_soSessInfo.m_mapMonitInfo.end(); ++iterMonitInfo ) {
+    /* если задана хотябы одна квота */
+    if ( 0 == iterMonitInfo->second.m_coDosageTotalOctets.is_null()
+      || 0 == iterMonitInfo->second.m_coDosageOutputOctets.is_null()
+      || 0 == iterMonitInfo->second.m_coDosageInputOctets.is_null() ) {
+    } else {
+      /* иначе переходим к следующему ключу */
+      continue;
+    }
     psoAVPUMI = NULL;
     /* Usage-Monitoring-Information */
     CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringInformation, 0, &psoAVPUMI ), return __LINE__ );
@@ -1218,7 +1258,7 @@ int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p
       CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
     }
     /* дополнительные параметры */
-    if ( !p_bFull && GX_CISCO_SCE == p_soSessInfo.m_uiPeerDialect ) {
+    if ( iterMonitInfo->second.m_bIsReported && GX_CISCO_SCE == p_soSessInfo.m_uiPeerDialect ) {
       /* Usage-Monitoring-Level */
       CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
       soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
@@ -1226,13 +1266,13 @@ int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p
       /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
       CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
     }
-    if ( p_bFull ) {
+    if ( ! iterMonitInfo->second.m_bIsReported ) {
       /* Usage-Monitoring-Level */
-//      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
-//      soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-//      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
       /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-//      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
       /* Usage-Monitoring-Report */
       if ( GX_PROCERA != p_soSessInfo.m_uiPeerDialect ) {
         CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringReport, 0, &psoAVPChild ), return __LINE__ );
@@ -1241,15 +1281,6 @@ int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p
         /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
         CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
       }
-    }
-    /* если не задана ни одна квота */
-    if ( 0 == iterMonitInfo->second.m_coDosageTotalOctets.is_null()
-      || 0 == iterMonitInfo->second.m_coDosageOutputOctets.is_null()
-      || 0 == iterMonitInfo->second.m_coDosageInputOctets.is_null() ) {
-    } else {
-      /* put into request */
-      CHECK_FCT( fd_msg_avp_add( p_psoMsgOrAVP, MSG_BRW_LAST_CHILD, psoAVPUMI ) );
-      continue;
     }
     /* Granted-Service-Unit */
     CHECK_FCT_DO( fd_msg_avp_new( g_psoDictGrantedServiceUnit, 0, &psoAVPGSU ), return __LINE__ );
@@ -1959,7 +1990,7 @@ int pcrf_extract_DefaultEPSBearerQoS (avp *p_soAVP, SRequestInfo &p_soReqInfo)
 
 int pcrf_procera_change_uli( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqData )
 {
-  SDBAbonRule soAbonRule;
+  SDBAbonRule soAbonRule( false, true );
   std::vector<SDBAbonRule> vectOldRule;
   std::vector<SDBAbonRule> vectNewRule;
   std::vector<SSessionInfo> vectSessList;
@@ -1967,7 +1998,7 @@ int pcrf_procera_change_uli( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqDat
   /* обрабатыаем новую локацию */
   soAbonRule.m_coDynamicRuleFlag = 0;
   soAbonRule.m_coRuleGroupFlag = 0;
-  soAbonRule.m_bIsRelevant = true;
+
   pcrf_procera_make_uli_rule(
     0 == p_soReqData.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null() ?
     p_soReqData.m_psoReqInfo->m_soUserLocationInfo.m_coECGI :
@@ -1982,7 +2013,7 @@ int pcrf_procera_change_uli( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqDat
   for ( std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter ) {
     CHECK_FCT_DO( pcrf_procera_db_load_location_rule( p_pcoDBConn, iter->m_coSessionId, vectOldRule ), break );
     *soReqInfo.m_psoSessInfo = *iter;
-    CHECK_FCT_DO( pcrf_client_rar( soReqInfo, &vectOldRule, vectNewRule, NULL, NULL, 0, false ), break );
+    CHECK_FCT_DO( pcrf_client_rar( soReqInfo, &vectOldRule, vectNewRule, NULL, NULL, 0 ), break );
   }
   pcrf_server_DBStruct_cleanup( &soReqInfo );
 
@@ -2096,7 +2127,6 @@ int pcrf_procera_terminate_session( otl_value<std::string> &p_coUGWSessionId )
 
 /* загружает описание правил */
 int load_rule_info(
-  SMsgDataForDB &p_soMsgInfo,
   std::vector<std::string> &p_vectRuleList,
   std::vector<SDBAbonRule> &p_vectAbonRules )
 {
@@ -2106,7 +2136,7 @@ int load_rule_info(
   for ( ; iter != p_vectRuleList.end(); ++iter ) {
     {
       SDBAbonRule soAbonRule;
-      if ( 0 == pcrf_rule_cache_get_rule_info( &p_soMsgInfo, *iter, soAbonRule ) ) {
+      if ( 0 == pcrf_rule_cache_get_rule_info( *iter, soAbonRule ) ) {
         p_vectAbonRules.push_back( soAbonRule );
       }
     }
@@ -2117,6 +2147,8 @@ int load_rule_info(
 
 int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules )
 {
+  LOG_D( "enter: %s", __FUNCTION__ );
+
   int iRetVal = 0;
 
   /* очищаем список перед выполнением */
@@ -2125,10 +2157,9 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
   do {
     /* дополнительная информация для Procera */
     if ( GX_PROCERA == p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      SDBAbonRule soAbonRule;
+      SDBAbonRule soAbonRule( false, true );
       std::string strValue;
 
-      soAbonRule.m_bIsRelevant = true;
       soAbonRule.m_coDynamicRuleFlag = 0;
       soAbonRule.m_coRuleGroupFlag = 0;
 
@@ -2158,7 +2189,7 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
     pcrf_load_abon_rule_list( p_pcoDBConn, p_soMsgInfo, vectRuleList );
     /* если список идентификаторов правил не пустой */
     if ( vectRuleList.size() ) {
-      load_rule_info( p_soMsgInfo, vectRuleList, p_vectAbonRules );
+      load_rule_info( vectRuleList, p_vectAbonRules );
       /* в случае с SCE нам надо оставить одно правило с наивысшим приоритетом */
       if ( p_vectAbonRules.size() && GX_CISCO_SCE == p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect ) {
         SDBAbonRule soAbonRule;
@@ -2177,6 +2208,8 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
       }
     }
   } while ( 0 );
+
+  LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
   return iRetVal;
 }
@@ -2201,7 +2234,7 @@ int pcrf_procera_oper_thetering_report( SMsgDataForDB &p_soRequestInfo, std::vec
     } else {
       switch ( p_soRequestInfo.m_psoReqInfo->m_coTetheringFlag.v ) {
         case 0:
-          soRule.m_bIsActivated = true;
+          soRule.m_bIsActive = true;
           p_vectActiveRule.push_back( soRule );
         default:
           soRule.m_bIsRelevant = true;
@@ -2241,42 +2274,69 @@ unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequestInfo )
       case 2:	/* RAT_CHANGE */
         uiRetVal |= ACTION_UPDATE_SESSIONCACHE;
         uiRetVal |= ACTION_UPDATE_RULE;
+        LOG_D( "session-id: %s; RAT_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
-#if 0 /* PCRF-113 15.12.2016 */
       case 13: /* USER_LOCATION_CHANGE */
         uiRetVal |= ACTION_UPDATE_SESSIONCACHE;
-        uiRetVal |= ACTION_UPDATE_RULE;
         /* Event-Trigger USER_LOCATION_CHANGE */
         if ( GX_3GPP == p_soRequestInfo.m_psoSessInfo->m_uiPeerDialect ) {
           if ( pcrf_peer_is_dialect_used( GX_PROCERA ) ) {
             uiRetVal |= ACTION_PROCERA_CHANGE_ULI;
           }
         }
+        LOG_D( "session-id: %s; USER_LOCATION_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
-#endif
       case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
         uiRetVal |= ACTION_COPY_DEFBEARER;
+        LOG_D( "session-id: %s; DEFAULT_EPS_BEARER_QOS_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
       case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
         uiRetVal |= ACTION_UPDATE_RULE;
+        LOG_D( "session-id: %s; USAGE_REPORT[26]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
       case 33: /* USAGE_REPORT */
         uiRetVal |= ACTION_UPDATE_RULE;
+        uiRetVal |= ACTION_UPDATE_QUOTA;
+        LOG_D( "session-id: %s; USAGE_REPORT[33]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
-#if 0
       case 101: /* TETHERING_REPORT */
         if ( GX_3GPP == p_soRequestInfo.m_psoSessInfo->m_uiPeerDialect ) {
           uiRetVal |= ACTION_UGW_STORE_THET_INFO;
         }
+        LOG_D( "session-id: %s; TETHERING_REPORT", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
-#endif
       case 777:
         if ( GX_PROCERA == p_soRequestInfo.m_psoSessInfo->m_uiPeerDialect ) {
           uiRetVal |= ACTION_PROCERA_STORE_THET_INFO;
         }
+        LOG_D( "session-id: %s; Event-Trigger[777]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
     }
   }
 
   return uiRetVal;
+}
+
+void pcrf_make_mk_list( std::vector<SDBAbonRule> &p_vectAbonRules, SSessionInfo *p_psoSessInfo )
+{
+  /* проверяем состояние указателя */
+  if ( NULL != p_psoSessInfo ) {
+  } else {
+    return;
+  }
+
+  std::vector<SDBAbonRule>::iterator iterRule;
+  std::vector<std::string>::iterator iterMonitKey;
+
+  /* обходим все правила из списка */
+  for ( iterRule = p_vectAbonRules.begin(); iterRule != p_vectAbonRules.end(); ++iterRule ) {
+    /* если очередное правило релевантно и неактивно (т.е. впоследствие будет инсталлировано) */
+    if ( iterRule->m_bIsRelevant && ! iterRule->m_bIsActive ) {
+      /* обходим все ключи мониторинга подлежащего инсталляции правила */
+      for ( iterMonitKey = iterRule->m_vectMonitKey.begin(); iterMonitKey != iterRule->m_vectMonitKey.end(); ++iterMonitKey ) {
+        /* добавляем (или пытаемся добавить) их в список ключей мониторинга сессии */
+        p_psoSessInfo->m_mapMonitInfo.insert( std::pair<std::string, SDBMonitoringInfo>( *iterMonitKey, SDBMonitoringInfo() ) );
+      }
+    }
+  }
 }

@@ -32,11 +32,11 @@ struct SSessionPolicyInfo {
 /* структура для получения информации о мониторинге */
 struct SDBMonitoringInfo {
 	/*otl_value<std::string> m_coKeyName; */ /* в качестве имени ключа используется ключ std::map */
-	bool m_bDataLoaded;
+	bool m_bIsReported;
 	otl_value<uint64_t> m_coDosageTotalOctets;
 	otl_value<uint64_t> m_coDosageOutputOctets;
 	otl_value<uint64_t> m_coDosageInputOctets;
-	SDBMonitoringInfo() { m_bDataLoaded = false; }
+	SDBMonitoringInfo() { m_bIsReported = false; }
 };
 struct SSessionInfo {
 	unsigned int m_uiPeerDialect;
@@ -134,7 +134,7 @@ struct SPeerInfo {
 };
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
-	bool m_bIsActivated;
+	bool m_bIsActive;
 	bool m_bIsRelevant;
 	otl_value<std::string> m_coRuleName;
 	otl_value<int32_t> m_coDynamicRuleFlag;
@@ -160,8 +160,8 @@ struct SDBAbonRule {
 	otl_value<uint32_t> m_coSCE_DownVirtualLink;
 	std::vector<std::string> m_vectMonitKey;
 	/* конструктор структуры */
-	SDBAbonRule() : m_bIsActivated(false), m_bIsRelevant(false) { }
-  SDBAbonRule(bool p_bIsRelevant) : m_bIsActivated(false), m_bIsRelevant(p_bIsRelevant) { }
+	SDBAbonRule() : m_bIsActive(false), m_bIsRelevant(false) { }
+  SDBAbonRule( bool p_bIsActive, bool p_bIsRelevant ) : m_bIsActive( p_bIsActive ), m_bIsRelevant( p_bIsRelevant ) { }
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
@@ -181,9 +181,7 @@ void pcrf_db_close_session_rule_all( otl_value<std::string> &p_coSessionId );
 /* закрывает все открыте записи сессии в таблице локаций пользователя */
 void pcrf_server_db_close_user_loc( otl_value<std::string> &p_strSessionId );
 /* добавление записи в таблицу выданых политик */
-void pcrf_db_insert_rule(
-  SSessionInfo &p_soSessInfo,
-  SDBAbonRule &p_soRule );
+void pcrf_db_insert_rule( SSessionInfo &p_soSessInfo, SDBAbonRule &p_soRule );
 
 /* очередь элементов обновления политик */
 struct SRefQueue {
@@ -230,14 +228,8 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 int pcrf_server_db_load_subscriber_id(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo);
 /* проверка зависших сессий */
 int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo);
-/* загрузка списка активных правил абонента */
-int pcrf_server_db_load_active_rules(
-	otl_connect *p_pcoDBConn,
-	SMsgDataForDB &p_soMsgInfoCache,
-	std::vector<SDBAbonRule> &p_vectActive);
 /* загрузка описания правила */
 int pcrf_rule_cache_get_rule_info(
-	SMsgDataForDB *p_psoMsgInfo,
 	std::string &p_strRuleName,
 	SDBAbonRule &p_soRule);
 /* поиск сессии UGW для загрузки данных для SCE */
@@ -254,14 +246,17 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo );
 
 /* функция формирования списка неактуальных правил */
-int pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive);
+void pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive);
+
+/* функция формирования списка ключей мониторинга */
+void pcrf_make_mk_list( std::vector<SDBAbonRule> &p_vectAbonRules, SSessionInfo *p_psoSessInfo );
 
 /* функция заполнения avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR( SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vectActive );
 /* функция заполнения avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI( SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules, msg *p_soAns );
 /* функция заполнения avp Usage-Monitoring-Information */
-int pcrf_make_UMI(msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bFull = true);
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo );
 /* запись TETHERING_REPORT в БД */
 void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */
@@ -312,8 +307,7 @@ int pcrf_client_rar(
   std::vector<SDBAbonRule> &p_vectAbonRules,
   std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec,
-  bool p_bUMIFull );
+  uint32_t p_uiUsec );
 
 /* функция для Procera - формирование значения правила о локации пользователя */
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
@@ -350,8 +344,8 @@ void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<s
 
 /* кэш правил сессии */
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
-void pcrf_session_rule_cache_insert( std::string &p_strSessionId, SDBAbonRule &p_soRule );
-void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, SDBAbonRule &p_soRule, bool p_bLowPriority = false );
+void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_soRuleName );
+void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority = false );
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);

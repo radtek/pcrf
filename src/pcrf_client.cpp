@@ -147,8 +147,7 @@ int pcrf_client_rar (
 	std::vector<SDBAbonRule> &p_vectAbonRules,
   std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec,
-  bool p_bUMIFull )
+  uint32_t p_uiUsec )
 {
 	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
@@ -237,9 +236,6 @@ int pcrf_client_rar (
       CHECK_FCT_DO( set_event_trigger( psoReq, *iter ), /* continue */ );
     }
   }
-  /* Usage-Monitoring-Information */
-  CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_soReqInfo.m_psoSessInfo ), p_bUMIFull ), /* continue */ );
-
 	/* Charging-Rule-Remove */
   if (NULL != p_pvectActiveRules) {
     avp *psoAVP;
@@ -251,7 +247,10 @@ int pcrf_client_rar (
     }
   }
 
-	/* Charging-Rule-Install */
+  /* Usage-Monitoring-Information */
+  CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_soReqInfo.m_psoSessInfo ) ), /* continue */ );
+
+  /* Charging-Rule-Install */
   {
     avp *psoAVP;
 
@@ -302,6 +301,8 @@ out:
 /* отправка RAR сообщения, содержащего Session-Release-Cause */
 int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 {
+  LOG_D( "enter: %s", __FUNCTION__ );
+
 	int           iRetVal     = 0;
   CTimeMeasurer coTM;
   msg           *psoReq     = NULL;
@@ -400,6 +401,8 @@ int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 out:
   stat_measure(g_psoGxClientStat, __FUNCTION__, &coTM);
 
+  LOG_D( "leave: %s", __FUNCTION__ );
+
   return iRetVal;
 }
 
@@ -410,7 +413,7 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 
 	/* проверяем наличие активных неактуальных правил */
 	for (std::vector<SDBAbonRule>::iterator iter = p_vectActive.begin(); iter != p_vectActive.end(); ++iter) {
-		if (!iter->m_bIsRelevant && iter->m_bIsActivated) {
+		if (!iter->m_bIsRelevant && iter->m_bIsActive) {
 			iRetVal = 1;
 			break;
 		}
@@ -421,7 +424,7 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 
 	/* проверяем наличие актуальных неактивных правил */
 	for (std::vector<SDBAbonRule>::iterator iter = p_vectAbonRules.begin(); iter != p_vectAbonRules.end(); ++iter) {
-		if (!iter->m_bIsActivated && iter->m_bIsRelevant) {
+		if (!iter->m_bIsActive && iter->m_bIsRelevant) {
 			iRetVal = 1;
 			break;
 		}
@@ -436,6 +439,9 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
   int iRetVal = 0;
   std::vector<std::string> vectSessionList;
   std::list<int32_t> listEventTrigger;
+
+  bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
+  std::vector<SDBAbonRule>::iterator iterAbonRule;
 
   /* загружаем из БД список сессий абонента */
   CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
@@ -492,9 +498,11 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       goto clear_and_continue;
     }
     /* загружаем список активных правил */
-    CHECK_POSIX_DO( pcrf_server_db_load_active_rules( p_pcoDBConn, soSessInfo, vectActive ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_coSessionId.v, vectActive ), /* continue */ );
     /* формируем список неактуальных правил */
-    CHECK_POSIX_DO( pcrf_server_select_notrelevant_active( vectAbonRules, vectActive ), );
+    pcrf_server_select_notrelevant_active( vectAbonRules, vectActive );
+    /* формируем список ключей мониторинга */
+    pcrf_make_mk_list( vectAbonRules, soSessInfo.m_psoSessInfo );
     /* загружаем информацию о мониторинге */
     CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
     /* проверяем наличие изменений в политиках */
@@ -502,29 +510,47 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
       goto clear_and_continue;
     }
+
+    /* обходим все правила */
+    for ( iterAbonRule = vectAbonRules.begin(); iterAbonRule != vectAbonRules.end(); ++iterAbonRule ) {
+      /* проверяем наличие ключей мониторинга */
+      if ( ! bMKInstalled && 0 != iterAbonRule->m_vectMonitKey.size() ) {
+        bMKInstalled = true;
+        break;
+      }
+    }
+
     /* готовим список триггеров */
     /* RAT_CHANGE */
     if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
       listEventTrigger.push_back( 2 );
     }
+    /* TETHERING_REPORT */
+    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      listEventTrigger.push_back( 101 );
+    }
+#if 0
     /* USER_LOCATION_CHANGE */
-#if 0 /* PCRF-113 15.12.2016 */
-    if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-      listEvenTrigger.push_back( 13 );
+    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      listEventTrigger.push_back( 13 );
     }
 #endif
     /* USAGE_REPORT */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_3GPP:
-      case GX_PROCERA:
-        listEventTrigger.push_back( 33 );
-        break;
-      case GX_CISCO_SCE:
-        listEventTrigger.push_back( 26 );
-        break;
+    if ( bMKInstalled ) {
+      switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+        case GX_3GPP:
+        case GX_PROCERA:
+          listEventTrigger.push_back( 33 );
+          break;
+        case GX_CISCO_SCE:
+          listEventTrigger.push_back( 26 );
+          break;
+      }
     }
+
     /* посылаем RAR-запрос */
-    CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0, false ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_client_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
+
     /* освобождаем ресуры*/
     clear_and_continue:
     pcrf_server_DBStruct_cleanup( &soSessInfo );
@@ -625,9 +651,16 @@ static void sig_oper(void)
 {
   LOG_D("enter into '%s'", __FUNCTION__);
 
+  otl_connect *pcoDBConn = NULL;
   SRefQueue soRefreshQueue = { "", "101957192/627511524@IRBiS", "subscriber_id", otl_value<std::string>( "" ) };
 
-  pcrf_client_operate_refqueue_record( NULL, soRefreshQueue );
+  pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 1000 );
+
+  pcrf_client_operate_refqueue_record( pcoDBConn, soRefreshQueue );
+
+  if ( NULL != pcoDBConn ) {
+    pcrf_db_pool_rel( &pcoDBConn, __FUNCTION__ );
+  }
 
   LOG_D("leave '%s'", __FUNCTION__);
 }

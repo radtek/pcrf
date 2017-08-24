@@ -168,6 +168,8 @@ int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)
 
 int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 {
+  LOG_D( "enter: %s", __FUNCTION__ );
+
 	int iRetVal = 1403;
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
@@ -179,6 +181,8 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 			break;
 		}
 	}
+
+  LOG_D( "leave: %s; result code: %d;", __FUNCTION__, iRetVal );
 
 	return iRetVal;
 }

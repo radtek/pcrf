@@ -30,7 +30,7 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
       SDBMonitoringInfo soMonitInfo;
       soInfo.m_psoSessInfo->m_mapMonitInfo.insert( std::pair<std::string, SDBMonitoringInfo>( *iter, soMonitInfo ) );
     }
-    CHECK_FCT_DO( ( iRetVal = pcrf_client_rar( soInfo, NULL, vectAbonRules, NULL, NULL, 0, true ) ), /* continue */ );
+    CHECK_FCT_DO( ( iRetVal = pcrf_client_rar( soInfo, NULL, vectAbonRules, NULL, NULL, 0 ) ), /* continue */ );
   }
 
 

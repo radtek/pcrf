@@ -201,15 +201,15 @@ void pcrf_db_update_session (
 
 int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo )
 {
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
-
   if ( 0 < p_soReqInfo.m_vectUsageInfo.size() ) {
   } else {
     /* если вектор пустой просто выходим из функции */
     return 0;
+  }
+
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    return EINVAL;
   }
 
   int iRetVal = 0;
@@ -259,12 +259,13 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
         soMonitInfo.m_coDosageInputOctets = iter->m_coCCInputOctets;
         soMonitInfo.m_coDosageOutputOctets = iter->m_coCCOutputOctets;
         soMonitInfo.m_coDosageTotalOctets = iter->m_coCCTotalOctets;
-        soMonitInfo.m_bDataLoaded = true;
+        soMonitInfo.m_bIsReported = true;
         p_soSessInfo.m_mapMonitInfo.insert( std::make_pair( iter->m_coMonitoringKey.v, soMonitInfo ) );
       }
     }
     p_pcoDBConn->commit();
     coStream.close();
+    LOG_D( "Session-Id: %s: usage monitoring information is stored", p_soSessInfo.m_coSessionId.v.c_str() );
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     p_pcoDBConn->rollback();
@@ -284,7 +285,9 @@ void pcrf_db_insert_rule (
 	SSessionInfo &p_soSessInfo,
 	SDBAbonRule &p_soRule)
 {
-  pcrf_session_rule_cache_insert( p_soSessInfo.m_coSessionId.v, p_soRule );
+  if ( 0 == p_soRule.m_coRuleName.is_null() && 0 < p_soRule.m_coRuleName.v.length() ) {
+    pcrf_session_rule_cache_insert( p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v );
+  }
 
   std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
   otl_value<otl_datetime> coDateTime;
@@ -484,64 +487,6 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 	return iRetVal;
 }
 
-int pcrf_server_db_load_active_rules(
-	otl_connect *p_pcoDBConn,
-	SMsgDataForDB &p_soMsgInfoCache,
-	std::vector<SDBAbonRule> &p_vectActive)
-{
-  if (0 == pcrf_session_rule_cache_get(p_soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, p_vectActive)) {
-    return 0;
-  }
-
-  if (NULL != p_pcoDBConn) {
-  } else {
-    return EINVAL;
-  }
-
-	int iRetVal = 0;
-  int iRepeat = 1;
-	CTimeMeasurer coTM;
-
-  sql_repeat:
-
-	try {
-    otl_nocommit_stream coStream;
-
-    /* загружаем активные политики сессии */
-		SDBAbonRule soRule;
-		coStream.open (
-			10,
-			"select "
-				"rule_name "
-			"from "
-				"ps.sessionRule sp "
-			"where "
-				"sp.session_id = :session_id /* char[255] */ "
-				"and time_end is null",
-			*p_pcoDBConn);
-		coStream
-			<< p_soMsgInfoCache.m_psoSessInfo->m_coSessionId;
-		while (! coStream.eof ()) {
-			coStream
-				>> soRule.m_coRuleName;
-			soRule.m_bIsActivated = true;
-			p_vectActive.push_back (soRule);
-		}
-    coStream.close();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-		iRetVal = coExcept.code;
-	}
-
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
-
-	return iRetVal;
-}
-
 void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
   tm soTM;
@@ -602,14 +547,28 @@ int pcrf_load_abon_rule_list(
   SMsgDataForDB &p_soMsgInfo,
   std::vector<std::string> &p_vectRuleList )
 {
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
+  LOG_D(
+    "enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; sgsn: %s; imei: %s",
+    __FUNCTION__,
+    p_pcoDBConn,
+    p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str(),
+    p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect,
+    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.c_str(),
+    p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.v.c_str(),
+    p_soMsgInfo.m_psoSessInfo->m_coIMEI.v.c_str()
+  );
 
   int iRetVal = 0;
   int iRepeat = 1;
   CTimeMeasurer coTM;
+
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    iRetVal = EINVAL;
+    goto exit;
+  }
 
   sql_repeat:
 
@@ -639,11 +598,13 @@ int pcrf_load_abon_rule_list(
       << p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
       << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress
       << p_soMsgInfo.m_psoSessInfo->m_coIMEI;
-    while ( ! coStream.eof() ) {
+    if ( ! coStream.eof() ) {
       coStream
         >> strSQLResult;
       LOG_D( "rule list: '%s'", strSQLResult.c_str() );
       pcrf_parse_rule_list( strSQLResult, p_vectRuleList, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
+    } else {
+      iRetVal = 1403;
     }
     coStream.close();
   } catch ( otl_exception &coExcept ) {
@@ -656,6 +617,10 @@ int pcrf_load_abon_rule_list(
   }
 
   stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+
+  exit:
+
+  LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
   return iRetVal;
 }
@@ -854,21 +819,24 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 
 int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo )
 {
-  /* если список ключей мониторинга пуст */
-  if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
-  } else {
-    /* выходим ничего не делая */
-    return 0;
-  }
-
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
+  LOG_D( "enter: %s", __FUNCTION__ );
 
   int iRetVal = 0;
   int iRepeat = 1;
   CTimeMeasurer coTM;
+
+  /* если список ключей мониторинга пуст */
+  if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
+  } else {
+    /* выходим ничего не делая */
+    goto exit_from_function;
+  }
+
+  if ( NULL != p_pcoDBConn ) {
+  } else {
+    iRetVal = EINVAL;
+    goto exit_from_function;
+  }
 
   sql_repeat:
 
@@ -879,14 +847,17 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
       1,
       "begin ps.qm.ProcessQuota("
         ":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
-        "null, null, null,"
+        "NULL, NULL, NULL,"
         ":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
       "end;",
       *p_pcoDBConn );
     std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList;
     for ( iterMonitList = p_soSessInfo.m_mapMonitInfo.begin(); iterMonitList != p_soSessInfo.m_mapMonitInfo.end(); ++iterMonitList ) {
       /* если данные из БД еще не загружены */
-      if ( ! iterMonitList->second.m_bDataLoaded ) {
+      if ( iterMonitList->second.m_bIsReported ) {
+        continue;
+      } else {
+        LOG_D( "%s: subscriber-id: %s; monitoring-key: %s", __FUNCTION__, p_soSessInfo.m_strSubscriberId.c_str(), iterMonitList->first.c_str() );
         coStream
           << p_soSessInfo.m_strSubscriberId
           << iterMonitList->first;
@@ -894,7 +865,7 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
           >> iterMonitList->second.m_coDosageInputOctets
           >> iterMonitList->second.m_coDosageOutputOctets
           >> iterMonitList->second.m_coDosageTotalOctets;
-        UTL_LOG_D( *g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+        LOG_D( "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
           p_soSessInfo.m_strSubscriberId.c_str(),
           iterMonitList->first.c_str(),
           iterMonitList->second.m_coDosageInputOctets.is_null() ? -1 : iterMonitList->second.m_coDosageInputOctets.v,
@@ -914,7 +885,9 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
     iRetVal = coExcept.code;
   }
 
+  exit_from_function:
   stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+  LOG_D( "leave: %s", __FUNCTION__ );
 
   return iRetVal;
 }
@@ -1040,7 +1013,7 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
     otl_nocommit_stream coStream;
     SDBAbonRule soRule;
 
-    soRule.m_bIsActivated = true;
+    soRule.m_bIsActive = true;
     soRule.m_bIsRelevant = false;
     soRule.m_coDynamicRuleFlag = 0;
     soRule.m_coRuleGroupFlag = 0;

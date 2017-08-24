@@ -34,16 +34,18 @@ int pcrf_rule_cache_init()
 {
   g_psoRuleCahceStat = stat_get_branch("rule cache");
   g_pmapRule = new std::map<std::string, SDBAbonRule>;
-  CHECK_FCT(pcrf_rule_cache_load_rule_list(g_pmapRule));
-  CHECK_FCT(pthread_mutex_init(&g_mutexRuleCache, NULL));
   g_iRuleCacheWork = 1;
+  CHECK_FCT( pthread_mutex_init( &g_mutexRuleCache, NULL ) );
+  CHECK_FCT(pcrf_rule_cache_load_rule_list(g_pmapRule));
   CHECK_FCT(pthread_mutex_init(&g_mutexUpdateTimer, NULL));
   CHECK_FCT(pthread_mutex_lock(&g_mutexUpdateTimer));
   CHECK_FCT(pthread_create(&g_threadUpdate, NULL, pcrf_rule_cache_update, NULL));
 
   UTL_LOG_N( *g_pcoLog,
     "rule cache is initialized successfully!\n"
+    "\trule count is '%u'\n"
     "\tstorage capasity is '%u' records",
+    g_pmapRule->size(),
     g_pmapRule->max_size() );
 
   return 0;
@@ -118,7 +120,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
       *pcoDBConn);
     while ( 0 == coStream.eof() && 0 != g_iRuleCacheWork ) {
       {
-        SDBAbonRule soAbonRule( true );
+        SDBAbonRule soAbonRule( false, true );
         coStream
           >> soAbonRule.m_coRuleName
           >> uiRuleId
@@ -146,6 +148,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         CHECK_FCT_DO( load_rule_flows( pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr ), /* continue */ );
         /* сохраняем правило в локальном хранилище */
         p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_coRuleName.v, soAbonRule ) );
+        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();
@@ -160,9 +163,9 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
       "from "
         "ps.SCE_rule r",
       *pcoDBConn);
-    while (0 == coStream.eof()) {
+    while (0 == coStream.eof() && 0 != g_iRuleCacheWork ) {
       {
-        SDBAbonRule soAbonRule(true);
+        SDBAbonRule soAbonRule(false, true);
         coStream
           >> uiRuleId
           >> soAbonRule.m_coPrecedenceLevel
@@ -171,6 +174,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
           >> soAbonRule.m_coSCE_RealTimeMonitor;
         CHECK_FCT_DO(load_sce_rule_mk(pcoDBConn, uiRuleId, soAbonRule.m_vectMonitKey), /* continue */);
         p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
+        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();
@@ -286,7 +290,6 @@ static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, s
 
 /* загружает описание правила */
 int pcrf_rule_cache_get_rule_info(
-  SMsgDataForDB *p_psoMsgInfo,
   std::string &p_strRuleName,
   SDBAbonRule &p_soRule)
 {
@@ -294,17 +297,11 @@ int pcrf_rule_cache_get_rule_info(
 
   int iRetVal = 0;
   std::map<std::string, SDBAbonRule>::iterator iter;
-  std::vector<std::string>::iterator iterMonitKey;
 
   CHECK_FCT(pthread_mutex_lock(&g_mutexRuleCache));
   iter = g_pmapRule->find(p_strRuleName);
   if (iter != g_pmapRule->end()) {
     p_soRule = iter->second;
-    if ( NULL != p_psoMsgInfo ) {
-      for (iterMonitKey = iter->second.m_vectMonitKey.begin(); iterMonitKey != iter->second.m_vectMonitKey.end(); ++iterMonitKey) {
-        p_psoMsgInfo->m_psoSessInfo->m_mapMonitInfo.insert(std::pair<std::string, SDBMonitoringInfo>(*iterMonitKey, SDBMonitoringInfo()));
-      }
-    }
   } else {
     iRetVal = 1403;
   }
