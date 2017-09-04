@@ -203,7 +203,6 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
       }
     }
     coStream.check_end_of_row();
-    p_pcoDBConn->commit();
     LOG_D( "commited: %u", coStream.get_rpc() );
     stat_measure( g_psoSQLQueueStat, "operated", &coTM );
 #ifdef _DEBUG
@@ -278,6 +277,10 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
   int iRestoreConnection = 0;
   otl_connect *pcoDBConn = NULL;
   pthread_mutex_t mutexSQLQueueTimer;
+  timeval soTVLastCommit;
+  timeval soTVNow;
+  int iCount;
+  bool bShouldCommit;
 
   CHECK_FCT_DO( pthread_mutex_init( &mutexSQLQueueTimer, NULL ), pthread_exit( NULL ) );
   CHECK_FCT_DO( pthread_mutex_lock( &mutexSQLQueueTimer ), pthread_mutex_destroy( &mutexSQLQueueTimer ); pthread_exit( NULL ) );
@@ -306,8 +309,30 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
         }
       }
       std::list<SSQLRequestInfo>::iterator iter = psoSQLQueue->m_listSQLQueue.begin();
+      /* запоминаем время начала обработки очередной порции запросов из очереди */
+      CHECK_FCT_DO( gettimeofday( &soTVLastCommit, NULL ), break );
+      iCount = 0;
+      bShouldCommit = false;
+      /* обработка очередной порции запросов из очереди */
       while ( iter != psoSQLQueue->m_listSQLQueue.end() ) {
+        /* выполняем очередной запрос */
         if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ) ) ) {
+          bShouldCommit = true;
+          if ( ++iCount > 100 ) {
+            /* запрашиваем текущее время */
+            CHECK_FCT_DO( gettimeofday( &soTVNow, NULL ), break );
+            /* если прошло достаточное время с момента последнего коммита */
+            if ( soTVLastCommit.tv_sec < soTVNow.tv_sec && soTVLastCommit.tv_usec <= soTVNow.tv_usec
+              || soTVLastCommit.tv_sec + 1 < soTVNow.tv_sec )
+            {
+              /* выполняем коммит */
+              pcoDBConn->commit();
+              /* запоминаем время последнего коммита */
+              soTVLastCommit = soTVNow;
+              bShouldCommit = false;
+            }
+            iCount = 0;
+          }
         } else {
           /* при обработке возникла ошибка,
            * если она связана с подключением к БД, то будет предпринята попытка восстановления соединения 
@@ -324,6 +349,10 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
         pthread_mutex_lock( &( psoSQLQueue->m_mutexSQLQueue ) );
         iter = psoSQLQueue->m_listSQLQueue.erase( iter );
         pthread_mutex_unlock( &( psoSQLQueue->m_mutexSQLQueue ) );
+      }
+      /* выполняем коммит после завершения обработки очередной порции запросов из очереди */
+      if ( bShouldCommit ) {
+        pcoDBConn->commit();
       }
     } else {
       goto clean_and_exit;

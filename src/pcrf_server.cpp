@@ -456,7 +456,7 @@ static int app_pcrf_ccr_cb(
     if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
       CHECK_FCT_DO( set_event_trigger( ans, 101 ), /* continue */ );
     }
-#if 0
+#if 1
     /* Event-Trigger USER_LOCATION_CHANGE */
     if ( GX_3GPP == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
       CHECK_FCT_DO( set_event_trigger( ans, 13 ), /* continue */ );

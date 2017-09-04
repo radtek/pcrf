@@ -64,16 +64,11 @@ int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_
         /* обрабатываем информацию о выданных политиках */
         pcrf_server_policy_db_store( p_psoMsgInfo );
       }
+      /* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
+      iRetVal = pcrf_db_session_usage( p_pcoDBConn, *( p_psoMsgInfo->m_psoSessInfo ), *( p_psoMsgInfo->m_psoReqInfo ) );
       break;
       default:
         break;
-    }
-
-    /* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
-    iRetVal = pcrf_db_session_usage( p_pcoDBConn, *( p_psoMsgInfo->m_psoSessInfo ), *( p_psoMsgInfo->m_psoReqInfo ) );
-    if ( 0 == iRetVal ) {
-    } else {
-      break;
     }
   } while ( 0 );
 

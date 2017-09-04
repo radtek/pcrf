@@ -529,7 +529,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
       listEventTrigger.push_back( 101 );
     }
-#if 0
+#if 1
     /* USER_LOCATION_CHANGE */
     if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
       listEventTrigger.push_back( 13 );
