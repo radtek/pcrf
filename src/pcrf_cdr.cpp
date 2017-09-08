@@ -63,12 +63,15 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
   p_strData += '\t';
 
   /* формируем временную метку */
-  time_t tmTm;
-  char mcString[ 1024 ];
+  timeval soTV;
+  uint64_t uiTmStmp;
+  char mcString[ 32 ];
   int iFnRes;
 
-  if ( static_cast<time_t>( -1 ) != time( &tmTm ) ) {
-    iFnRes = snprintf( mcString, sizeof(mcString), "%d", tmTm );
+  if ( 0 == gettimeofday( &soTV, NULL ) ) {
+    uiTmStmp =  ( soTV.tv_sec  * 1000 );
+    uiTmStmp += ( soTV.tv_usec / 1000 );
+    iFnRes = snprintf( mcString, sizeof(mcString), "%llu", uiTmStmp );
     if ( iFnRes > 0 && iFnRes < sizeof( mcString ) ) {
       p_strData += mcString;
     }
@@ -86,7 +89,7 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
 
     /* записываем Framed-IP-Address */
     if ( static_cast<uint32_t>( -1 ) != p_soReqData.m_psoSessInfo->m_ui32FramedIPAddress ) {
-      iFnRes = snprintf( mcString, sizeof( mcString ), "%d", p_soReqData.m_psoSessInfo->m_ui32FramedIPAddress );
+      iFnRes = snprintf( mcString, sizeof( mcString ), "%u", p_soReqData.m_psoSessInfo->m_ui32FramedIPAddress );
       if ( iFnRes > 0 && iFnRes < sizeof( mcString ) ) {
         p_strData += mcString;
       }
