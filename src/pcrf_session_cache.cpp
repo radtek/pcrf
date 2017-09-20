@@ -917,7 +917,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 psoCache->m_coECGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coECGI.set_non_null();
                 break;              /* ECGI */
-              case PCRF_ATTR_ECGI:  /* TAI */
+              case PCRF_ATTR_TAI:   /* TAI */
                 psoCache->m_coTAI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coTAI.set_non_null();
                 break;              /* TAI */
