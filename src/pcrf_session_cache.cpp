@@ -31,6 +31,7 @@ struct SSessionCache {
   otl_value<std::string>  m_coOriginRealm;
   otl_value<std::string>  m_coCGI;
   otl_value<std::string>  m_coECGI;
+  otl_value<std::string>  m_coTAI;
   otl_value<std::string>  m_coIMEISV;
   otl_value<std::string>  m_coEndUserIMSI;
   int32_t                 m_iIPCANType;
@@ -196,6 +197,7 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
                                                                 iterCache->second->m_iRATType          = p_psoSessionInfo->m_iRATType;
         if (! p_psoSessionInfo->m_coCGI.is_null())              iterCache->second->m_coCGI             = p_psoSessionInfo->m_coCGI;
         if (! p_psoSessionInfo->m_coECGI.is_null())             iterCache->second->m_coECGI            = p_psoSessionInfo->m_coECGI;
+        if (! p_psoSessionInfo->m_coTAI.is_null())              iterCache->second->m_coTAI             = p_psoSessionInfo->m_coTAI;
       }
     }
   }
@@ -518,6 +520,17 @@ static int pcrf_session_cache_fill_pspack (
         return -1;
       }
     }
+    /* добавляем TAI */
+    pco_field = &p_psoSessionInfo->m_coTAI;
+    if ( 0 == pco_field->is_null() ) {
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_TAI;
+      CHECK_FCT( pcrf_session_cache_fill_payload( pso_payload_hdr, sizeof( mc_attr ), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length() ) );
+      if ( 0 < ( iRetVal = ps_pack.AddAttr( reinterpret_cast<SPSRequest*>( p_pmcBuf ), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen ) ) ) {
+      } else {
+        return -1;
+      }
+    }
     /* добавляем IMEI-SV */
     pco_field = &p_psoSessionInfo->m_coIMEISV;
     if (0 == pco_field->is_null()) {
@@ -630,6 +643,7 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
   psoTmp->m_coCGI             = p_soRequestInfo.m_soUserLocationInfo.m_coCGI;
   psoTmp->m_coECGI            = p_soRequestInfo.m_soUserLocationInfo.m_coECGI;
+  psoTmp->m_coTAI             = p_soRequestInfo.m_soUserLocationInfo.m_coTAI;
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
@@ -668,8 +682,16 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
                                                                         p_soRequestInfo.m_soUserLocationInfo.m_iRATType       = iter->second->m_iRATType;
     if (p_soSessionInfo.m_coOriginHost.is_null())                       p_soSessionInfo.m_coOriginHost                        = iter->second->m_coOriginHost;
     if (p_soSessionInfo.m_coOriginRealm.is_null())                      p_soSessionInfo.m_coOriginRealm                       = iter->second->m_coOriginRealm;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coCGI.is_null())         p_soRequestInfo.m_soUserLocationInfo.m_coCGI          = iter->second->m_coCGI;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coECGI.is_null())        p_soRequestInfo.m_soUserLocationInfo.m_coECGI         = iter->second->m_coECGI;
+    /* если в запросе не было информации о лоакции */
+    if ( p_soRequestInfo.m_soUserLocationInfo.m_coCGI.is_null()
+      && p_soRequestInfo.m_soUserLocationInfo.m_coECGI.is_null()
+      && p_soRequestInfo.m_soUserLocationInfo.m_coTAI.is_null() )
+    {
+      /* берем данные из кеша */
+      p_soRequestInfo.m_soUserLocationInfo.m_coCGI  = iter->second->m_coCGI;
+      p_soRequestInfo.m_soUserLocationInfo.m_coECGI = iter->second->m_coECGI;
+      p_soRequestInfo.m_soUserLocationInfo.m_coTAI  = iter->second->m_coTAI;
+    }
     if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second->m_coIMEISV;
     if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
     stat_measure( g_psoSessionCacheStat, "hit", &coTM );
@@ -895,6 +917,10 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 psoCache->m_coECGI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coECGI.set_non_null();
                 break;              /* ECGI */
+              case PCRF_ATTR_ECGI:  /* TAI */
+                psoCache->m_coTAI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coTAI.set_non_null();
+                break;              /* TAI */
               case PCRF_ATTR_IMEI:  /* IMEI-SV */
                 psoCache->m_coIMEISV.v.insert( 0, reinterpret_cast<const char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coIMEISV.set_non_null();
@@ -1185,6 +1211,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
         "sl.origin_realm,"
         "sloc.cgi,"
         "sloc.ecgi,"
+        "sloc.tai,"
         "sl.IMEISV,"
         "sl.end_user_imsi "
       "from "
@@ -1215,6 +1242,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           >> psoSessCache->m_coOriginRealm
           >> psoSessCache->m_coCGI
           >> psoSessCache->m_coECGI
+          >> psoSessCache->m_coTAI
           >> psoSessCache->m_coIMEISV
           >> psoSessCache->m_coEndUserIMSI;
         if ( 0 == psoSessCache->m_coIPCANType.is_null() ) {
