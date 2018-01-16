@@ -472,7 +472,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
         SSessionInfo soUGWSessInfo;
         std::string strUGWSessionId;
-        if ( 0 == pcrf_server_find_ugw_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
+        if ( 0 == pcrf_server_find_core_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
           strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
           /* ищем информацию о базовой сессии в кеше */
           pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo );
@@ -522,24 +522,34 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
 
     /* готовим список триггеров */
     /* RAT_CHANGE */
-    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      listEventTrigger.push_back( 2 );
+    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      case GX_HW_UGW:
+      case GX_ERICSSN:
+        listEventTrigger.push_back( 2 );
+        break;
     }
     /* TETHERING_REPORT */
-    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      listEventTrigger.push_back( 101 );
+    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      case GX_HW_UGW:
+      case GX_ERICSSN:
+        listEventTrigger.push_back( 101 );
+        break;
     }
 #if 1
     /* USER_LOCATION_CHANGE */
-    if ( GX_3GPP == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      listEventTrigger.push_back( 13 );
+    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+      case GX_HW_UGW:
+      case GX_ERICSSN:
+        listEventTrigger.push_back( 13 );
+        break;
     }
 #endif
     /* USAGE_REPORT */
     if ( bMKInstalled ) {
       switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-        case GX_3GPP:
+        case GX_HW_UGW:
         case GX_PROCERA:
+        case GX_ERICSSN:
           listEventTrigger.push_back( 33 );
           break;
         case GX_CISCO_SCE:

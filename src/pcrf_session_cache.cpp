@@ -1221,10 +1221,8 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
       "where "
         "sl.time_end is null "
         "and sloc.time_end is null "
-        "and p.protocol_id = :protocol_id/*int*/",
+        "and p.protocol_id in(1, 4) /* GX_HW_UGW, GX_ERICSSN */",
       *pcoDBConn );
-    coStream
-      << GX_3GPP;
     while ( 0 == coStream.eof() && g_bSessionListWork ) {
       {
         std::string strSessionId;

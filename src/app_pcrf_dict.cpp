@@ -427,7 +427,7 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictUsageMonitoringReport, ENOENT));
 	}
 
-	/* Usage-Monitoring-Report */
+	/* Usage-Monitoring-Support */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1070, NULL }};
 		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictUsageMonitoringSupport, ENOENT));
@@ -880,6 +880,12 @@ int app_pcrf_dict_init (void)
       AVP_TYPE_UNSIGNED32						        /* base type of data */
     };
     CHECK_FCT(fd_dict_new(fd_g_config->cnf_dict, DICT_AVP, &data, NULL, NULL));
+  }
+
+  /* Ericsson */
+  {
+    dict_vendor_data vendor_data = { 193, ( char * ) "Ericsson" };
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL ) );
   }
 
 	return 0;

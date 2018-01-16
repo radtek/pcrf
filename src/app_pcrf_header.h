@@ -18,9 +18,10 @@ extern "C" {
 
 /* идентификаторы диалектов */
 #define GX_UNDEF      0
-#define GX_3GPP       1
+#define GX_HW_UGW     1
 #define GX_CISCO_SCE  2
 #define GX_PROCERA    3
+#define GX_ERICSSN    4
 
 /* функции сервера */
 /* кешированные данные из запроса */
@@ -232,10 +233,10 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 int pcrf_rule_cache_get_rule_info(
 	std::string &p_strRuleName,
 	SDBAbonRule &p_soRule);
-/* поиск сессии UGW для загрузки данных для SCE */
-int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
-/* поиск сессии UGW для загрузки данных для Procera */
-int pcrf_server_find_ugw_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
+/* поиск сессии в ядре для загрузки данных для SCE */
+int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
+/* поиск сессии в ядре для загрузки данных для Procera */
+int pcrf_server_find_core_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
 /* поиск IP-CAN сессии */
 int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo );
 /* загрузка списка правил абонента из БД */

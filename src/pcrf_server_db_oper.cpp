@@ -166,7 +166,7 @@ void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
-    "values(:session_id/*char[64]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[32]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:start_time/*timestamp*/,:time_last/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
+    "values(:session_id/*char[255]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[32]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:start_time/*timestamp*/,:time_last/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
     plistParameters,
     "insert session",
     &( p_soSessInfo.m_coSessionId.v ) );
@@ -440,32 +440,30 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
     SSessionInfo soSessInfo;
 
     /* ищем сессии по ip-адресу */
-		if (0 == p_psoSessInfo->m_coFramedIPAddress.is_null() && p_psoSessInfo->m_uiPeerDialect == GX_3GPP) {
-			coStream.open(
-				10,
-				"select "
-					"session_id "
-				"from "
-					"ps.sessionList ps "
-				"where "
-					"ps.framed_ip_address = :framed_ip_address/*char[16]*/ "
-					"and ps.origin_host = :origin_host/*char[255]*/ "
-					"and ps.session_id <> :session_id/*char[255]*/ "
-					"and ps.time_end is null",
-				*p_pcoDBConn);
+		coStream.open(
+			10,
+			"select "
+				"session_id "
+			"from "
+				"ps.sessionList ps "
+			"where "
+				"ps.framed_ip_address = :framed_ip_address/*char[16]*/ "
+				"and ps.origin_host = :origin_host/*char[255]*/ "
+				"and ps.session_id <> :session_id/*char[255]*/ "
+				"and ps.time_end is null",
+			*p_pcoDBConn);
+		coStream
+			<< p_psoSessInfo->m_coFramedIPAddress
+			<< p_psoSessInfo->m_coOriginHost
+			<< p_psoSessInfo->m_coSessionId;
+		while (!coStream.eof()) {
 			coStream
-				<< p_psoSessInfo->m_coFramedIPAddress
-				<< p_psoSessInfo->m_coOriginHost
-				<< p_psoSessInfo->m_coSessionId;
-			while (!coStream.eof()) {
-				coStream
-					>> strSessionId;
-        UTL_LOG_D(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
-        soSessInfo.m_coSessionId = strSessionId;
-        soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
-        soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
-        pcrf_local_refresh_queue_add(soSessInfo);
-			}
+				>> strSessionId;
+      UTL_LOG_D(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
+      soSessInfo.m_coSessionId = strSessionId;
+      soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
+      soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
+      pcrf_local_refresh_queue_add(soSessInfo);
 		}
     coStream.close();
 	} catch (otl_exception &coExcept) {
@@ -620,7 +618,7 @@ int pcrf_load_abon_rule_list(
   return iRetVal;
 }
 
-int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId )
+int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -646,12 +644,11 @@ int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSu
       "where "
         "subscriber_id = :subscriber_id /*char[64]*/ "
         "and framed_ip_address = :framed_ip_address /*char[16]*/ "
-        "and p.protocol_id = :dialect_id /*int*/",
+        "and p.protocol_id in(1, 4) /* GX_HW_UGW, GX_ERICSSN */",
       *p_pcoDBConn );
     coStream
       << p_strSubscriberId
-      << p_strFramedIPAddress
-      << GX_3GPP;
+      << p_strFramedIPAddress;
     if ( !coStream.eof() ) {
       coStream
         >> p_strUGWSessionId;
@@ -678,7 +675,7 @@ int pcrf_server_find_ugw_session( otl_connect *p_pcoDBConn, std::string &p_strSu
   return iRetVal;
 }
 
-int pcrf_server_find_ugw_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo )
+int pcrf_server_find_core_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -705,12 +702,11 @@ int pcrf_server_find_ugw_sess_byframedip( otl_connect *p_pcoDBConn, std::string 
         "inner join ps.peer p on sl.origin_host = p.host_name "
       "where "
         "sl.framed_ip_address = :framed_ip_address /*char[16]*/ "
-        "and p.protocol_id = :dialect_id /*int*/"
+        "and p.protocol_id in(1, 4) /* GX_HW_UGW, GX_ERICSSN */ "
         "order by sl.time_start desc",
       *p_pcoDBConn );
     coStream
-      << p_strFramedIPAddress
-      << GX_3GPP;
+      << p_strFramedIPAddress;
     if ( coStream >> p_soSessInfo.m_coSessionId >> p_soSessInfo.m_coOriginHost >> p_soSessInfo.m_coOriginRealm ) {
     } else {
       UTL_LOG_E(
@@ -744,7 +740,7 @@ int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<
       p_soIPCANSessInfo.m_coSessionId.is_null() ? "<null>" : p_soIPCANSessInfo.m_coSessionId.v.c_str(),
       p_soIPCANSessInfo.m_coOriginHost.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginHost.v.c_str(),
       p_soIPCANSessInfo.m_coOriginRealm.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginRealm.v.c_str() );
-    return ( pcrf_server_find_ugw_sess_byframedip( p_pcoDBConn, p_coIPAddr.v, p_soIPCANSessInfo ) );
+    return ( pcrf_server_find_core_sess_byframedip( p_pcoDBConn, p_coIPAddr.v, p_soIPCANSessInfo ) );
   } else {
     LOG_D( "Framed-IP-Address is empty" );
     return EINVAL;
