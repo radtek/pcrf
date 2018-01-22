@@ -5,7 +5,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static pthread_mutex_t g_mutexCDR;
 static pthread_mutex_t g_mutexCDRTimer;
 static pthread_t g_threadCDR;
 static int g_iFile;
@@ -111,12 +110,10 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
   p_strData += '\n';
 }
 
-int pcrf_cdr_write_record( std::string &p_strData )
+int pcrf_cdr_write_record( std::string &p_strData, int p_iFile )
 {
   if ( 0 < p_strData.length() ) {
-    CHECK_FCT( pthread_mutex_lock( &g_mutexCDR ) );
-    write( g_iFile, p_strData.data(), p_strData.length() );
-    CHECK_FCT( pthread_mutex_unlock( &g_mutexCDR ) );
+    write( p_iFile, p_strData.data(), p_strData.length() );
   }
 }
 
@@ -164,7 +161,7 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
 {
   char mcFileName[ 1024 ];
   int iNewFile = -1;
-  int iTmpFile;
+  int iTmpFile = -1;
   size_t stLen;
   time_t tmTm;
   tm soTm;
@@ -181,18 +178,18 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
   soTimeSpec.tv_sec += g_psoConf->m_iCDRInterval;
   soTimeSpec.tv_nsec = 0;
 
-  while ( ETIMEDOUT == pthread_mutex_timedlock( &g_mutexCDRTimer, &soTimeSpec ) ) {
-    CHECK_FCT_DO( pcrf_cdr_make_filename(g_psoConf->m_pszCDRDir, CDR_INITIAL_NAME, mcFileName, sizeof(mcFileName)), pthread_exit( NULL ) );
+  while ( ( ETIMEDOUT == pthread_mutex_timedlock( &g_mutexCDRTimer, &soTimeSpec ) ) ) {
+    if ( -1 != iTmpFile ) {
+      close( iTmpFile );
+    }
+    CHECK_FCT_DO( pcrf_cdr_make_filename( g_psoConf->m_pszCDRDir, CDR_INITIAL_NAME, mcFileName, sizeof( mcFileName ) ), pthread_exit( NULL ) );
     iNewFile = open( mcFileName, CDR_FILE_FLAG, CDR_FILE_MODE );
     if ( -1 != iNewFile ) {
     } else {
       break;
     }
     iTmpFile = g_iFile;
-    CHECK_FCT_DO( pthread_mutex_lock( &g_mutexCDR ), pthread_exit( NULL ) );
     g_iFile = iNewFile;
-    CHECK_FCT_DO( pthread_mutex_unlock( &g_mutexCDR ), pthread_exit( NULL ) );
-    close( iTmpFile );
     pcrf_cdr_file_completed( g_mcFileName );
     strcpy( g_mcFileName, mcFileName );
     /* готовим ожидание */
@@ -228,7 +225,6 @@ int pcrf_cdr_init()
 
   CHECK_FCT( pthread_mutex_init( &g_mutexCDRTimer, NULL ) );
   CHECK_FCT( pthread_mutex_lock( &g_mutexCDRTimer ) );
-  CHECK_FCT( pthread_mutex_init( &g_mutexCDR, NULL ) );
   CHECK_FCT( pthread_create( &g_threadCDR, NULL, pcrf_cdr_recreate_file, NULL ) );
   CHECK_FCT( pthread_detach( g_threadCDR ) );
 
@@ -242,16 +238,16 @@ void pcrf_cdr_fini()
   close( g_iFile );
   pcrf_cdr_file_completed( g_mcFileName );
   pthread_mutex_unlock( &g_mutexCDRTimer );
-  pthread_mutex_destroy( &g_mutexCDR );
 }
 
 int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData )
 {
   std::string strRecCont;
+  int iFile = g_iFile;
 
-  if ( NULL != g_psoConf->m_pszCDRMask && -1 != g_iFile ) {
+  if ( NULL != g_psoConf->m_pszCDRMask && -1 != iFile ) {
     pcrf_cdr_make_record( p_soReqData, strRecCont );
-    CHECK_FCT( pcrf_cdr_write_record( strRecCont ) );
+    CHECK_FCT( pcrf_cdr_write_record( strRecCont, iFile ) );
   }
 
   return 0;
