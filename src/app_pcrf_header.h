@@ -257,7 +257,7 @@ struct avp * pcrf_make_CRR( SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule>
 /* функция заполнения avp Charging-Rule-Install */
 struct avp * pcrf_make_CRI( SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules, msg *p_soAns );
 /* функция заполнения avp Usage-Monitoring-Information */
-int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo );
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bIsNeedUMR = false );
 /* запись TETHERING_REPORT в БД */
 void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */

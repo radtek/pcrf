@@ -1259,7 +1259,7 @@ int pcrf_make_DefaultEPSBearerQoS(msg *p_psoMsg, SRequestInfo &p_soReqInfo)
 	return iRetVal;
 }
 
-int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo )
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bIsNeedUMR )
 {
   /* если список пуст выходим из функции */
   if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
@@ -1297,30 +1297,21 @@ int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo )
       CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
     }
     /* дополнительные параметры */
-     if ( ! iterMonitInfo->second.m_bIsReported ) {
-       if ( GX_CISCO_SCE == p_soSessInfo.m_uiPeerDialect ) {
-         /* Usage-Monitoring-Level */
-         CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
-         soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-         CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
-         /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-         CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
-       } else {
-         /* Usage-Monitoring-Level */
-         CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
-         soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
-         CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
-         /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
-         CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
-         /* Usage-Monitoring-Report */
-         if ( GX_PROCERA != p_soSessInfo.m_uiPeerDialect ) {
-           CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringReport, 0, &psoAVPChild ), return __LINE__ );
-           soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
-           CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
-           /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
-           CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
-         }
-       }
+    if ( ! iterMonitInfo->second.m_bIsReported ) {
+      /* Usage-Monitoring-Level */
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringLevel, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.i32 = 1;  /* PCC_RULE_LEVEL */
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      /* put 'Usage-Monitoring-Level' into 'Usage-Monitoring-Information' */
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
+    }
+    /* Usage-Monitoring-Report */
+    if ( p_bIsNeedUMR ) {
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictUsageMonitoringReport, 0, &psoAVPChild ), return __LINE__ );
+      soAVPVal.i32 = 0; /* USAGE_MONITORING_REPORT_REQUIRED */
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return __LINE__ );
+      /* put 'Usage-Monitoring-Report' into 'Usage-Monitoring-Information' */
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPUMI, MSG_BRW_LAST_CHILD, psoAVPChild ), return __LINE__ );
     }
     /* Granted-Service-Unit */
     CHECK_FCT_DO( fd_msg_avp_new( g_psoDictGrantedServiceUnit, 0, &psoAVPGSU ), return __LINE__ );
