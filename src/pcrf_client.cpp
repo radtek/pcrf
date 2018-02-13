@@ -482,7 +482,6 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* проверяем, подключен ли пир к freeDiameterd */
     if ( !pcrf_peer_is_connected( *soSessInfo.m_psoSessInfo ) ) {
       iRetVal = ENOTCONN;
-      UTL_LOG_E( *g_pcoLog, "peer is not connected: host: '%s'; realm: '%s'", soSessInfo.m_psoSessInfo->m_coOriginHost.v.c_str(), soSessInfo.m_psoSessInfo->m_coOriginRealm.v.c_str() );
       goto clear_and_continue;
     }
     /* если в поле action задано значение abort_session */
@@ -617,9 +616,15 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     CHECK_POSIX_DO( pcrf_client_db_refqueue( pcoDBConn, vectQueue ), goto clear_and_continue );
 
     for ( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
-      /* обрабатыаем запись очереди обновлений политик */
-      CHECK_POSIX_DO( pcrf_client_operate_refqueue_record( pcoDBConn, *iter ), continue );
-      CHECK_POSIX_DO( pcrf_client_db_delete_refqueue( pcoDBConn, *iter ), continue );
+      /* обрабатываем запись очереди обновлений политик */
+      if ( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
+      } else {
+        continue;
+      }
+      if ( 0 == pcrf_client_db_delete_refqueue( pcoDBConn, *iter ) ) {
+      } else {
+        continue;
+      }
     }
 
     /* обрабатываем локальную очередь на завершение сессий */

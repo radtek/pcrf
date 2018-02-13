@@ -16,6 +16,10 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
   int iRepeat = 1;
   SRefQueue soQueueElem;
   CTimeMeasurer coTM;
+  otl_value<std::string> coModule;
+
+  coModule.v.insert( 0, ( const char* )fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len );
+  coModule.set_non_null();
 
   sql_restore:
 
@@ -25,9 +29,10 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
     /* создаем объект класса потока ДБ */
     coStream.open(
       1000,
-      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = :module/*char[100]*/ and refresh_date < sysdate",
       *p_pcoDBConn );
     /* делаем выборку из БД */
+    coStream << coModule;
     while ( ! coStream.eof() ) {
       coStream
         >> soQueueElem.m_strRowId

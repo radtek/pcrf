@@ -174,7 +174,7 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 	/* формируем MCCMNC */
 	iFnRes = snprintf(
 		mcMCCMNC, sizeof(mcMCCMNC),
-		"%u%u%u%u%u",
+		"%u%u%u-%u%u",
 		psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
 		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
 	if (0 < iFnRes) {
@@ -187,9 +187,6 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", errno);
 		mcMCCMNC[0] = '\0';
 	}
-  if ( 0 != p_soUserLocationInfo.m_coSGSNMCCMNC.is_null() ) {
-    p_soUserLocationInfo.m_coSGSNMCCMNC = mcMCCMNC;
-  }
 
 	/* что-то полезное уже имеем, ставим метку, что данные получены */
 	p_soUserLocationInfo.m_bLoaded = true;

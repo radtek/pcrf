@@ -541,7 +541,7 @@ int pcrf_load_abon_rule_list(
   std::vector<std::string> &p_vectRuleList )
 {
   LOG_D(
-    "enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; sgsn: %s; imei: %s",
+    "enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; mcc-mnc: %s; sgsn: %s; imei: %s",
     __FUNCTION__,
     p_pcoDBConn,
     p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str(),
@@ -549,6 +549,7 @@ int pcrf_load_abon_rule_list(
     p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.v.c_str(),
     p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.c_str(),
     p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.v.c_str(),
     p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.v.c_str(),
     p_soMsgInfo.m_psoSessInfo->m_coIMEI.v.c_str()
   );

@@ -25,6 +25,7 @@ struct SSessionCache {
   otl_value<std::string>  m_coFramedIPAddr;
   otl_value<std::string>  m_coCalledStationId;
   otl_value<std::string>  m_coIPCANType;
+  otl_value<std::string>  m_coSGSNMCCMNC;
   otl_value<std::string>  m_coSGSNIPAddr;
   otl_value<std::string>  m_coRATType;
   otl_value<std::string>  m_coOriginHost;
@@ -192,6 +193,7 @@ static inline void pcrf_session_cache_update_child (std::string &p_strSessionId,
         if (! p_psoSessionInfo->m_coCalledStationId.is_null())  iterCache->second->m_coCalledStationId = p_psoSessionInfo->m_coCalledStationId;
         if (! p_psoSessionInfo->m_coIPCANType.is_null())        iterCache->second->m_coIPCANType       = p_psoSessionInfo->m_coIPCANType;
                                                                 iterCache->second->m_iIPCANType        = p_psoSessionInfo->m_iIPCANType;
+        if (! p_psoSessionInfo->m_coSGSNMCCMNC.is_null())       iterCache->second->m_coSGSNMCCMNC      = p_psoSessionInfo->m_coSGSNMCCMNC;
         if (! p_psoSessionInfo->m_coSGSNIPAddr.is_null())       iterCache->second->m_coSGSNIPAddr      = p_psoSessionInfo->m_coSGSNIPAddr;
         if (! p_psoSessionInfo->m_coRATType.is_null())          iterCache->second->m_coRATType         = p_psoSessionInfo->m_coRATType;
                                                                 iterCache->second->m_iRATType          = p_psoSessionInfo->m_iRATType;
@@ -446,6 +448,17 @@ static int pcrf_session_cache_fill_pspack (
         return -1;
       }
     }
+    /* добавляем SGSN-MCC-MNC */
+    pco_field = &p_psoSessionInfo->m_coSGSNMCCMNC;
+    if (0 == pco_field->is_null()) {
+      uiVendId = 10415;
+      uiAVPId = 18;
+      CHECK_FCT(pcrf_session_cache_fill_payload (pso_payload_hdr, sizeof(mc_attr), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length ()));
+      if (0 < (iRetVal = ps_pack.AddAttr(reinterpret_cast<SPSRequest*>(p_pmcBuf), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen))) {
+      } else {
+        return -1;
+      }
+    }
     /* добавляем SGSN-IP-Address */
     pco_field = &p_psoSessionInfo->m_coSGSNIPAddr;
     if (0 == pco_field->is_null()) {
@@ -636,6 +649,7 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
   psoTmp->m_coIPCANType       = p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType;
   psoTmp->m_iIPCANType        = p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType;
+  psoTmp->m_coSGSNMCCMNC      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC;
   psoTmp->m_coSGSNIPAddr      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress;
   psoTmp->m_coRATType         = p_soRequestInfo.m_soUserLocationInfo.m_coRATType;
   psoTmp->m_iRATType          = p_soRequestInfo.m_soUserLocationInfo.m_iRATType;
@@ -677,6 +691,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     if (p_soSessionInfo.m_coCalledStationId.is_null())                  p_soSessionInfo.m_coCalledStationId                   = iter->second->m_coCalledStationId;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType.is_null())   p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType    = iter->second->m_coIPCANType;
                                                                         p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType     = iter->second->m_iIPCANType;
+    if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC.is_null())  p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC   = iter->second->m_coSGSNMCCMNC;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress.is_null()) p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress  = iter->second->m_coSGSNIPAddr;
     if (p_soRequestInfo.m_soUserLocationInfo.m_coRATType.is_null())     p_soRequestInfo.m_soUserLocationInfo.m_coRATType      = iter->second->m_coRATType;
                                                                         p_soRequestInfo.m_soUserLocationInfo.m_iRATType       = iter->second->m_iRATType;
@@ -870,6 +885,10 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
             break;    /* Diameter */
           case 10415: /* 3GPP */
             switch ( psoPayload->m_uiAVPId ) {
+              case 18:     /* SGSN-MCC-MNC */
+                psoCache->m_coSGSNMCCMNC.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coSGSNMCCMNC.set_non_null();
+                break;    /* SGSN-IP-Address */
               case 6:     /* SGSN-IP-Address */
                 psoCache->m_coSGSNIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coSGSNIPAddr.set_non_null();
@@ -1205,6 +1224,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
         "sl.framed_ip_address,"
         "sl.called_station_id,"
         "sloc.ip_can_type,"
+        "sloc.sgsn_mcc_mnc,"
         "sloc.sgsn_ip_address,"
         "sloc.rat_type,"
         "sl.origin_host,"
@@ -1234,6 +1254,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           >> psoSessCache->m_coFramedIPAddr
           >> psoSessCache->m_coCalledStationId
           >> psoSessCache->m_coIPCANType
+          >> psoSessCache->m_coSGSNMCCMNC
           >> psoSessCache->m_coSGSNIPAddr
           >> psoSessCache->m_coRATType
           >> psoSessCache->m_coOriginHost

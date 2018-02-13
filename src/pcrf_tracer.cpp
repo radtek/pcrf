@@ -31,6 +31,7 @@ static void pcrf_tracer (
   int iFnRes;
   std::string strRequestType;
   std::string strPeerName;
+  std::string strPeerRlm;
 
   /* формируем Request Type */
   /* тип команды */
@@ -85,8 +86,10 @@ static void pcrf_tracer (
 
   if (NULL != p_psoPeer) {
     strPeerName.insert(0, reinterpret_cast<char*>(p_psoPeer->info.pi_diamid), p_psoPeer->info.pi_diamidlen);
+    strPeerRlm.insert( 0, reinterpret_cast<char*>( p_psoPeer->info.runtime.pir_realm ), p_psoPeer->info.runtime.pir_realmlen );
   } else {
     strPeerName = "<unknown peer>";
+    strPeerRlm = "<unknown realm>";
   }
 
   /* статистика по пирам */
@@ -230,7 +233,6 @@ static void pcrf_tracer (
 		case HOOK_MESSAGE_RECEIVED:
 			coOriginHost = strPeerName;
 			break;
-		case HOOK_MESSAGE_LOCAL:
 		case HOOK_MESSAGE_SENT:
 			coOriginHost.v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
       coOriginHost.set_non_null();
@@ -256,7 +258,10 @@ static void pcrf_tracer (
 	if (0 == strOriginReal.length ()) {
 		switch (p_eHookType)
 		{
-		case HOOK_MESSAGE_SENT:
+      case HOOK_MESSAGE_RECEIVED:
+        strOriginReal = strPeerRlm;
+        break;
+      case HOOK_MESSAGE_SENT:
 			strOriginReal.insert (0, (const char*)fd_g_config->cnf_diamrlm, fd_g_config->cnf_diamrlm_len);
 			break;
 		default:
@@ -268,7 +273,10 @@ static void pcrf_tracer (
 		case HOOK_MESSAGE_RECEIVED:
 			strDestinReal.insert (0, (const char*)fd_g_config->cnf_diamrlm, fd_g_config->cnf_diamrlm_len);
 			break;
-		default:
+    case HOOK_MESSAGE_SENT:
+      strDestinReal = strPeerRlm;
+      break;
+    default:
 			break;
 		}
 	}
@@ -301,7 +309,8 @@ static void pcrf_tracer (
     "values"
     "(ps.requestlist_seq.nextval,:session_id/*char[255]*/,:date_time/*timestamp*/,:request_type/*char[10]*/,:origin_host/*char[100]*/,:origin_realm/*char[100]*/,:destination_host/*char[100]*/,:destination_realm/*char[100]*/,:diameter_result/*char[100]*/,:message/*char[32000]*/)",
     plistParameters,
-    "insert request" );
+    "insert request",
+    ( 0 < strSessionId.length() ) ? ( &strSessionId ) : NULL );
 
 	if (pmcBuf) {
 		fd_cleanup_buffer (pmcBuf);
