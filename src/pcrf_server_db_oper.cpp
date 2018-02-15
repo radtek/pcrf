@@ -187,7 +187,7 @@ void pcrf_db_update_session (
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionList"
-    " set time_end = :time_end/*timestamp*/, time_last_req = :time_last/*timestamp*/, termination_cause = :term_cause/*char[64]*/"
+    " set time_end = :time_end/*timestamp*/, time_last_req = nvl(:time_last/*timestamp*/,time_last_req), termination_cause = :term_cause/*char[64]*/"
     " where session_id = :session_id/*char[255]*/",
     plistParam,
     "update session",
@@ -196,15 +196,30 @@ void pcrf_db_update_session (
 
 int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo )
 {
-  if ( 0 < p_soReqInfo.m_vectUsageInfo.size() ) {
-  } else {
-    /* если вектор пустой просто выходим из функции */
-    return 0;
-  }
-
   if ( NULL != p_pcoDBConn ) {
   } else {
     return EINVAL;
+  }
+
+  bool bNothingToDo = true;
+  std::vector<SSessionUsageInfo>::iterator iter;
+
+  /* проверяем, надо ли обращаться к БД */
+  for ( iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter ) {
+    if (     0 == iter->m_coCCInputOctets.is_null()  && 0 != iter->m_coCCInputOctets.v
+          || 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
+          || 0 == iter->m_coCCTotalOctets.is_null()  && 0 != iter->m_coCCTotalOctets.v ) {
+      /* запись содержит ненулевые значения потребленного трафика */
+      /* вектор содержит полезную информацию */
+      bNothingToDo = false;
+      break;
+    }
+  }
+
+  if ( !bNothingToDo ) {
+  } else {
+    /* если вектор пустой просто выходим из функции */
+    return 0;
   }
 
   int iRetVal = 0;
@@ -216,7 +231,6 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
   try {
     otl_nocommit_stream coStream;
 
-    std::vector<SSessionUsageInfo>::iterator iter;
     coStream.open(
       1,
       "begin ps.qm.ProcessQuota("
@@ -226,6 +240,14 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
       "end; ",
       *p_pcoDBConn );
     for ( iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter ) {
+      if (   0 == iter->m_coCCInputOctets.is_null()  && 0 != iter->m_coCCInputOctets.v
+          || 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
+          || 0 == iter->m_coCCTotalOctets.is_null()  && 0 != iter->m_coCCTotalOctets.v ) {
+        /* запись содержит полезную информацию */
+      } else {
+        /* запись не содержит полезную информацю, переходим к другой записи */
+        continue;
+      }
       coStream
         << p_soSessInfo.m_strSubscriberId
         << iter->m_coMonitoringKey

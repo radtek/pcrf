@@ -68,7 +68,7 @@ int pcrf_procera_oper_thetering_report( SMsgDataForDB &p_soRequestInfo, std::vec
 #define ACTION_PROCERA_STORE_THET_INFO  static_cast<unsigned int>(0x00000020)
 #define ACTION_PROCERA_CHANGE_ULI       static_cast<unsigned int>(0x00000040)
 
-unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soMsgInfoCache );
+static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soMsgInfoCache );
 
 static std::map<std::string,int32_t> *g_pmapTethering = NULL;
 
@@ -228,7 +228,8 @@ static int app_pcrf_ccr_cb(
         case GX_ERICSSN:
           pcrf_procera_terminate_session( soMsgInfoCache.m_psoSessInfo->m_coSessionId );
           /* если необходимо писать cdr */
-          if ( 0 != g_psoConf->m_iGenerateCDR ) {
+          if ( 0 != g_psoConf->m_iGenerateCDR
+              || ( uiActionSet & ACTION_UPDATE_QUOTA ) ) {
             /* запрашиваем сведения о сессии из кэша */
             pcrf_session_cache_get( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo );
           }
@@ -2313,7 +2314,7 @@ int pcrf_procera_oper_thetering_report( SMsgDataForDB &p_soRequestInfo, std::vec
   }
 }
 
-unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequestInfo )
+static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequestInfo )
 {
   unsigned int uiRetVal = 0;
   std::vector<int32_t>::iterator iter = p_soRequestInfo.m_psoReqInfo->m_vectEventTrigger.begin();
@@ -2363,6 +2364,25 @@ unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequestInfo )
         }
         LOG_D( "session-id: %s; Event-Trigger[777]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
+    }
+  }
+
+  /* в ходе тестирования было обнаружено, что Ericsson добавляет Usage-Monitoring-Info в CCR-T */
+  /* но при этом не взводит триггер USAGE_REPORT */
+  if ( GX_ERICSSN == p_soRequestInfo.m_psoSessInfo->m_uiPeerDialect
+        && 0 != p_soRequestInfo.m_psoReqInfo->m_vectUsageInfo.size()
+        && TERMINATION_REQUEST == p_soRequestInfo.m_psoReqInfo->m_iCCRequestType ) {
+    /* проверяем, надо ли обращаться к БД */
+    std::vector<SSessionUsageInfo>::iterator iter = p_soRequestInfo.m_psoReqInfo->m_vectUsageInfo.begin();
+    for ( ; iter != p_soRequestInfo.m_psoReqInfo->m_vectUsageInfo.end(); ++iter ) {
+      if (   0 == iter->m_coCCInputOctets.is_null()  && 0 != iter->m_coCCInputOctets.v
+          || 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
+          || 0 == iter->m_coCCTotalOctets.is_null()  && 0 != iter->m_coCCTotalOctets.v ) {
+        /* запись содержит ненулевые значения потребленного трафика */
+        /* вектор содержит полезную информацию */
+        uiRetVal |= ACTION_UPDATE_QUOTA;
+        break;
+      }
     }
   }
 

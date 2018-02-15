@@ -60,11 +60,12 @@ void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
 {
 	/* закрываем зависшую сессию */
   otl_value<otl_datetime> coSysdate;
+  otl_value<otl_datetime> coNULLDate;
   otl_value<std::string> coTermCause;
 
   pcrf_fill_otl_datetime( coSysdate, NULL );
 
-  pcrf_db_update_session( p_coSessionId , coSysdate, coSysdate, coTermCause);
+  pcrf_db_update_session( p_coSessionId , coSysdate, coNULLDate, coTermCause);
 	/* фиксируем правила зависшей сессиии */
   pcrf_db_close_session_rule_all( p_coSessionId );
 	/* фиксируем локации зависшей сессиии */
