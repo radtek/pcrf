@@ -8,7 +8,6 @@ extern CLog *g_pcoLog;
 int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize)
 {
   int iRetVal = 0;
-  int iFnRes;
 
   /* запрашиваем в словаре идентификатор */
   struct dict_object *psoDictObj;
@@ -66,6 +65,8 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
       p_pszBuf[p_iBufSize - 1] = 0;
     }
   } else {
+    int iFnRes;
+
     switch (soAVPInfo.avp_basetype) {
     case AVP_TYPE_INTEGER32:
       iFnRes = snprintf (p_pszBuf, p_iBufSize , "%#08x", static_cast<unsigned int> (p_psoAVPHdr->avp_value->i32));

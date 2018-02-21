@@ -88,8 +88,6 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
     stat_measure(g_psoSessionRuleCacheStat, "miss", &coTM);
   }
 
-clean_and_exit:
-
   return iRetVal;
 }
 

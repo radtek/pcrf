@@ -93,7 +93,7 @@ static void pcrf_tracer (
   }
 
   /* статистика по пирам */
-  stat_measure(g_psoPeerStat, strPeerName.c_str(), NULL);
+  stat_measure(g_psoPeerStat, strPeerRlm.c_str(), NULL);
 
   char *pmcBuf = NULL;
   size_t stLen;

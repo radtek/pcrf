@@ -17,7 +17,6 @@ static char g_mcFileName[ PATH_MAX ];
 int pcrf_cdr_make_timestamp( char *p_pszFileName, size_t p_stSize, const char *p_pszFormat )
 {
   int iRetVal = 0;
-  size_t stLen;
   time_t tmTm;
   tm soTm;
 
@@ -63,11 +62,12 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
 
   /* формируем временную метку */
   timeval soTV;
-  uint64_t uiTmStmp;
   char mcString[ 32 ];
   int iFnRes;
 
   if ( 0 == gettimeofday( &soTV, NULL ) ) {
+    uint64_t uiTmStmp;
+
     uiTmStmp =  ( soTV.tv_sec  * 1000 );
     uiTmStmp += ( soTV.tv_usec / 1000 );
     iFnRes = snprintf( mcString, sizeof(mcString), "%llu", uiTmStmp );
@@ -110,7 +110,7 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
   p_strData += '\n';
 }
 
-int pcrf_cdr_write_record( std::string &p_strData, int p_iFile )
+void pcrf_cdr_write_record( std::string &p_strData, int p_iFile )
 {
   if ( 0 < p_strData.length() ) {
     write( p_iFile, p_strData.data(), p_strData.length() );
@@ -247,7 +247,7 @@ int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData )
 
   if ( NULL != g_psoConf->m_pszCDRMask && -1 != iFile ) {
     pcrf_cdr_make_record( p_soReqData, strRecCont );
-    CHECK_FCT( pcrf_cdr_write_record( strRecCont, iFile ) );
+    pcrf_cdr_write_record( strRecCont, iFile );
   }
 
   return 0;

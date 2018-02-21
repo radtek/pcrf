@@ -785,11 +785,12 @@ void pcrf_session_cache_ps_reply( int p_iSock, sockaddr_in *p_psoAddr, uint16_t 
   CPSPacket coPSPack;
   uint8_t muiBuf[ 256 ];
   int iReqLen;
-  int iFnRes;
 
   CHECK_FCT_DO( coPSPack.Init( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), p_uiReqNum, p_uiReqType ), return );
   iReqLen = coPSPack.AddAttr( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), PS_RESULT, &p_iResCode, sizeof( p_iResCode ) );
   if ( 0 < iReqLen ) {
+    int iFnRes;
+
     iFnRes = sendto( p_iSock, muiBuf, iReqLen, 0, reinterpret_cast<sockaddr*>( p_psoAddr ), sizeof( *p_psoAddr ) );
     if ( 0 < iFnRes ) {
       LOG_D( "%s: sendto: success: %d bytes", __FUNCTION__, iFnRes );
