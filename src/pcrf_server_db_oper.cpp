@@ -6,8 +6,6 @@ extern SStat *g_psoDBStat;
 
 /* добавление записи в список сессий */
 void pcrf_db_insert_session (SSessionInfo &p_soSessInfo);
-/* добавление записи в таблицу потребления трафика */
-int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo );
 
 int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 {
@@ -64,8 +62,6 @@ int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_
         /* обрабатываем информацию о выданных политиках */
         pcrf_server_policy_db_store( p_psoMsgInfo );
       }
-      /* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
-      iRetVal = pcrf_db_session_usage( p_pcoDBConn, *( p_psoMsgInfo->m_psoSessInfo ), *( p_psoMsgInfo->m_psoReqInfo ) );
       break;
       default:
         break;
@@ -194,7 +190,7 @@ void pcrf_db_update_session (
     &( p_coSessionId.v ) );
 }
 
-int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo )
+int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo, int &p_iUpdateRule )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -230,13 +226,15 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
 
   try {
     otl_nocommit_stream coStream;
+    int iUpdateRule;
 
     coStream.open(
       1,
       "begin ps.qm.ProcessQuota("
         ":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
         ":UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
-        ":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
+        ":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/,"
+        ":UpdateRule /*int,out*/);"
       "end; ",
       *p_pcoDBConn );
     for ( iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter ) {
@@ -263,7 +261,11 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
       coStream
         >> iter->m_coCCInputOctets
         >> iter->m_coCCOutputOctets
-        >> iter->m_coCCTotalOctets;
+        >> iter->m_coCCTotalOctets
+        >> iUpdateRule;
+
+      ( 0 == iUpdateRule ) ? ( p_iUpdateRule = p_iUpdateRule ) : ( p_iUpdateRule = 1 );
+
       UTL_LOG_D( *g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
         p_soSessInfo.m_strSubscriberId.c_str(),
         iter->m_coMonitoringKey.v.c_str(),

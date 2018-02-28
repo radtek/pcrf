@@ -151,7 +151,7 @@ static int app_pcrf_ccr_cb(
   std::vector<SDBAbonRule>::iterator iterAbonRule;
 
   /* запрашиваем объект класса для работы с БД */
-  /* взаимодействие с БД необходимо лишь в случае INITIAL_REQUEST и UPDATE_REQUEST в сочетании с ACTION_UPDATE_RULE */
+  /* взаимодействие с БД необходимо лишь в случае INITIAL_REQUEST либо UPDATE_REQUEST в сочетании с ACTION_UPDATE_RULE и (или) ACTION_UPDATE_QUOTA */
   /* так же для всех запросов (временно), поступающих от клиентов с пропиетарными диалектами */
   if ( ( uiActionSet & ACTION_UPDATE_RULE )
     || ( uiActionSet & ACTION_UPDATE_QUOTA )
@@ -159,9 +159,15 @@ static int app_pcrf_ccr_cb(
     || (GX_HW_UGW != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect
       && GX_ERICSSN != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ))
   {
+#ifdef DEBUG
     iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC );
+#else
+    iFnRes = pcrf_db_pool_get( &pcoDBConn, NULL, USEC_PER_SEC );
+#endif
     if ( 0 == iFnRes && NULL != pcoDBConn ) {
+      /* подклчение к БД получено успешно */
     } else {
+      /* подключение к БД не получено */
       if ( ( GX_HW_UGW == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect 
         || GX_ERICSSN == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect )
         && UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
@@ -169,6 +175,13 @@ static int app_pcrf_ccr_cb(
       } else {
         uiResultCode = 3004; /* DIAMETER_TOO_BUSY */
       }
+      UTL_LOG_E(
+        *g_pcoLog,
+        "db connection is not given: request type: %s; action set: %#x",
+        ( INITIAL_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) ? "CCR-I" :
+          ( UPDATE_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) ? "CCR-U" :
+          ( TERMINATION_REQUEST == soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) ? "CCR-T" : "CCR-?",
+        uiActionSet );
     }
     LOG_D( "Session-Id: %s: Action DB connection is requested", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
   }
@@ -295,6 +308,17 @@ static int app_pcrf_ccr_cb(
 
   /* сохраняем в БД запрос */
   pcrf_server_req_db_store( pcoDBConn, &soMsgInfoCache );
+  /* если надо обновить квоты */
+  if ( uiActionSet & ACTION_UPDATE_QUOTA ) {
+    int iUpdateRule = 0;
+
+    /* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
+    pcrf_db_session_usage( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ), *( soMsgInfoCache.m_psoReqInfo ), iUpdateRule );
+    if ( 0 == iUpdateRule ) {
+    } else {
+      uiActionSet |= ACTION_UPDATE_RULE;
+    }
+  }
 
   /* если необходимо писать cdr */
   if ( 0 != g_psoConf->m_iGenerateCDR ) {
@@ -429,8 +453,6 @@ static int app_pcrf_ccr_cb(
         if ( psoChildAVP ) {
           CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), /*continue*/ );
         }
-        /* Usage-Monitoring-Information */
-        CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
         /* Charging-Rule-Install */
         psoChildAVP = pcrf_make_CRI( &soMsgInfoCache, vectAbonRules, ans );
         /* put 'Charging-Rule-Install' into answer */
@@ -439,6 +461,10 @@ static int app_pcrf_ccr_cb(
         }
         LOG_D( "Session-Id: %s: session rules are operated", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
       }
+
+      /* Usage-Monitoring-Information */
+      CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+
       if ( uiActionSet & ACTION_UGW_STORE_THET_INFO ) {
         pcrf_server_db_insert_tethering_info( soMsgInfoCache );
         LOG_D( "Session-Id: %s: ugw thetering info is stored", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str() );
@@ -2348,7 +2374,7 @@ static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequest
         LOG_D( "session-id: %s; USAGE_REPORT[26]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
       case 33: /* USAGE_REPORT */
-        uiRetVal |= ACTION_UPDATE_RULE;
+        /*uiRetVal |= ACTION_UPDATE_RULE;*/
         uiRetVal |= ACTION_UPDATE_QUOTA;
         LOG_D( "session-id: %s; USAGE_REPORT[33]", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
