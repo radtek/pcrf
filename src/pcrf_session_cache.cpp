@@ -77,7 +77,7 @@ static int pcrf_session_cache_init_node ();
 static void pcrf_session_cache_fini_node ();
 
 /* загрузка списка сессий из БД */
-static void * pcrf_session_cache_load_session_list(void *p_pArg);
+static int pcrf_session_cache_load_session_list();
 
 /* отправка сообщение нодам */
 #define NODE_POLL_WAIT 1
@@ -100,10 +100,7 @@ int pcrf_session_cache_init ()
   g_pmapChild = new std::map<std::string,std::string>;
   g_pmapSubscriberId = new std::map<std::string, std::set<std::string> >;
   /* загружаем список сессий из БД */
-  pthread_t tThread;
-  if (0 == pthread_create(&tThread, NULL, pcrf_session_cache_load_session_list, NULL)) {
-    pthread_detach(tThread);
-  }
+  CHECK_FCT( pcrf_session_cache_load_session_list() );
   /* создаем список нод */
   g_pvectNodeList = new std::vector<SNode>;
   /* создаем мьютекс */
@@ -1203,7 +1200,7 @@ static void pcrf_session_cache_fini_node ()
   }
 }
 
-static void * pcrf_session_cache_load_session_list( void *p_pArg )
+static int pcrf_session_cache_load_session_list()
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
@@ -1301,7 +1298,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
           /* copy the found value, we're done */
           psoSessCache->m_iRATType = req.search.enum_value.i32;
         }
-        pcrf_session_cache_insert_local( strSessionId, psoSessCache, NULL, true );
+        pcrf_session_cache_insert_local( strSessionId, psoSessCache, NULL );
       }
     }
     {
@@ -1322,7 +1319,7 @@ static void * pcrf_session_cache_load_session_list( void *p_pArg )
     pcoDBConn = NULL;
   }
 
-  pthread_exit( NULL );
+  return iRetVal;
 }
 
 int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId )

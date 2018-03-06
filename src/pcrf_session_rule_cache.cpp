@@ -15,7 +15,7 @@ static std::map<std::string, std::list<std::string> > g_mapSessRuleLst;
 static pthread_mutex_t g_mmutexSessRuleLst[3];
 
 /* функция потока загрузки наального списка правил сессиий */
-static void * pcrf_session_rule_load_list(void*);
+static int pcrf_session_rule_load_list();
 
 /* указатель на объект статистики кэша правил сессий */
 static SStat *g_psoSessionRuleCacheStat;
@@ -25,12 +25,8 @@ int pcrf_session_rule_list_init()
   /* запрашиваем адрес объекта статистики кэша правил сессий */
   g_psoSessionRuleCacheStat = stat_get_branch("session rule cache");
 
-  pthread_t tLoadThread;
-
-  /* запускаем поток загрузки первичного списка правил сессий */
-  CHECK_FCT(pthread_create(&tLoadThread, NULL, pcrf_session_rule_load_list, NULL));
-  /* открепляем запущенный поток нам его судьба не особо интересна */
-  CHECK_FCT(pthread_detach(tLoadThread));
+  /* загружаем первичный список правил сессий */
+  CHECK_FCT( pcrf_session_rule_load_list() );
 
   /* инициализация мьютексов доступа к хранилищу кэша правил сессий */
   CHECK_FCT( pcrf_lock_init( g_mmutexSessRuleLst, sizeof( g_mmutexSessRuleLst ) / sizeof( *g_mmutexSessRuleLst ) ) );
@@ -191,8 +187,9 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
   return;
 }
 
-static void * pcrf_session_rule_load_list(void*)
+static int pcrf_session_rule_load_list()
 {
+  int iRetVal = 0;
   CTimeMeasurer coTM;
   int iRepeat = 1;
   otl_connect *pcoDBConn;
@@ -232,6 +229,7 @@ static void * pcrf_session_rule_load_list(void*)
       --iRepeat;
       goto sql_repeat;
     }
+    iRetVal = coExcept.code;
   }
 
 clean_and_exit:
@@ -239,7 +237,7 @@ clean_and_exit:
     pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
   }
 
-  pthread_exit(NULL);
+  return iRetVal;
 }
 
 void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_soRuleName )
