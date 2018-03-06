@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 extern CLog *g_pcoLog;
-extern SStat *g_psoDBStat;
 
 int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue )
 {
@@ -50,8 +49,6 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
     }
     iRetVal = coExcept.code;
   }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
   return iRetVal;
 }
@@ -165,8 +162,6 @@ int pcrf_client_db_delete_refqueue( otl_connect *p_pcoDBConn, SRefQueue &p_soRef
     }
     iRetVal = coExcept.code;
   }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
   return iRetVal;
 }
