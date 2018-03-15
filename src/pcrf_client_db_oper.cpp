@@ -28,10 +28,9 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
     /* создаем объект класса потока ДБ */
     coStream.open(
       1000,
-      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = :module/*char[100]*/ and refresh_date < sysdate",
+      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
       *p_pcoDBConn );
     /* делаем выборку из БД */
-    coStream << coModule;
     while ( ! coStream.eof() ) {
       coStream
         >> soQueueElem.m_strRowId
