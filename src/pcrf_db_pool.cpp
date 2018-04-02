@@ -183,9 +183,6 @@ int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient)
 	int iRetVal = 0;
 	SDBPoolInfo *psoTmp = g_psoDBPoolHead;
 
-  /* suppress compiler warining */
-  p_pszClient = p_pszClient;
-
 	/* обходим весь список */
 	while (psoTmp) {
 		/* если нашли искомое подключение */

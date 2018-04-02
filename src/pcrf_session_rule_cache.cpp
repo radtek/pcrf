@@ -255,6 +255,13 @@ void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p
 
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName)
 {
+  /* проверяем параметры */
+  if ( 0 < p_strSessionId.length() && 0 < p_soRuleName.length() ) {
+  } else {
+    LOG_D( "%s: session-id: %s; rule-name: %s", __FUNCTION__, p_strSessionId.c_str(), p_soRuleName.c_str() );
+    return;
+  }
+
   pcrf_session_rule_cache_remove_rule_local(p_strSessionId, p_strRuleName);
   pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSRUL), &p_strRuleName);
 }

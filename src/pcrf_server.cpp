@@ -840,22 +840,14 @@ avp * pcrf_make_CRR( SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vec
 			if (NULL == psoAVPCRR) {
 				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleRemove, 0, &psoAVPCRR), return NULL);
 			}
-			/* если это динамическое правило */
-			if (! iter->m_coDynamicRuleFlag.is_null () && iter->m_coDynamicRuleFlag.v) {
+			/* если это групповое правило */
+			if (! iter->m_coRuleGroupFlag.is_null () && iter->m_coRuleGroupFlag.v) {
+				/* Charging-Rule-Base-Name */
+        CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleBaseName, iter->m_coRuleName.v), continue);
+			} else {
 				/* Charging-Rule-Name */
         CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
-			}
-			/* если это предопределенное правило */
-			else {
-				/* если это групповое правило */
-				if (! iter->m_coRuleGroupFlag.is_null () && iter->m_coRuleGroupFlag.v) {
-					/* Charging-Rule-Base-Name */
-          CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleBaseName, iter->m_coRuleName.v), continue);
-				} else {
-					/* Charging-Rule-Name */
-          CHECK_FCT_DO (pcrf_set_CRN (psoAVPCRR, g_psoDictChargingRuleName, iter->m_coRuleName.v), continue);
-        }
-			}
+      }
       pcrf_db_close_session_rule( p_soSessInfo, iter->m_coRuleName.v );
       break; /* Gx */
 		case GX_CISCO_SCE: /* Gx Cisco SCE */
