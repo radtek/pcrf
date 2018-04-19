@@ -1,7 +1,8 @@
 # The app_pcrf extension
 PROJECT("PCRF Diameter Application" C)
 
-SET(CMAKE_BUILD_TYPE debug)
+SET(CMAKE_BUILD_TYPE "MaxPerformance")
+SET(CMAKE_CXX_FLAGS "--std=c++11")
 
 # Parser files
 BISON_FILE(app_pcrf_conf.y)
@@ -38,6 +39,9 @@ SET( PCRF_APP_SRC
 	pcrf_umi_rar.cpp
 	pcrf_cdr.cpp
 	pcrf_lock.cpp
+	pcrf_zabbix.cpp
+	pcrf_stat.cpp
+	pcrf_signal_test.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
 	~/project/utils/src/utils/stat/stat.cpp

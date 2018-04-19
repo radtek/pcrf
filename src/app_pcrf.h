@@ -70,23 +70,31 @@ int pcrf_session_cache_init (void);
 void pcrf_session_cache_fini (void);
 
 /* инициализация кэша правил */
-int pcrf_rule_cache_init();
+int pcrf_rule_cache_init( void );
 /* деинициализация кэша правил */
-void pcrf_rule_cache_fini();
+void pcrf_rule_cache_fini( void );
 
 /* инициализация кэша правил сессий */
-int pcrf_session_rule_list_init();
+int pcrf_session_rule_list_init( void );
 /* деинициализация кэша правил сессий */
-void pcrf_session_rule_list_fini();
+void pcrf_session_rule_list_fini( void );
 
 /* инициализация очереди sql-запросов */
-int pcrf_sql_queue_init();
+int pcrf_sql_queue_init( void );
 /* деинициализация очереди sql-запросов */
-void pcrf_sql_queue_fini();
+void pcrf_sql_queue_fini( void );
 
-int pcrf_cdr_init();
-void pcrf_cdr_fini();
+int pcrf_cdr_init( void );
+void pcrf_cdr_fini( void );
 
+int  pcrf_stat_init( void );
+void pcrf_stat_fini( void );
+
+int  pcrf_zabbix_init( void );
+void pcrf_zabbix_fini( void );
+
+/* регистрация обработчиков сигналов для тестов */
+int pcrf_sig_test_init( void );
 
 /* Some global variables for dictionary */
 extern struct dict_object *g_psoDictCCR;

@@ -160,6 +160,7 @@ void pcrf_cdr_file_completed( const char *p_pszFileName )
 void * pcrf_cdr_recreate_file( void *p_vParam )
 {
   char mcFileName[ 1024 ];
+  int iNewFile = -1;
   int iTmpFile = -1;
   size_t stLen;
   time_t tmTm;
@@ -205,6 +206,7 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
   pthread_exit( NULL );
 }
 
+extern "C"
 int pcrf_cdr_init()
 {
   int iRetVal = 0;
@@ -232,11 +234,14 @@ int pcrf_cdr_init()
   return iRetVal;
 }
 
+extern "C"
 void pcrf_cdr_fini()
 {
   close( g_iFile );
   pcrf_cdr_file_completed( g_mcFileName );
   pthread_mutex_unlock( &g_mutexCDRTimer );
+
+  LOG_N( "CDR module is stopped successfully" );
 }
 
 int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData )

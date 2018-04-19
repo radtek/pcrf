@@ -1,6 +1,5 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include <signal.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/time.h>
@@ -608,7 +607,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
     /* запрашиваем подключение к БД */
-    if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
+    if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, 1, 0 ) && NULL != pcoDBConn ) {
     } else {
       continue;
     }
@@ -662,49 +661,28 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
 }
 
-static void sig_oper(void)
-{
-  LOG_D("enter into '%s'", __FUNCTION__);
-
-  otl_connect *pcoDBConn = NULL;
-  SRefQueue soRefreshQueue = { "", "101957192/627511524@IRBiS", "subscriber_id", otl_value<std::string>( "" ) };
-
-  pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 1000 );
-
-  pcrf_client_operate_refqueue_record( pcoDBConn, soRefreshQueue );
-
-  if ( NULL != pcoDBConn ) {
-    pcrf_db_pool_rel( &pcoDBConn, __FUNCTION__ );
-  }
-
-  LOG_D("leave '%s'", __FUNCTION__);
-}
-
 /* инициализация клиента */
 int pcrf_cli_init (void)
 {
 	/* создания списка сессий */
 	CHECK_FCT (fd_sess_handler_create (&g_psoSessionHandler, sess_state_cleanup, NULL, NULL));
 
-  CHECK_FCT(fd_event_trig_regcb(SIGUSR1, "app_pcrf", sig_oper));
+  if (0 != g_psoConf->m_iOperateRefreshQueue) {
+    /* инициализация мьютекса обращения к БД */
+    CHECK_POSIX( pthread_mutex_init( &g_tDBReqMutex, NULL ) );
+    /* блокируем мьютекс чтобы перевести создаваемый ниже поток в состояние ожидания */
+    CHECK_POSIX( pthread_mutex_lock( &g_tDBReqMutex ) );
 
-  /* если очередь обновления политик не обрабатывается */
-  if (0 == g_psoConf->m_iOperateRefreshQueue) {
-    return 0;
+    /* мьютекс локальной очереди обновленя политик */
+    CHECK_POSIX( pthread_mutex_init( &g_tLocalQueueMutex, NULL ) );
+
+    /* запуск потока для выполнения запросов к БД */
+    CHECK_POSIX( pthread_create( &g_tThreadId, NULL, pcrf_client_operate_refreshqueue, NULL ) );
+
+    g_psoGxClientStat = stat_get_branch( "gx client" );
   }
 
-  /* инициализация мьютекса обращения к БД */
-	CHECK_POSIX (pthread_mutex_init (&g_tDBReqMutex, NULL));
-	/* блокируем мьютекс чтобы перевести создаваемый ниже поток в состояние ожидания */
-	CHECK_POSIX (pthread_mutex_lock (&g_tDBReqMutex));
-
-  /* мьютекс локальной очереди обновленя политик */
-	CHECK_POSIX (pthread_mutex_init (&g_tLocalQueueMutex, NULL));
-
-	/* запуск потока для выполнения запросов к БД */
-	CHECK_POSIX (pthread_create (&g_tThreadId, NULL, pcrf_client_operate_refreshqueue, NULL));
-
-  g_psoGxClientStat = stat_get_branch("gx client");
+  LOG_N( "GXCLIENT module is initialized successfully" );
 
 	return 0;
 }
@@ -735,6 +713,8 @@ void pcrf_cli_fini (void)
 	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tLocalQueueMutex), /* void */ );
 	/* освобождение ресурсов, занятых мьютексом */
 	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tDBReqMutex), /* void */ );
+
+  LOG_N( "GXCLIENT module is stopped successfully" );
 };
 
 extern "C"

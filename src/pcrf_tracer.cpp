@@ -328,6 +328,8 @@ int pcrf_tracer_init (void)
   g_psoPeerStat = stat_get_branch("peer stat");
   g_psoReqStat = stat_get_branch("req stat");
 
+  LOG_N( "TRACER module is initialized successfully" );
+
 	return iRetVal;
 }
 
@@ -336,4 +338,6 @@ void pcrf_tracer_fini (void)
 	if (psoHookHandle) {
 		CHECK_FCT_DO (fd_hook_unregister (psoHookHandle), );
 	}
+
+  LOG_N( "TRACER module is stopped successfully" );
 }

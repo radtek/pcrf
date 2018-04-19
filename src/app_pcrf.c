@@ -31,8 +31,15 @@ static int pcrf_entry (char * conffile)
 	/* инищиализация логгера */
 	CHECK_FCT(pcrf_logger_init());
 
+  /* инициализация модуля заббикс */
+  CHECK_FCT( pcrf_zabbix_init() );
+
 	/* инициализация модуля статистики */
 	CHECK_FCT(stat_init());
+  CHECK_FCT( pcrf_stat_init() );
+
+  /* инициализация обработчика сигналов SIGUSR */
+  CHECK_FCT( pcrf_sig_test_init() );
 
 	/* Install objects definitions for this app_pcrf application */
 	CHECK_FCT (app_pcrf_dict_init ());
@@ -87,7 +94,11 @@ void fd_ext_fini(void)
     pcrf_cdr_fini();
   }
 	stat_fin();
+  pcrf_stat_fini();
+  pcrf_zabbix_fini();
 	pcrf_logger_fini();
+
+  LOG_N( "app_pcrf module is stopped successfully" );
 }
 
 EXTENSION_ENTRY ("app_pcrf", pcrf_entry);

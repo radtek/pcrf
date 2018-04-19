@@ -950,7 +950,7 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
 {
   otl_connect *pcoDBConn;
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 1, 0 ) && NULL != pcoDBConn ) {
   } else {
     return EINVAL;
   }

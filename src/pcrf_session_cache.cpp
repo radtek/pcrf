@@ -90,6 +90,7 @@ struct SPayloadHdr {
 };
 #pragma pack(pop)
 
+extern "C"
 int pcrf_session_cache_init ()
 {
   /* инициализация ветки статистики */
@@ -119,9 +120,12 @@ int pcrf_session_cache_init ()
     g_pmapParent->max_size(),
     g_pmapChild->max_size() );
 
+  LOG_N( "SESSIONCACHE module is initialized successfully" );
+
   return 0;
 }
 
+extern "C"
 void pcrf_session_cache_fini (void)
 {
   /* останавливаем поток обработки команд */
@@ -156,6 +160,9 @@ void pcrf_session_cache_fini (void)
   if (NULL != g_pvectNodeList) {
     delete g_pvectNodeList;
   }
+
+  LOG_N( "SESSIONCACHE module is stopped successfully" );
+
 }
 
 int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_t p_uiAddUSec)
@@ -1096,7 +1103,7 @@ static int pcrf_session_cache_init_node ()
   }
 
   otl_connect *pcoDBConn = NULL;
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
   } else {
     return -1;
   }
@@ -1206,7 +1213,7 @@ static int pcrf_session_cache_load_session_list()
   CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
   } else {
     goto clean_and_exit;
   }

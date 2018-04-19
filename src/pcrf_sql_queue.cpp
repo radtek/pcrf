@@ -31,6 +31,7 @@ struct SSQLQueue {
 static unsigned  g_uiQueueCount;     /* количество очередей */
 static SSQLQueue *g_pmsoSQLQueue;    /* указатель на массив очередей */
 
+extern "C"
 int pcrf_sql_queue_init()
 {
   LOG_D( "enter: %s", __FUNCTION__ );
@@ -38,7 +39,9 @@ int pcrf_sql_queue_init()
   /* определяем количество очередей */
   g_uiQueueCount = g_psoConf->m_iDBPoolSize / 4;
   if ( 0 != g_uiQueueCount ) {
+    LOG_D( "g_uiQueueCount: %u", g_uiQueueCount );
   } else {
+    LOG_E( "g_uiQueueCount: %u", g_uiQueueCount );
     return EINVAL;
   }
 
@@ -55,11 +58,14 @@ int pcrf_sql_queue_init()
     CHECK_FCT( pthread_create( &( g_pmsoSQLQueue[ i ].m_threadSQLQueue ), NULL, pcrf_sql_queue_oper, &g_pmsoSQLQueue[ i ] ) );
   }
 
+  LOG_N( "SQLQUEUE module is initialized successfully" );
+
   LOG_D( "leave: %s", __FUNCTION__ );
 
   return 0;
 }
 
+extern "C"
 void pcrf_sql_queue_fini()
 {
   LOG_D( "enter: %s", __FUNCTION__ );
@@ -73,6 +79,8 @@ void pcrf_sql_queue_fini()
     }
     delete[ ] g_pmsoSQLQueue;
   }
+
+  LOG_N( "SQLQUEUE module is stopped successfully" );
 
   LOG_D( "leave: %s", __FUNCTION__ );
 }
@@ -302,7 +310,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
         }
       } else {
         /* запрашиваем подключение из пула если это необходимо */
-        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
         } else {
           /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
           continue;

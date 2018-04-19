@@ -888,5 +888,7 @@ int app_pcrf_dict_init (void)
     CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL ) );
   }
 
-	return 0;
+  LOG_N( "DICT module is initialized successfully" );
+
+  return 0;
 }

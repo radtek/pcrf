@@ -20,6 +20,7 @@ static int pcrf_session_rule_load_list();
 /* указатель на объект статистики кэша правил сессий */
 static SStat *g_psoSessionRuleCacheStat;
 
+extern "C"
 int pcrf_session_rule_list_init()
 {
   /* запрашиваем адрес объекта статистики кэша правил сессий */
@@ -36,14 +37,19 @@ int pcrf_session_rule_list_init()
     "\tstorage capasity is '%u' records",
     g_mapSessRuleLst.max_size() );
 
+  LOG_N( "SESSIONRULECACHE module is initialized successfully" );
+
   return 0;
 }
 
+extern "C"
 void pcrf_session_rule_list_fini()
 {
   g_bSessionRuleCacheWork = false;
   /* освобождаем занятые ресурсы */
   pcrf_lock_fini( g_mmutexSessRuleLst, sizeof( g_mmutexSessRuleLst ) / sizeof( *g_mmutexSessRuleLst ) );
+
+  LOG_N( "SESSIONRULECACHE module is stopped successfully" );
 }
 
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive)
@@ -197,7 +203,7 @@ static int pcrf_session_rule_load_list()
   std::string strRuleName;
   char mcTime[64];
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
   } else {
     goto clean_and_exit;
   }
@@ -240,25 +246,25 @@ clean_and_exit:
   return iRetVal;
 }
 
-void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_soRuleName )
+void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_strRuleName )
 {
   /* проверяем параметры */
-  if ( 0 < p_strSessionId.length() && 0 < p_soRuleName.length() ) {
+  if ( 0 < p_strSessionId.length() && 0 < p_strRuleName.length() ) {
   } else {
-    LOG_D( "%s: session-id: %s; rule-name: %s", __FUNCTION__, p_strSessionId.c_str(), p_soRuleName.c_str() );
+    LOG_D( "%s: session-id: %s; rule-name: %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
     return;
   }
 
-  pcrf_session_rule_cache_insert_local( p_strSessionId, p_soRuleName );
-  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_soRuleName );
+  pcrf_session_rule_cache_insert_local( p_strSessionId, p_strRuleName );
+  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_strRuleName );
 }
 
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName)
 {
   /* проверяем параметры */
-  if ( 0 < p_strSessionId.length() && 0 < p_soRuleName.length() ) {
+  if ( 0 < p_strSessionId.length() && 0 < p_strRuleName.length() ) {
   } else {
-    LOG_D( "%s: session-id: %s; rule-name: %s", __FUNCTION__, p_strSessionId.c_str(), p_soRuleName.c_str() );
+    LOG_D( "%s: session-id: %s; rule-name: %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
     return;
   }
 

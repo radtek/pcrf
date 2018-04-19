@@ -30,6 +30,7 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
 /* загрузка ключей мониторинга sce */
 static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectMonitKey);
 
+extern "C"
 int pcrf_rule_cache_init()
 {
   g_psoRuleCahceStat = stat_get_branch("rule cache");
@@ -48,9 +49,12 @@ int pcrf_rule_cache_init()
     g_pmapRule->size(),
     g_pmapRule->max_size() );
 
+  LOG_N( "RULECACHE module is initialized successfully" );
+
   return 0;
 }
 
+extern "C"
 void pcrf_rule_cache_fini()
 {
   g_iRuleCacheWork = 0;
@@ -67,6 +71,8 @@ void pcrf_rule_cache_fini()
     delete g_pmapRule;
     g_pmapRule = NULL;
   }
+
+  LOG_N( "RULECACHE module is stopped successfully" );
 }
 
 static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_pmapRule)
@@ -77,7 +83,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
 
   otl_connect *pcoDBConn = NULL;
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
   } else {
     iRetVal = -1;
     goto clean_and_exit;
@@ -148,7 +154,6 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         CHECK_FCT_DO( load_rule_flows( pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr ), /* continue */ );
         /* сохраняем правило в локальном хранилище */
         p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_coRuleName.v, soAbonRule ) );
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();
@@ -174,7 +179,6 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
           >> soAbonRule.m_coSCE_RealTimeMonitor;
         CHECK_FCT_DO(load_sce_rule_mk(pcoDBConn, uiRuleId, soAbonRule.m_vectMonitKey), /* continue */);
         p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();

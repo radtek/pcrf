@@ -90,8 +90,12 @@ int pcrf_db_pool_init (void)
 	pcrf_db_pool_fin ();
 	iRetVal = -1600;
 
-	fn_return:
-	return iRetVal;
+  fn_return:
+  if ( 0 == iRetVal ) {
+    LOG_N( "DBPOOL module is initialized successfully" );
+  }
+
+  return iRetVal;
 }
 
 void pcrf_db_pool_fin (void)
@@ -122,9 +126,11 @@ void pcrf_db_pool_fin (void)
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
 	}
+
+  LOG_N( "DBPOOL module is stopped successfully" );
 }
 
-int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec )
+int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitSec, unsigned int p_uiWaitUSec )
 {
   int iRetVal = -1;
   int iFnRes;
@@ -133,7 +139,7 @@ int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsig
   /* инициализация значения */
   *p_ppcoDBConn = NULL;
 
-  pcrf_make_timespec_timeout( soWaitTime, 0, p_uiWaitUSec );
+  pcrf_make_timespec_timeout( soWaitTime, p_uiWaitSec, p_uiWaitUSec );
 
   /* ждем когда освободится семафор или истечет таймаут */
   if ( 0 != ( iFnRes = sem_timedwait( &g_tDBPoolSem, &soWaitTime ) ) ) {

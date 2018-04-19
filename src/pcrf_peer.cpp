@@ -12,13 +12,15 @@ int app_pcrf_load_peer_info( std::vector<SPeerInfo> &p_vectPeerList, otl_connect
 int app_pcrf_peer_validate (peer_info *p_psoPeerInfo, int *p_piAuth, int (**cb2)(struct peer_info *));
 
 /* функция формирует список клиентов */
+extern "C"
 int app_pcrf_load_peer()
 {
   int iRetVal = 0;
   otl_connect *pcoDBConn = NULL;
 
   do {
-    if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+    iRetVal = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 );
+    if ( 0 == iRetVal && NULL != pcoDBConn ) {
     } else {
       break;
     }
@@ -35,6 +37,10 @@ int app_pcrf_load_peer()
   if ( NULL != pcoDBConn ) {
     pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
     pcoDBConn = NULL;
+  }
+
+  if ( 0 == iRetVal ) {
+    LOG_N( "PEERLIST module is initialized successfully" );
   }
 
   return iRetVal;

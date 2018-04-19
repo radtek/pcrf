@@ -160,9 +160,9 @@ static int app_pcrf_ccr_cb(
       && GX_ERICSSN != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ))
   {
 #ifdef DEBUG
-    iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC );
+    iFnRes = pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 1, 0 );
 #else
-    iFnRes = pcrf_db_pool_get( &pcoDBConn, NULL, USEC_PER_SEC );
+    iFnRes = pcrf_db_pool_get( &pcoDBConn, NULL, 1, 0 );
 #endif
     if ( 0 == iFnRes && NULL != pcoDBConn ) {
       /* подклчение к БД получено успешно */
@@ -592,6 +592,8 @@ int app_pcrf_serv_init (void)
   g_psoDBStat = stat_get_branch("DB operation");
   g_psoGxSesrverStat = stat_get_branch("gx server");
 
+  LOG_N( "GXSERVER module is initialized successfully" );
+
 	return 0;
 }
 
@@ -600,20 +602,33 @@ void app_pcrf_serv_fini (void)
 	if (app_pcrf_hdl_ccr) {
 		(void) fd_disp_unregister (&app_pcrf_hdl_ccr, NULL);
 	}
+
+  LOG_N( "GXSEVER module is stopped successfully" );
 }
 
+extern "C"
 int pcrf_logger_init(void)
 {
+  int iRetVal = 0;
+
 	g_pcoLog = new CLog;
 
-	return g_pcoLog->Init (g_psoConf->m_pszLogFileMask);
+	iRetVal = g_pcoLog->Init (g_psoConf->m_pszLogFileMask);
+  if(0 == iRetVal){
+    LOG_N( "LOGGER module is initialized successfully" );
+  }
+
+  return iRetVal;
 }
 
+extern "C"
 void pcrf_logger_fini(void)
 {
 	g_pcoLog->Flush();
 	delete g_pcoLog;
 	g_pcoLog = NULL;
+
+  LOG_N( "LOGGER module is stopped successfully" );
 }
 
 void pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive)

@@ -213,7 +213,7 @@ void pcrf_db_update_session(
   otl_value<std::string> &p_coTermCause );
 
 /* запрос свободного подключения к БД */
-int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec );
+int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitSec, unsigned int p_uiWaitUSec );
 /* возврат подключения к БД */
 int pcrf_db_pool_rel(void *p_pcoDBConn, const char *p_pszClient);
 /* восстановление подключения к БД */
@@ -354,9 +354,17 @@ void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::strin
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 
+/* статистика PCRF */
+void pcrf_stat_add( const char *p_pszMetricsName, const char *p_pszKey, const uint64_t &p_ui64USec, const char *p_pszParameterName, const char *p_pszParameterValue );
+
 #ifdef __cplusplus
 }
 #endif
+
+/* взаимодействие с zabbix */
+void pcrf_zabbix_set_parameter( const char *p_pszHostName, const char *p_pszKeyName, const char *p_pszParameterName, const char *p_pszParameterValue );
+void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const char *p_pszValue, time_t &p_tTimeStamp );
+void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const uint64_t p_ui64Value, time_t &p_tTimeStamp );
 
 /* очередь sql-запросов */
 enum ESQLParamType {
