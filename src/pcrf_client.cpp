@@ -8,8 +8,6 @@
 
 extern CLog *g_pcoLog;
 
-static SStat *g_psoGxClientStat;
-
 /* длительность интервала опроса БД по умолчанию */
 #define DB_REQ_INTERVAL 1
 
@@ -292,7 +290,6 @@ int pcrf_client_rar (
   }
 
 out:
-	stat_measure (g_psoGxClientStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -398,7 +395,6 @@ int pcrf_client_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 	CHECK_FCT_DO (fd_msg_send (&psoReq, pcrf_client_raa, NULL), goto out);
 
 out:
-  stat_measure(g_psoGxClientStat, __FUNCTION__, &coTM);
 
   LOG_D( "leave: %s", __FUNCTION__ );
 
@@ -678,8 +674,6 @@ int pcrf_cli_init (void)
 
     /* запуск потока для выполнения запросов к БД */
     CHECK_POSIX( pthread_create( &g_tThreadId, NULL, pcrf_client_operate_refreshqueue, NULL ) );
-
-    g_psoGxClientStat = stat_get_branch( "gx client" );
   }
 
   LOG_N( "GXCLIENT module is initialized successfully" );

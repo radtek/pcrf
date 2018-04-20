@@ -132,9 +132,30 @@ void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, 
 
 void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const uint64_t p_ui64Value, time_t &p_tTimeStamp )
 {
-  std::string strValue = std::to_string( p_ui64Value );
+  char mcValue[ 64 ];
+  int iFnRes;
 
-  pcrf_zabbix_enqueue_data( p_pszHostName, p_pszKey, strValue.c_str(), p_tTimeStamp );
+  iFnRes = snprintf( mcValue, sizeof( mcValue ), "%llu", p_ui64Value );
+  if ( 0 < iFnRes && iFnRes < sizeof( mcValue ) - 1 ) {
+  } else {
+    return;
+  }
+
+  pcrf_zabbix_enqueue_data( p_pszHostName, p_pszKey, mcValue, p_tTimeStamp );
+}
+
+void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const double p_df64Value, time_t &p_tTimeStamp )
+{
+  char mcValue[ 64 ];
+  int iFnRes;
+
+  iFnRes = snprintf( mcValue, sizeof( mcValue ), "%0.6f", p_df64Value );
+  if ( 0 < iFnRes && iFnRes < sizeof( mcValue ) - 1 ) {
+  } else {
+    return;
+  }
+
+  pcrf_zabbix_enqueue_data( p_pszHostName, p_pszKey, mcValue, p_tTimeStamp );
 }
 
 static int pcrf_zabbix_create_child_process()
@@ -178,6 +199,8 @@ static int pcrf_zabbix_create_child_process()
       const_cast< char* >( "-Tr" ),
       const_cast< char* >( "-i" ),
       const_cast< char* >( "-" ),
+      const_cast< char* >( "-c" ),
+      const_cast< char* >( "/etc/zabbix/zabbix_sender.conf" ),
       NULL
     };
 

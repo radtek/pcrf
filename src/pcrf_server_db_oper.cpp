@@ -2,7 +2,6 @@
 #include "app_pcrf_header.h"
 
 extern CLog *g_pcoLog;
-extern SStat *g_psoDBStat;
 
 /* добавление записи в список сессий */
 void pcrf_db_insert_session (SSessionInfo &p_soSessInfo);
@@ -220,7 +219,6 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -294,8 +292,6 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
     }
     iRetVal = coExcept.code;
   }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
   return iRetVal;
 }
@@ -392,7 +388,6 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
 
 	int iRetVal = 0;
   int iRepeat = 1;
-	CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -440,8 +435,6 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
     iRetVal = coExcept.code;
   }
 
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
-
 	return iRetVal;
 }
 
@@ -454,7 +447,6 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
 
 	int iRetVal = 0;
   int iRepeat = 1;
-	CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -498,8 +490,6 @@ int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p
     }
 		iRetVal = coExcept.code;
 	}
-
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }
@@ -580,7 +570,6 @@ int pcrf_load_abon_rule_list(
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -634,8 +623,6 @@ int pcrf_load_abon_rule_list(
     iRetVal = coExcept.code;
   }
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
   exit:
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
@@ -652,7 +639,6 @@ int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strS
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -695,8 +681,6 @@ int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strS
     iRetVal = coExcept.code;
   }
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
   return iRetVal;
 }
 
@@ -709,7 +693,6 @@ int pcrf_server_find_core_sess_byframedip( otl_connect *p_pcoDBConn, std::string
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -750,15 +733,11 @@ int pcrf_server_find_core_sess_byframedip( otl_connect *p_pcoDBConn, std::string
     iRetVal = coExcept.code;
   }
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
   return iRetVal;
 }
 
 int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo )
 {
-  CTimeMeasurer coTM;
-
   if ( 0 == p_coIPAddr.is_null() ) {
     LOG_D( "Framed-IP-Address: '%s'; Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
       p_coIPAddr.v.c_str(),
@@ -770,8 +749,6 @@ int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<
     LOG_D( "Framed-IP-Address is empty" );
     return EINVAL;
   }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 }
 
 void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
@@ -839,7 +816,6 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   /* если список ключей мониторинга пуст */
   if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
@@ -902,7 +878,6 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
   }
 
   exit_from_function:
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
   LOG_D( "leave: %s", __FUNCTION__ );
 
   return iRetVal;
@@ -957,7 +932,6 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
 
   int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -1007,8 +981,6 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
     CHECK_POSIX_DO( pcrf_db_pool_rel( reinterpret_cast<void *>( pcoDBConn ), __FUNCTION__ ), /*continue*/ );
   }
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
   return iRetVal;
 }
 
@@ -1021,7 +993,6 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 
 	int iRetVal = 0;
   int iRepeat = 1;
-  CTimeMeasurer coTM;
 
   sql_repeat:
 
@@ -1057,8 +1028,6 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
     }
 		iRetVal = coExcept.code;
 	}
-
-  stat_measure(g_psoDBStat, __FUNCTION__, &coTM);
 
 	return iRetVal;
 }

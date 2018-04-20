@@ -18,9 +18,21 @@ static void pcrf_sigusr1_oper( void )
 {
   LOG_D( "enter into '%s'", __FUNCTION__ );
 
-  pcrf_zabbix_set_parameter( "test_host", "diameter.request.quantity", "PEER_NAME", "hostA" );
-  pcrf_zabbix_set_parameter( "test_host", "diameter.request.quantity", "PEER_NAME", "hostB" );
-  pcrf_zabbix_set_parameter( "test_host", "diameter.request.quantity", "PEER_NAME", "hostC" );
+  timeval soTimeVal;
+  std::string strParamValue;
+
+  gettimeofday( &soTimeVal, NULL );
+  usleep( rand() % 10000 );
+
+  strParamValue = "CCR-I from ugw";
+
+  for ( int i = 0, cnt = ( 256 + ( rand() % 256 ) ); i < cnt; ++i ) {
+    pcrf_stat_add( "diameter.request.processed_in.avg[%s]", "diameter.request.statistics", &soTimeVal, "COMMAND_FROM_PEER_AVG", strParamValue.c_str(), ePCRFStatAvg );
+    if ( ( rand() % 10 ) == 1 ) {
+      pcrf_stat_add( "diameter.request.timedout.quantity[%s]", "diameter.request.statistics", NULL, "COMMAND_FROM_PEER_TIMEDOUT", strParamValue.c_str(), ePCRFStatCount );
+    }
+    pcrf_stat_add( "diameter.request.quantity[%s]", "diameter.request.statistics", NULL, "COMMAND_FROM_PEER_COUNT", strParamValue.c_str(), ePCRFStatCount );
+  }
 
   LOG_D( "leave '%s'", __FUNCTION__ );
 }
@@ -39,17 +51,7 @@ static void pcrf_sigusr2_oper( void )
   ui64TestValueB += rand() % 256;
   ui64TestValueC += rand() % 256;
 
-  pcrf_stat_add( "diameter.request.quantity.ccr-i[%s]", "diameter.request.quantity", ui64TestValueA, "PEER_NAME", "hostD" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-i[%s]", "diameter.request.quantity", ui64TestValueB, "PEER_NAME", "hostE" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-i[%s]", "diameter.request.quantity", ui64TestValueC, "PEER_NAME", "hostF" );
-
-  pcrf_stat_add( "diameter.request.quantity.ccr-u[%s]", "diameter.request.quantity", ui64TestValueA + ( rand() % 256 ), "PEER_NAME", "hostD" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-u[%s]", "diameter.request.quantity", ui64TestValueB + ( rand() % 256 ), "PEER_NAME", "hostE" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-u[%s]", "diameter.request.quantity", ui64TestValueC + ( rand() % 256 ), "PEER_NAME", "hostF" );
-
-  pcrf_stat_add( "diameter.request.quantity.ccr-t[%s]", "diameter.request.quantity", ui64TestValueA + ( rand() % 256 ), "PEER_NAME", "hostD" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-t[%s]", "diameter.request.quantity", ui64TestValueB + ( rand() % 256 ), "PEER_NAME", "hostE" );
-  pcrf_stat_add( "diameter.request.quantity.ccr-t[%s]", "diameter.request.quantity", ui64TestValueC + ( rand() % 256 ), "PEER_NAME", "hostF" );
+  pcrf_stat_add( "diameter.request.quantity[%s]", "diameter.request.statistics", NULL, "COMMAND_FROM_PEER_COUNT", "hostD", ePCRFStatCount );
 
   LOG_D( "leave '%s'", __FUNCTION__ );
 }

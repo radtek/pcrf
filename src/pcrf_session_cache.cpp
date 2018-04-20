@@ -17,9 +17,6 @@
 #include "utils/log/log.h"
 extern CLog *g_pcoLog;
 
-#include "utils/stat/stat.h"
-static SStat *g_psoSessionCacheStat;
-
 struct SSessionCache {
   otl_value<std::string>  m_coSubscriberId;
   otl_value<std::string>  m_coFramedIPAddr;
@@ -93,8 +90,6 @@ struct SPayloadHdr {
 extern "C"
 int pcrf_session_cache_init ()
 {
-  /* инициализация ветки статистики */
-  g_psoSessionCacheStat = stat_get_branch ("session cache");
   /* создаем кеш сессий */
   g_pmapSessionCache = new std::map<std::string,SSessionCache*>;
   g_pmapParent = new std::map<std::string,std::list<std::string> >;
@@ -296,7 +291,6 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
 
 static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, std::string *p_pstrParentSessionId, bool p_bLowPriority = false)
 {
-  CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
   std::pair<std::map<std::string, std::set<std::string> >::iterator, bool> insertSubscrIdRes;
   int iPrio;
@@ -317,12 +311,9 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
       delete &( *( insertResult.first->second ) );
       insertResult.first->second = p_psoSessionInfo;
       pcrf_session_cache_update_child(p_strSessionId, p_psoSessionInfo);
-      stat_measure( g_psoSessionCacheStat, "updated", &coTM );
     } else {
       UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
-  } else {
-    stat_measure( g_psoSessionCacheStat, "inserted", &coTM );
   }
 
   /* создаем индекс по subscriber-id */
@@ -638,7 +629,6 @@ void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, SSessionCache *
 
 void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId)
 {
-  CTimeMeasurer coTM;
   /* проверяем параметры */
   if (0 == p_coSessionId.is_null()) {
   } else {
@@ -674,8 +664,6 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
 int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo)
 {
   LOG_D( "enter: %s", __FUNCTION__ );
-
-  CTimeMeasurer coTM;
 
   int iRetVal = 0;
   int iPrio = 2;
@@ -713,9 +701,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     }
     if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second->m_coIMEISV;
     if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
-    stat_measure( g_psoSessionCacheStat, "hit", &coTM );
   } else {
-    stat_measure( g_psoSessionCacheStat, "miss", &coTM );
     iRetVal = EINVAL;
   }
 
@@ -742,7 +728,6 @@ static void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubsc
 
 static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
-  CTimeMeasurer coTM;
   std::map<std::string,SSessionCache*>::iterator iter;
   int iPrio = 3;
 
@@ -762,7 +747,6 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
       LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
     }
     g_pmapSessionCache->erase (iter);
-    stat_measure( g_psoSessionCacheStat, "removed", &coTM );
   }
 
 clean_and_exit:
@@ -774,8 +758,6 @@ clean_and_exit:
 
 void pcrf_session_cache_remove (std::string &p_strSessionId)
 {
-  CTimeMeasurer coTM;
-
   pcrf_session_cache_remove_local (p_strSessionId);
   pcrf_session_rule_cache_remove_sess_local(p_strSessionId);
 
@@ -1210,8 +1192,8 @@ static void pcrf_session_cache_fini_node ()
 static int pcrf_session_cache_load_session_list()
 {
   int iRetVal = 0;
-  CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;
+  CTimeMeasurer coTM;
 
   if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10, 0 ) && NULL != pcoDBConn ) {
   } else {

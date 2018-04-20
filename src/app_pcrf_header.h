@@ -1,7 +1,6 @@
 ﻿#include "pcrf_otl.h"
 #include "utils/log/log.h"
 #include "utils/timemeasurer/timemeasurer.h"
-#include "utils/stat/stat.h"
 
 #include <freeDiameter/extension.h>
 #include <stdint.h>
@@ -355,7 +354,12 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 
 /* статистика PCRF */
-void pcrf_stat_add( const char *p_pszMetricsName, const char *p_pszKey, const uint64_t &p_ui64USec, const char *p_pszParameterName, const char *p_pszParameterValue );
+enum EPCRFStatType { ePCRFStatCount, ePCRFStatAvg };
+void pcrf_stat_add( const char *p_pszMetricsName, const char *p_pszKey, const timeval *p_psoTimeVal, const char *p_pszParameterName, const char *p_pszParameterValue, EPCRFStatType p_eStatType );
+uint64_t pcrf_stat_get_usec_between_timevals( const timeval *p_psoTimeStart, const timeval *p_psoTimeCurrent );
+
+/* формирует текстовое представление Command Code */
+void pcrf_tracer_interpret_msg_code( command_code_t p_ui32CmdCode, bool p_bIsRequest, std::string &p_strCmdCode );
 
 #ifdef __cplusplus
 }
@@ -365,6 +369,7 @@ void pcrf_stat_add( const char *p_pszMetricsName, const char *p_pszKey, const ui
 void pcrf_zabbix_set_parameter( const char *p_pszHostName, const char *p_pszKeyName, const char *p_pszParameterName, const char *p_pszParameterValue );
 void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const char *p_pszValue, time_t &p_tTimeStamp );
 void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const uint64_t p_ui64Value, time_t &p_tTimeStamp );
+void pcrf_zabbix_enqueue_data( const char *p_pszHostName, const char *p_pszKey, const double p_df64Value, time_t &p_tTimeStamp );
 
 /* очередь sql-запросов */
 enum ESQLParamType {

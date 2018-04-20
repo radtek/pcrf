@@ -72,10 +72,6 @@ static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soMsgInfo
 
 static std::map<std::string,int32_t> *g_pmapTethering = NULL;
 
-/* указатели на объекты учета статистики */
-SStat *g_psoDBStat;
-SStat *g_psoGxSesrverStat;
-
 static int app_pcrf_ccr_cb(
   msg ** p_ppsoMsg,
   avp * p_psoAVP,
@@ -92,7 +88,16 @@ static int app_pcrf_ccr_cb(
   /* suppress compiler warning */
   p_psoAVP = p_psoAVP; p_psoSess = p_psoSess; opaque = opaque; p_pAct = p_pAct;
 
-  CTimeMeasurer coTM;
+  /* данные для фиксации времени начала обработки запроса */
+  timeval soTimeVal, *psoTimeVal;
+  std::string strCmdCode;
+
+  /* готовим данные для сбора статистики */
+  if ( 0 == gettimeofday( &soTimeVal, NULL ) ) {
+    psoTimeVal = &soTimeVal;
+  } else {
+    psoTimeVal = NULL;
+  }
 
   SMsgDataForDB soMsgInfoCache;
   unsigned int uiActionSet;
@@ -106,6 +111,11 @@ static int app_pcrf_ccr_cb(
   /* выбираем данные из сообщения */
   msg_or_avp *pMsgOrAVP = *p_ppsoMsg;
   pcrf_extract_req_data( pMsgOrAVP, &soMsgInfoCache );
+  do {
+    msg_hdr *psoMsgHdr;
+    CHECK_FCT_DO( fd_msg_hdr( ( *p_ppsoMsg ), &psoMsgHdr ), break; );
+    pcrf_tracer_interpret_msg_code( psoMsgHdr->msg_code, static_cast< bool >( psoMsgHdr->msg_flags & CMD_FLAG_REQUEST ), strCmdCode );
+  } while ( 0 );
 
   /* необходимо определить диалект хоста */
   CHECK_POSIX_DO( pcrf_peer_dialect( *soMsgInfoCache.m_psoSessInfo ), /*continue*/ );
@@ -189,6 +199,7 @@ static int app_pcrf_ccr_cb(
   /* дополняем данные запроса необходимыми параметрами */
   switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
     case INITIAL_REQUEST: /* INITIAL_REQUEST */
+      strCmdCode += "-I";
       switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
         case GX_HW_UGW:
         case GX_ERICSSN:
@@ -234,6 +245,7 @@ static int app_pcrf_ccr_cb(
       pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_coSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
       break;/* INITIAL_REQUEST */
     case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
+      strCmdCode += "-T";
       pcrf_fill_otl_datetime( soMsgInfoCache.m_psoSessInfo->m_coTimeEnd, NULL );
       /* для Procera инициируем завершение сессии в том случае, когда завершена сессия на ugw */
       switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
@@ -253,6 +265,7 @@ static int app_pcrf_ccr_cb(
     case UPDATE_REQUEST: /* UPDATE_REQUEST */
     {
       int iSessNotFound;
+      strCmdCode += "-U";
       /* загружаем идентификатор абонента из списка активных сессий абонента */
       iSessNotFound = pcrf_session_cache_get( soMsgInfoCache.m_psoSessInfo->m_coSessionId.v, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo );
       /* загрузка данных сессии UGW для обслуживания запроса SCE */
@@ -560,8 +573,25 @@ static int app_pcrf_ccr_cb(
     CHECK_FCT_DO( fd_msg_send( p_ppsoMsg, NULL, NULL ), /*continue*/ );
   }
 
-  /* статистика по работе функции */
-  stat_measure( g_psoGxSesrverStat, __FUNCTION__, &coTM );
+  /* статистика по скорости обработки запросов */
+  {
+    std::string strParamVal;
+
+    strParamVal  = strCmdCode;
+    strParamVal += " from ";
+    strParamVal += soMsgInfoCache.m_psoSessInfo->m_coOriginHost.v;
+
+    if ( psoTimeVal ) {
+      timeval soTmValCur;
+      if ( 0 == gettimeofday( &soTmValCur, NULL ) ) {
+        uint64_t ui64USec = pcrf_stat_get_usec_between_timevals( psoTimeVal, &soTmValCur );
+        if ( ui64USec >= 3000000 ) {
+          pcrf_stat_add( "diameter.request.timedout.quantity[%s]", "diameter.request.statistics", NULL, "COMMAND_FROM_PEER_TIMEDOUT", strParamVal.c_str(), ePCRFStatCount );
+        }
+      }
+      pcrf_stat_add( "diameter.request.processed_in.avg[%s]", "diameter.request.statistics", psoTimeVal, "COMMAND_FROM_PEER_AVG", strParamVal.c_str(), ePCRFStatAvg );
+    }
+  }
 
   /* если сессию следует завершить */
   if ( NULL != psoSessShouldBeTerm ) {
@@ -588,10 +618,6 @@ int app_pcrf_serv_init (void)
   /* Advertise the support for the Gx application in the peer */
   CHECK_FCT_DO( fd_disp_app_support (g_psoDictApp, g_psoDictVend, 1, 0), /* continue */ );
 
-  /* инициализация объектов статистики */
-  g_psoDBStat = stat_get_branch("DB operation");
-  g_psoGxSesrverStat = stat_get_branch("gx server");
-
   LOG_N( "GXSERVER module is initialized successfully" );
 
 	return 0;
@@ -603,7 +629,7 @@ void app_pcrf_serv_fini (void)
 		(void) fd_disp_unregister (&app_pcrf_hdl_ccr, NULL);
 	}
 
-  LOG_N( "GXSEVER module is stopped successfully" );
+  LOG_N( "GXSERVER module is stopped successfully" );
 }
 
 extern "C"

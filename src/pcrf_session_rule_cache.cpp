@@ -17,15 +17,9 @@ static pthread_mutex_t g_mmutexSessRuleLst[3];
 /* функция потока загрузки наального списка правил сессиий */
 static int pcrf_session_rule_load_list();
 
-/* указатель на объект статистики кэша правил сессий */
-static SStat *g_psoSessionRuleCacheStat;
-
 extern "C"
 int pcrf_session_rule_list_init()
 {
-  /* запрашиваем адрес объекта статистики кэша правил сессий */
-  g_psoSessionRuleCacheStat = stat_get_branch("session rule cache");
-
   /* загружаем первичный список правил сессий */
   CHECK_FCT( pcrf_session_rule_load_list() );
 
@@ -54,7 +48,6 @@ void pcrf_session_rule_list_fini()
 
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive)
 {
-  CTimeMeasurer coTM;
   int iRetVal = 0;
   SDBAbonRule soRule(true,false);
   std::map<std::string, std::list<std::string> >::iterator iter;
@@ -82,20 +75,11 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   /* освобождаем хранилище */
   pcrf_unlock( g_mmutexSessRuleLst, iPrio );
 
-  if (0 == iRetVal) {
-    /* фиксируем в статистике успешное завершение */
-    stat_measure(g_psoSessionRuleCacheStat, "hit", &coTM);
-  } else {
-    /* фиксируем в статистике промах */
-    stat_measure(g_psoSessionRuleCacheStat, "miss", &coTM);
-  }
-
   return iRetVal;
 }
 
 void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority )
 {
-  CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
   int iPrio = 1;
 
@@ -113,7 +97,6 @@ void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::str
   if (iter != g_mapSessRuleLst.end()) {
     /* если нашли, то дополняем правил список ее */
     iter->second.push_back( p_strRuleName );
-    stat_measure(g_psoSessionRuleCacheStat, "rule inserted", &coTM);
     if ( !p_bLowPriority ) {
       LOG_D( "%s: rule inserted: %s; %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
     }
@@ -122,7 +105,6 @@ void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::str
     std::list<std::string> list;
     list.push_back( p_strRuleName );
     g_mapSessRuleLst.insert( std::pair<std::string, std::list<std::string> >( p_strSessionId, list ) );
-    stat_measure(g_psoSessionRuleCacheStat, "session inserted", &coTM);
     if ( !p_bLowPriority ) {
       LOG_D( "%s: session inserted: %s; %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
     }
@@ -136,7 +118,6 @@ cleanup_and_exit:
 
 void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
 {
-  CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
   int iPrio = 1;
 
@@ -146,7 +127,6 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
   iter = g_mapSessRuleLst.find(p_strSessionId);
   if (iter != g_mapSessRuleLst.end()) {
     g_mapSessRuleLst.erase(iter);
-    stat_measure(g_psoSessionRuleCacheStat, "session removed", &coTM);
   } else {
     LOG_D("%s: session not found: '%s'", __FUNCTION__, p_strSessionId.c_str());
   }
@@ -160,7 +140,6 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
 
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName)
 {
-  CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
   std::list<std::string>::iterator iterLst;
   int iPrio = 1;
@@ -178,7 +157,6 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
         /* и удаляем найденное */
         iterLst = iter->second.erase( iterLst );
         /* фиксируем в модуле статистики успешное удаление правила */
-        stat_measure( g_psoSessionRuleCacheStat, "rule removed", &coTM );
       } else {
         ++iterLst;
       }

@@ -2,19 +2,17 @@
 PROJECT("PCRF Diameter Application" C)
 
 SET(CMAKE_BUILD_TYPE "MaxPerformance")
-SET(CMAKE_CXX_FLAGS "--std=c++11")
+SET(CMAKE_CXX_FLAGS "--std=c++0x")
 
 # Parser files
 BISON_FILE(app_pcrf_conf.y)
 FLEX_FILE(app_pcrf_conf.l)
 
-include_directories(/oracle/orahome/rdbms/public)
-include_directories(~/project/utils/src)
-include_directories(..)
+INCLUDE_DIRECTORIES(/oracle/orahome/rdbms/public)
+INCLUDE_DIRECTORIES(~/project/utils/src)
+INCLUDE_DIRECTORIES(..)
 
 SET_SOURCE_FILES_PROPERTIES(lex.app_pcrf_conf.c app_pcrf_conf.tab.c PROPERTIES COMPILE_FLAGS "-I ${CMAKE_CURRENT_SOURCE_DIR}" )
-SET_SOURCE_FILES_PROPERTIES(pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp pcrf_session_cache.cpp PROPERTIES COMPILE_FLAGS "-I /oracle/orahome/rdbms/public" )
-SET_SOURCE_FILES_PROPERTIES(app_pcrf.c pcrf_client_db_oper.cpp pcrf_db_pool.cpp pcrf_server_db_oper.cpp pcrf_server.cpp pcrf_client.cpp pcrf_avp_oper.cpp pcrf_peer.cpp pcrf_tracer.cpp pcrf_ULI.cpp pcrf_session_cache.cpp pcrf_rule_cache.cpp PROPERTIES COMPILE_FLAGS "-I ~/project/utils/src/" )
 
 # List of source files
 SET( PCRF_APP_SRC
@@ -44,7 +42,6 @@ SET( PCRF_APP_SRC
 	pcrf_signal_test.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
-	~/project/utils/src/utils/stat/stat.cpp
 	~/project/utils/src/utils/pspacket/pspacket.cpp
 )
 

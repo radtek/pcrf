@@ -3,8 +3,6 @@
 
 extern CLog *g_pcoLog;
 
-static SStat *g_psoSQLQueueStat;
-
 static volatile int g_iWork;
 /* функция обработки очереди запросов */
 static void * pcrf_sql_queue_oper(void *);
@@ -47,9 +45,6 @@ int pcrf_sql_queue_init()
 
   /* выделяем память под массив очередей */
   g_pmsoSQLQueue = new SSQLQueue[ g_uiQueueCount ];
-
-  /* инициализация ветки статистики */
-  g_psoSQLQueueStat = stat_get_branch( "sql queue" );
 
   g_iWork = 1;
 
@@ -170,7 +165,6 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     return EINVAL;
   }
 
-  CTimeMeasurer coTM;
   int iRetVal = 0;
 
   try {
@@ -212,9 +206,9 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     }
     coStream.check_end_of_row();
     LOG_D( "commited: %u", coStream.get_rpc() );
-    stat_measure( g_psoSQLQueueStat, "operated", &coTM );
-#ifdef _DEBUG
-    stat_measure( g_psoSQLQueueStat, p_psoSQLReqInfo->m_pszReqName, &coTM );
+    pcrf_stat_add( "pcrf.sql_request_queue[%s]", "pcrf.sql_request_queue", NULL, "QUEUE_OPERATION_TYPE", "operated", ePCRFStatCount );
+#ifdef DEBUG
+    pcrf_stat_add( "pcrf.sql_request_queue[%s]", "pcrf.sql_request_queue", NULL, "QUEUE_OPERATION_TYPE", p_psoSQLReqInfo->m_pszReqName, ePCRFStatCount );
 #endif
     coStream.close();
   } catch ( otl_exception &coExcept ) {
@@ -222,7 +216,7 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     pcrf_sql_queue_dump_request( coExcept.stm_text, p_psoSQLReqInfo );
     iRetVal = coExcept.code;
     p_pcoDBConn->rollback();
-    stat_measure( g_psoSQLQueueStat, "failed", &coTM );
+    pcrf_stat_add( "pcrf.sql_request_queue[%s]", "pcrf.sql_request_queue", NULL, "QUEUE_OPERATION_TYPE", "failed", ePCRFStatCount );
   }
 
   LOG_D( "leave: %s", __FUNCTION__ );
@@ -384,7 +378,6 @@ void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueuePar
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
-  CTimeMeasurer coTM;
   static unsigned uiRoundIndex = 0;
   unsigned uiThreadIndex;
 
@@ -415,7 +408,7 @@ void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueuePar
   g_pmsoSQLQueue[ uiThreadIndex ].m_listSQLQueue.push_back( soSQLQueue );
   pthread_mutex_unlock( &( g_pmsoSQLQueue[ uiThreadIndex ].m_mutexSQLQueue) );
 
-  stat_measure( g_psoSQLQueueStat, "enqueued", &coTM );
+  pcrf_stat_add( "pcrf.sql_request_queue[%s]", "pcrf.sql_request_queue", NULL, "QUEUE_OPERATION_TYPE", "enqueued", ePCRFStatCount );
 
   LOG_D( "leave: %s", __FUNCTION__ );
 }

@@ -1,5 +1,4 @@
 #include "app_pcrf.h"
-#include "utils/stat/stat.h"
 
 #include <freeDiameter/libfdproto.h>
 
@@ -35,7 +34,6 @@ static int pcrf_entry (char * conffile)
   CHECK_FCT( pcrf_zabbix_init() );
 
 	/* инициализация модуля статистики */
-	CHECK_FCT(stat_init());
   CHECK_FCT( pcrf_stat_init() );
 
   /* инициализация обработчика сигналов SIGUSR */
@@ -93,7 +91,6 @@ void fd_ext_fini(void)
   if ( 0 != g_psoConf->m_iGenerateCDR ) {
     pcrf_cdr_fini();
   }
-	stat_fin();
   pcrf_stat_fini();
   pcrf_zabbix_fini();
 	pcrf_logger_fini();

@@ -3,7 +3,6 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "pcrf_otl.h"
-#include "utils/stat/stat.h"
 #include "utils/log/log.h"
 
 extern CLog *g_pcoLog;
@@ -12,8 +11,6 @@ extern CLog *g_pcoLog;
 static std::map<std::string, SDBAbonRule> *g_pmapRule;
 /* объект синхронизации доступа к хранилищу */
 static pthread_mutex_t g_mutexRuleCache;
-/* объект сбора статистики */
-static SStat *g_psoRuleCahceStat;
 /* флаг продолжения работы */
 static volatile int g_iRuleCacheWork;
 /* мьютекс, используемый в качестве таймера обновления локального хранилища */
@@ -33,7 +30,6 @@ static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, s
 extern "C"
 int pcrf_rule_cache_init()
 {
-  g_psoRuleCahceStat = stat_get_branch("rule cache");
   g_pmapRule = new std::map<std::string, SDBAbonRule>;
   g_iRuleCacheWork = 1;
   CHECK_FCT( pthread_mutex_init( &g_mutexRuleCache, NULL ) );
@@ -77,7 +73,6 @@ void pcrf_rule_cache_fini()
 
 static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_pmapRule)
 {
-  CTimeMeasurer coTM;
   int iRetVal = 0;
   int iRepeat = 1;
 
@@ -197,8 +192,6 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
     pcoDBConn = NULL;
   }
 
-  stat_measure(g_psoRuleCahceStat, __FUNCTION__, &coTM);
-
   return iRetVal;
 }
 
@@ -297,8 +290,6 @@ int pcrf_rule_cache_get_rule_info(
   std::string &p_strRuleName,
   SDBAbonRule &p_soRule)
 {
-  CTimeMeasurer coTM;
-
   int iRetVal = 0;
   std::map<std::string, SDBAbonRule>::iterator iter;
 
@@ -310,8 +301,6 @@ int pcrf_rule_cache_get_rule_info(
     iRetVal = 1403;
   }
   CHECK_FCT(pthread_mutex_unlock(&g_mutexRuleCache));
-
-  stat_measure(g_psoRuleCahceStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }
