@@ -110,6 +110,13 @@ static int app_pcrf_ccr_cb(
   /* необходимо определить диалект хоста */
   CHECK_POSIX_DO( pcrf_peer_dialect( *soMsgInfoCache.m_psoSessInfo ), /*continue*/ );
 
+  if ( INITIAL_REQUEST != soMsgInfoCache.m_psoReqInfo->m_iCCRequestType
+    || 0 == g_psoConf->m_iLook4StalledSession ) {
+  } else {
+    /* проверка наличия зависших сессий */
+    CHECK_POSIX_DO( pcrf_server_look4stalledsession( soMsgInfoCache.m_psoSessInfo ), /*continue*/ );
+  }
+
   /* определяем набор действий, необходимых для формирования ответа */
   uiActionSet = pcrf_server_determine_action_set( soMsgInfoCache );
   LOG_D( "Session-Id: %s: Action Set: %#x", soMsgInfoCache.m_psoSessInfo->m_coSessionId.v.c_str(), uiActionSet );
@@ -194,10 +201,6 @@ static int app_pcrf_ccr_cb(
         case GX_ERICSSN:
           /* загружаем идентификтор абонента из профиля абонента */
           pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache );
-          /* проверка наличия зависших сессий */
-          if ( g_psoConf->m_iLook4StalledSession ) {
-            CHECK_POSIX_DO( pcrf_server_db_look4stalledsession( pcoDBConn, soMsgInfoCache.m_psoSessInfo ), /*continue*/ );
-          }
           break;
         case GX_CISCO_SCE:
           /* загружаем идентификтор абонента из профиля абонента */
@@ -2429,4 +2432,28 @@ void pcrf_make_mk_list( std::vector<SDBAbonRule> &p_vectAbonRules, SSessionInfo 
       }
     }
   }
+}
+
+int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo )
+{
+  if (NULL != p_psoSessInfo ) {
+  } else {
+    return EINVAL;
+  }
+
+  std::list<std::string> listSessionId;
+  std::list<std::string>::iterator iterList;
+  SSessionInfo soSessInfo;
+
+  CHECK_FCT( pcrf_session_cache_index_frameIPAddress_get_sessionList( p_psoSessInfo->m_coFramedIPAddress.v, listSessionId ) );
+
+  iterList = listSessionId.begin();
+  for ( ; iterList != listSessionId.end(); ++iterList ) {
+    soSessInfo.m_coSessionId = *iterList;
+    soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
+    soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
+    pcrf_local_refresh_queue_add( soSessInfo );
+  }
+
+  return 0;
 }

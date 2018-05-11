@@ -5,6 +5,8 @@
 #include "utils/ps_common.h"
 #include "utils/pspacket/pspacket.h"
 
+#include "pcrf_session_cache_index.h"
+
 #include <semaphore.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -13,6 +15,8 @@
 #include <errno.h>
 #include <list>
 #include <set>
+
+#include <signal.h>
 
 #include "utils/log/log.h"
 extern CLog *g_pcoLog;
@@ -90,6 +94,29 @@ struct SPayloadHdr {
 };
 #pragma pack(pop)
 
+static void sig_oper( void )
+{
+  LOG_D( "enter into '%s'", __FUNCTION__ );
+
+  SSessionInfo soSessionInfo;
+  SRequestInfo soRequestInfo;
+  otl_value<std::string> coSessionId;
+  std::list<std::string> listSessionId;
+
+  coSessionId.v = "session-id";
+  coSessionId.set_non_null();
+  soSessionInfo.m_coFramedIPAddress = "1.2.3.4";
+
+  pcrf_session_cache_insert( coSessionId, soSessionInfo, soRequestInfo, NULL );
+  pcrf_session_cache_insert( coSessionId, soSessionInfo, soRequestInfo, NULL );
+
+  pcrf_session_cache_index_frameIPAddress_get_sessionList( soSessionInfo.m_coFramedIPAddress.v, listSessionId );
+  pcrf_session_cache_remove( coSessionId.v );
+  pcrf_session_cache_index_frameIPAddress_get_sessionList( soSessionInfo.m_coFramedIPAddress.v, listSessionId );
+
+  LOG_D( "leave '%s'", __FUNCTION__ );
+}
+
 int pcrf_session_cache_init ()
 {
   /* инициализация ветки статистики */
@@ -118,6 +145,8 @@ int pcrf_session_cache_init ()
     g_pmapSessionCache->max_size(),
     g_pmapParent->max_size(),
     g_pmapChild->max_size() );
+
+  CHECK_FCT( fd_event_trig_regcb( SIGUSR1, "app_pcrf", sig_oper ) );
 
   return 0;
 }
@@ -304,8 +333,8 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   CHECK_FCT_DO( pcrf_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache*> (p_strSessionId, p_psoSessionInfo));
-  /* если в кеше уже есть такая сессия обновляем ее значения */
   if (! insertResult.second) {
+    /* если в кеше уже есть такая сессия обновляем ее значения */
     if (insertResult.first != g_pmapSessionCache->end()) {
       delete &( *( insertResult.first->second ) );
       insertResult.first->second = p_psoSessionInfo;
@@ -315,6 +344,9 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
       UTL_LOG_E(*g_pcoLog, "insertion into session cache failed: map: size: '%u'; max size: '%u'", g_pmapSessionCache->size(), g_pmapSessionCache->max_size());
     }
   } else {
+    /* если создана новая запись */
+    /* создаем индекс по Framed-IP-Address */
+    pcrf_session_cache_index_frameIPAddress_insert_session( p_psoSessionInfo->m_coFramedIPAddr.v, p_strSessionId );
     stat_measure( g_psoSessionCacheStat, "inserted", &coTM );
   }
 
@@ -748,8 +780,12 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
   if (iter != g_pmapSessionCache->end ()) {
     if ( NULL != iter->second ) {
       if ( 0 == iter->second->m_coSubscriberId.is_null() ) {
+        /* удаляем индекс по SubscriberId */
         pcrf_session_cache_rm_subscriber_session_id( iter->second->m_coSubscriberId.v, p_strSessionId );
       }
+      /* удаляем индекс по Framed-IP-Address */
+      pcrf_session_cache_index_frameIPAddress_remove_session( iter->second->m_coFramedIPAddr.v, p_strSessionId );
+      /* удаляем сведения о сессии */
       delete &(*iter->second);
     } else {
       LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
@@ -1096,7 +1132,7 @@ static int pcrf_session_cache_init_node ()
   }
 
   otl_connect *pcoDBConn = NULL;
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     return -1;
   }
@@ -1206,7 +1242,7 @@ static int pcrf_session_cache_load_session_list()
   CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     goto clean_and_exit;
   }
@@ -1349,4 +1385,14 @@ int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
   return iRetVal;
+}
+
+int pcrf_session_cache_lock( int &p_iPrio )
+{
+  CHECK_FCT( pcrf_lock( g_mmutexSessionCache, p_iPrio ) );
+}
+
+void pcrf_session_cache_unlock( int &p_iPrio )
+{
+  pcrf_unlock( g_mmutexSessionCache, p_iPrio );
 }

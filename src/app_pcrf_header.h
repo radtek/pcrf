@@ -231,7 +231,7 @@ int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 /* загрузка идентификатора абонента из БД */
 int pcrf_server_db_load_subscriber_id(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo);
 /* проверка зависших сессий */
-int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo);
+int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
 /* загрузка описания правила */
 int pcrf_rule_cache_get_rule_info(
 	std::string &p_strRuleName,
@@ -333,6 +333,10 @@ struct SSessionCache;
 void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
 /* получение списка session-id по subscriber-id */
 int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId );
+/* получение списка session-id по Framed-IP-Address */
+int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
+int pcrf_session_cache_lock( int &p_iPrio );
+void pcrf_session_cache_unlock( int &p_iPrio );
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
@@ -348,7 +352,7 @@ void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<s
 
 /* кэш правил сессии */
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
-void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_soRuleName );
+void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_strRuleName );
 void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority = false );
 void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
 void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
