@@ -197,7 +197,7 @@ static void * pcrf_session_rule_load_list( void * )
   std::string strRuleName;
   char mcTime[64];
 
-  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+  if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
   } else {
     goto clean_and_exit;
   }

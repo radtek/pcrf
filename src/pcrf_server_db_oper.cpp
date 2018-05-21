@@ -445,65 +445,6 @@ int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &
 	return iRetVal;
 }
 
-int pcrf_server_db_look4stalledsession(otl_connect *p_pcoDBConn, SSessionInfo *p_psoSessInfo)
-{
-	if (NULL != p_pcoDBConn && NULL != p_psoSessInfo) {
-  } else {
-		return EINVAL;
-  }
-
-	int iRetVal = 0;
-  int iRepeat = 1;
-	CTimeMeasurer coTM;
-
-  sql_repeat:
-
-  try {
-    otl_nocommit_stream coStream;
-    std::string strSessionId;
-    SSessionInfo soSessInfo;
-
-    /* ищем сессии по ip-адресу */
-		coStream.open(
-			10,
-			"select "
-				"session_id "
-			"from "
-				"ps.sessionList ps "
-			"where "
-				"ps.framed_ip_address = :framed_ip_address/*char[16]*/ "
-				"and ps.origin_host = :origin_host/*char[255]*/ "
-				"and ps.session_id <> :session_id/*char[255]*/ "
-				"and ps.time_end is null",
-			*p_pcoDBConn);
-		coStream
-			<< p_psoSessInfo->m_coFramedIPAddress
-			<< p_psoSessInfo->m_coOriginHost
-			<< p_psoSessInfo->m_coSessionId;
-		while (!coStream.eof()) {
-			coStream
-				>> strSessionId;
-      UTL_LOG_D(*g_pcoLog, "it found potentially stalled session: session_id: '%s'; framed_ip_address: '%s'", strSessionId.c_str(), p_psoSessInfo->m_coFramedIPAddress.v.c_str());
-      soSessInfo.m_coSessionId = strSessionId;
-      soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
-      soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
-      pcrf_local_refresh_queue_add(soSessInfo);
-		}
-    coStream.close();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-		iRetVal = coExcept.code;
-	}
-
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
-
-	return iRetVal;
-}
-
 void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
   tm soTM;

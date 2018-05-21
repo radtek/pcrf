@@ -302,7 +302,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
         }
       } else {
         /* запрашиваем подключение из пула если это необходимо */
-        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 10 * USEC_PER_SEC ) && NULL != pcoDBConn ) {
+        if ( 0 == pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
         } else {
           /* не удалось получить подключение из пула, повторим попытку в следующей итерации */
           continue;

@@ -1,6 +1,5 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include <signal.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/time.h>
@@ -662,31 +661,11 @@ void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
 }
 
-static void sig_oper(void)
-{
-  LOG_D("enter into '%s'", __FUNCTION__);
-
-  otl_connect *pcoDBConn = NULL;
-  SRefQueue soRefreshQueue = { "", "101957192/627511524@IRBiS", "subscriber_id", otl_value<std::string>( "" ) };
-
-  pcrf_db_pool_get( &pcoDBConn, __FUNCTION__, 1000 );
-
-  pcrf_client_operate_refqueue_record( pcoDBConn, soRefreshQueue );
-
-  if ( NULL != pcoDBConn ) {
-    pcrf_db_pool_rel( &pcoDBConn, __FUNCTION__ );
-  }
-
-  LOG_D("leave '%s'", __FUNCTION__);
-}
-
 /* инициализация клиента */
 int pcrf_cli_init (void)
 {
 	/* создания списка сессий */
 	CHECK_FCT (fd_sess_handler_create (&g_psoSessionHandler, sess_state_cleanup, NULL, NULL));
-
-  CHECK_FCT(fd_event_trig_regcb(SIGUSR1, "app_pcrf", sig_oper));
 
   /* если очередь обновления политик не обрабатывается */
   if (0 == g_psoConf->m_iOperateRefreshQueue) {
