@@ -161,6 +161,7 @@ void * pcrf_cdr_recreate_file( void *p_vParam )
 {
   char mcFileName[ 1024 ];
   int iTmpFile = -1;
+  int iNewFile;
   size_t stLen;
   time_t tmTm;
   tm soTm;
