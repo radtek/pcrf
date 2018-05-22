@@ -82,9 +82,9 @@ static int pcrf_entry (char * conffile)
   iRetVal = *( ( int* )( pvThreadResult ) );
   free( pvThreadResult );
   if ( 0 == iRetVal ) {
-    LOG_F( "session rule list loaded successfully" );
+    LOG_D( "session rule list loaded successfully" );
   } else {
-    LOG_D( "an error occurred while session rule list loading: code: %d", iRetVal );
+    LOG_F( "an error occurred while session rule list loading: code: %d", iRetVal );
     return iRetVal;
   }
 
