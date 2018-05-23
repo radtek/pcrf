@@ -15,18 +15,18 @@ static std::map<std::string, std::list<std::string> > g_mapSessRuleLst;
 static pthread_mutex_t g_mmutexSessRuleLst[3];
 
 /* функция потока загрузки наального списка правил сессиий */
-static int pcrf_session_rule_load_list();
+static void * pcrf_session_rule_load_list( void * );
 
 /* указатель на объект статистики кэша правил сессий */
 static SStat *g_psoSessionRuleCacheStat;
 
-int pcrf_session_rule_list_init()
+int pcrf_session_rule_list_init( pthread_t *p_ptThread )
 {
   /* запрашиваем адрес объекта статистики кэша правил сессий */
   g_psoSessionRuleCacheStat = stat_get_branch("session rule cache");
 
   /* загружаем первичный список правил сессий */
-  CHECK_FCT( pcrf_session_rule_load_list() );
+  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_rule_load_list, NULL ) );
 
   /* инициализация мьютексов доступа к хранилищу кэша правил сессий */
   CHECK_FCT( pcrf_lock_init( g_mmutexSessRuleLst, sizeof( g_mmutexSessRuleLst ) / sizeof( *g_mmutexSessRuleLst ) ) );
@@ -187,7 +187,7 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
   return;
 }
 
-static int pcrf_session_rule_load_list()
+static void * pcrf_session_rule_load_list( void * )
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
@@ -222,7 +222,7 @@ static int pcrf_session_rule_load_list()
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
     coStream.close();
-    UTL_LOG_N( *g_pcoLog, "session rule list is initialized successfully in '%s'; session rule count: '%u'", mcTime, g_mapSessRuleLst.size() );
+    UTL_LOG_N( *g_pcoLog, "session rule list is loaded in '%s'; session rule count: '%u'", mcTime, g_mapSessRuleLst.size() );
   } catch (otl_exception &coExcept) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( pcoDBConn ) ) {
@@ -237,7 +237,11 @@ clean_and_exit:
     pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
   }
 
-  return iRetVal;
+  int *piRetVal = reinterpret_cast< int* >( malloc( sizeof( int ) ) );
+
+  *piRetVal = iRetVal;
+
+  pthread_exit( piRetVal );
 }
 
 void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_strRuleName )

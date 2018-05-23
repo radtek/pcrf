@@ -65,7 +65,7 @@ void pcrf_logger_fini(void);
 int app_pcrf_load_peer (void);
 
 /* инициализация кеша сессий */
-int pcrf_session_cache_init (void);
+int pcrf_session_cache_init( pthread_t *p_ptThread );
 /* деинициализация кеша сессий */
 void pcrf_session_cache_fini (void);
 
@@ -75,7 +75,7 @@ int pcrf_rule_cache_init();
 void pcrf_rule_cache_fini();
 
 /* инициализация кэша правил сессий */
-int pcrf_session_rule_list_init();
+int pcrf_session_rule_list_init( pthread_t *p_ptThread );
 /* деинициализация кэша правил сессий */
 void pcrf_session_rule_list_fini();
 

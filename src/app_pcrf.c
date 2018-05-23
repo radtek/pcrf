@@ -20,7 +20,12 @@ static int app_pcrf_conf_init ()
 /* entry point */
 static int pcrf_entry (char * conffile)
 {
-	/* Initialize configuration */
+  pthread_t tSessionListInitializer;
+  pthread_t tSessRuleLstInitializer;
+  void *pvThreadResult;
+  int iRetVal;
+
+  /* Initialize configuration */
 	CHECK_FCT (app_pcrf_conf_init ());
 
 	/* Parse configuration file */
@@ -55,13 +60,33 @@ static int pcrf_entry (char * conffile)
 	CHECK_FCT (pcrf_tracer_init ());
 
   /* инициализация кеша сессий */
-  CHECK_FCT( pcrf_session_cache_init () );
+  CHECK_FCT( pcrf_session_cache_init( &tSessionListInitializer ) );
 
   /* инициализация кеша правил */
   CHECK_FCT(pcrf_rule_cache_init());
 
   /* инициализация кеша правил сессий */
-  CHECK_FCT(pcrf_session_rule_list_init());
+  CHECK_FCT( pcrf_session_rule_list_init( &tSessRuleLstInitializer ) );
+
+  /* ждем окончания инициализации кеша сессий и кеша правил сессий */
+  CHECK_FCT( pthread_join( tSessionListInitializer, &pvThreadResult ) );
+  iRetVal = *( ( int* )( pvThreadResult ) );
+  free( pvThreadResult );
+  if ( 0 == iRetVal ) {
+    LOG_D( "session list loaded successfully" );
+  } else {
+    LOG_F( "an error occurred while session list loading: code: %d", iRetVal );
+    return iRetVal;
+  }
+  CHECK_FCT( pthread_join( tSessRuleLstInitializer, &pvThreadResult ) );
+  iRetVal = *( ( int* )( pvThreadResult ) );
+  free( pvThreadResult );
+  if ( 0 == iRetVal ) {
+    LOG_D( "session rule list loaded successfully" );
+  } else {
+    LOG_F( "an error occurred while session rule list loading: code: %d", iRetVal );
+    return iRetVal;
+  }
 
   /* Install the handlers for incoming messages */
 	CHECK_FCT (app_pcrf_serv_init ());

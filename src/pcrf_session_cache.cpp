@@ -81,7 +81,7 @@ static int pcrf_session_cache_init_node ();
 static void pcrf_session_cache_fini_node ();
 
 /* загрузка списка сессий из БД */
-static int pcrf_session_cache_load_session_list();
+static void * pcrf_session_cache_load_session_list( void * );
 
 /* отправка сообщение нодам */
 #define NODE_POLL_WAIT 1
@@ -117,7 +117,7 @@ static void sig_oper( void )
   LOG_D( "leave '%s'", __FUNCTION__ );
 }
 
-int pcrf_session_cache_init ()
+int pcrf_session_cache_init( pthread_t *p_ptThread )
 {
   /* инициализация ветки статистики */
   g_psoSessionCacheStat = stat_get_branch ("session cache");
@@ -127,7 +127,7 @@ int pcrf_session_cache_init ()
   g_pmapChild = new std::map<std::string,std::string>;
   g_pmapSubscriberId = new std::map<std::string, std::set<std::string> >;
   /* загружаем список сессий из БД */
-  CHECK_FCT( pcrf_session_cache_load_session_list() );
+  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_cache_load_session_list, NULL ) );
   /* создаем список нод */
   g_pvectNodeList = new std::vector<SNode>;
   /* создаем мьютекс */
@@ -1236,7 +1236,7 @@ static void pcrf_session_cache_fini_node ()
   }
 }
 
-static int pcrf_session_cache_load_session_list()
+static void * pcrf_session_cache_load_session_list( void * )
 {
   int iRetVal = 0;
   CTimeMeasurer coTM;
@@ -1355,7 +1355,11 @@ static int pcrf_session_cache_load_session_list()
     pcoDBConn = NULL;
   }
 
-  return iRetVal;
+  int *piRetVal = reinterpret_cast< int* >( malloc( sizeof( int ) ) );
+
+  *piRetVal = iRetVal;
+
+  pthread_exit( piRetVal );
 }
 
 int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId )

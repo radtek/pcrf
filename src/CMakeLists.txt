@@ -1,7 +1,7 @@
 # The app_pcrf extension
 PROJECT("PCRF Diameter Application" C)
 
-SET(CMAKE_BUILD_TYPE debug)
+SET(CMAKE_BUILD_TYPE MaxPerformance)
 
 # Parser files
 BISON_FILE(app_pcrf_conf.y)
