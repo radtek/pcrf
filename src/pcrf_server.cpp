@@ -2443,16 +2443,20 @@ int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo )
 
   std::list<std::string> listSessionId;
   std::list<std::string>::iterator iterList;
-  SSessionInfo soSessInfo;
 
   CHECK_FCT( pcrf_session_cache_index_frameIPAddress_get_sessionList( p_psoSessInfo->m_coFramedIPAddress.v, listSessionId ) );
 
   iterList = listSessionId.begin();
+
   for ( ; iterList != listSessionId.end(); ++iterList ) {
-    soSessInfo.m_coSessionId = *iterList;
-    soSessInfo.m_coOriginHost = p_psoSessInfo->m_coOriginHost;
-    soSessInfo.m_coOriginRealm = p_psoSessInfo->m_coOriginRealm;
-    pcrf_local_refresh_queue_add( soSessInfo );
+    {
+      SSessionInfo soSessInfo;
+      SRequestInfo soReqInfo;
+
+      if ( 0 == pcrf_session_cache_get( *iterList, soSessInfo, soReqInfo ) ) {
+        pcrf_local_refresh_queue_add( soSessInfo );
+      }
+    }
   }
 
   return 0;
