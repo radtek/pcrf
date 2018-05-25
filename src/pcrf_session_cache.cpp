@@ -1,6 +1,5 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include "pcrf_lock.h"
 
 #include "utils/ps_common.h"
 #include "utils/pspacket/pspacket.h"
@@ -62,7 +61,7 @@ static std::map<std::string,std::string> *g_pmapChild;
 static std::map<std::string, std::set<std::string> > *g_pmapSubscriberId;
 
 /* массив мьютексов для организации доступа к хранилищу с приоритетами */
-static pthread_mutex_t g_mmutexSessionCache[3];
+static pthread_mutex_t g_mutexSessionCache;
 
 /* список нод */
 static std::vector<SNode> *g_pvectNodeList;
@@ -131,7 +130,7 @@ int pcrf_session_cache_init( pthread_t *p_ptThread )
   /* создаем список нод */
   g_pvectNodeList = new std::vector<SNode>;
   /* создаем мьютекс */
-  CHECK_FCT( pcrf_lock_init( g_mmutexSessionCache, sizeof( g_mmutexSessionCache ) / sizeof( *g_mmutexSessionCache ) ) );
+  CHECK_FCT( pthread_mutex_init( &g_mutexSessionCache, NULL ) );
   /* загрузка списка нод */
   CHECK_FCT( pcrf_session_cache_init_node() );
   /* создаем поток для обработки входящих команд */
@@ -159,7 +158,7 @@ void pcrf_session_cache_fini (void)
     CHECK_FCT_DO(pthread_join(g_thrdSessionCacheReceiver, NULL), /* continue */ );
   }
   /* уничтожаем мьютекс */
-  pcrf_lock_fini( g_mmutexSessionCache, sizeof( g_mmutexSessionCache ) / sizeof( *g_mmutexSessionCache ) );
+  pthread_mutex_destroy( &g_mutexSessionCache );
   /* удаляем кеш */
   if (NULL != g_pmapSessionCache) {
     std::map<std::string, SSessionCache*>::iterator iter = g_pmapSessionCache->begin();
@@ -316,21 +315,15 @@ static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
   }
 }
 
-static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, std::string *p_pstrParentSessionId, bool p_bLowPriority = false)
+static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, std::string *p_pstrParentSessionId )
 {
   CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
   std::pair<std::map<std::string, std::set<std::string> >::iterator, bool> insertSubscrIdRes;
   int iPrio;
 
-  if ( !p_bLowPriority ) {
-    iPrio = 1;
-  } else {
-    iPrio = 3;
-  }
-
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO( pcrf_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit);
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit);
 
   insertResult = g_pmapSessionCache->insert (std::pair<std::string,SSessionCache*> (p_strSessionId, p_psoSessionInfo));
   if (! insertResult.second) {
@@ -368,7 +361,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
   pcrf_session_cache_mk_link2parent(p_strSessionId, p_pstrParentSessionId);
 
   clean_and_exit:
-  pcrf_unlock( g_mmutexSessionCache, iPrio );
+  pthread_mutex_unlock( &g_mutexSessionCache );
 
   return;
 }
@@ -703,14 +696,14 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   CTimeMeasurer coTM;
 
   int iRetVal = 0;
-  int iPrio = 2;
   std::map<std::string,SSessionCache*>::iterator iter;
 
-  CHECK_FCT_DO( pcrf_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
+    if ( p_soSessionInfo.m_coSessionId.is_null() )                      p_soSessionInfo.m_coSessionId                         = p_strSessionId;
     if (! iter->second->m_coSubscriberId.is_null ()) {
       p_soSessionInfo.m_strSubscriberId = iter->second->m_coSubscriberId.v;
     } else {
@@ -746,7 +739,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
 
 clean_and_exit:
   /* освобождаем мьютекс */
-  pcrf_unlock( g_mmutexSessionCache, iPrio );
+  pthread_mutex_unlock( &g_mutexSessionCache );
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
@@ -769,10 +762,9 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
   std::map<std::string,SSessionCache*>::iterator iter;
-  int iPrio = 3;
 
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT_DO( pcrf_lock( g_mmutexSessionCache, iPrio ), goto clean_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
@@ -796,7 +788,7 @@ static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
 
 clean_and_exit:
   /* освобождаем мьютекс */
-  pcrf_unlock( g_mmutexSessionCache, iPrio );
+  pthread_mutex_unlock( &g_mutexSessionCache );
 
   return;
 }
@@ -1367,10 +1359,9 @@ int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId
   LOG_D( "enter: %s; subscriber-id: %s", __FUNCTION__, p_strSubscriberId.c_str() );
 
   int iRetVal = 0;
-  int iPrio = 1;
   std::map<std::string, std::set<std::string> >::iterator iter;
 
-  CHECK_FCT_DO( ( iRetVal = pcrf_lock( g_mmutexSessionCache, iPrio ) ), goto clean_and_exit );
+  CHECK_FCT_DO( ( iRetVal = pthread_mutex_lock( &g_mutexSessionCache ) ), goto clean_and_exit );
 
   iter = g_pmapSubscriberId->find( p_strSubscriberId );
 
@@ -1384,19 +1375,19 @@ int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId
   }
 
   clean_and_exit:
-  pcrf_unlock( g_mmutexSessionCache, iPrio );
+  pthread_mutex_unlock( &g_mutexSessionCache );
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
   return iRetVal;
 }
 
-int pcrf_session_cache_lock( int &p_iPrio )
+int pcrf_session_cache_lock()
 {
-  CHECK_FCT( pcrf_lock( g_mmutexSessionCache, p_iPrio ) );
+  CHECK_FCT( pthread_mutex_lock( &g_mutexSessionCache ) );
 }
 
-void pcrf_session_cache_unlock( int &p_iPrio )
+void pcrf_session_cache_unlock()
 {
-  pcrf_unlock( g_mmutexSessionCache, p_iPrio );
+  pthread_mutex_unlock( &g_mutexSessionCache );
 }

@@ -579,8 +579,6 @@ int app_pcrf_serv_init (void)
 {
 	disp_when data;
 
-	TRACE_DEBUG (FULL, "Initializing dispatch callbacks for test");
-
 	memset (&data, 0, sizeof(data));
 	data.app = g_psoDictApp;
 	data.command = g_psoDictCCR;

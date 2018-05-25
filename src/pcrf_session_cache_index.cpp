@@ -10,10 +10,9 @@ static std::map<std::string, std::list<std::string> > g_mapFramedIPIndex;
 int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId )
 {
   int iRetVal = 0;
-  int iPrio = 1;
   std::map<std::string, std::list<std::string> >::iterator iterList;
 
-  CHECK_FCT( pcrf_session_cache_lock( iPrio ) );
+  CHECK_FCT( pcrf_session_cache_lock() );
 
   iterList = g_mapFramedIPIndex.find( p_strFramedIPAddress );
 
@@ -22,7 +21,7 @@ int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strF
     LOG_D( "%u SessionId-s retreived", p_listSessionId.size() );
   }
 
-  pcrf_session_cache_unlock( iPrio );
+  pcrf_session_cache_unlock();
 
   return iRetVal;
 }

@@ -1,18 +1,17 @@
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "utils/ps_common.h"
-#include "pcrf_lock.h"
+
+#include <list>
 
 extern CLog *g_pcoLog;
 
 static volatile bool g_bSessionRuleCacheWork = true;
 
-#include <list>
-
 /* хранилище информации о правилах сессий */
 static std::map<std::string, std::list<std::string> > g_mapSessRuleLst;
 /* мьютекс доступа к хранилищу */
-static pthread_mutex_t g_mmutexSessRuleLst[3];
+static pthread_mutex_t g_mutexSessRuleLst;
 
 /* функция потока загрузки наального списка правил сессиий */
 static void * pcrf_session_rule_load_list( void * );
@@ -29,7 +28,7 @@ int pcrf_session_rule_list_init( pthread_t *p_ptThread )
   CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_rule_load_list, NULL ) );
 
   /* инициализация мьютексов доступа к хранилищу кэша правил сессий */
-  CHECK_FCT( pcrf_lock_init( g_mmutexSessRuleLst, sizeof( g_mmutexSessRuleLst ) / sizeof( *g_mmutexSessRuleLst ) ) );
+  CHECK_FCT( pthread_mutex_init( &g_mutexSessRuleLst, NULL ) );
 
   UTL_LOG_N( *g_pcoLog,
     "session rule cache is initialized successfully!\n"
@@ -42,8 +41,9 @@ int pcrf_session_rule_list_init( pthread_t *p_ptThread )
 void pcrf_session_rule_list_fini()
 {
   g_bSessionRuleCacheWork = false;
+
   /* освобождаем занятые ресурсы */
-  pcrf_lock_fini( g_mmutexSessRuleLst, sizeof( g_mmutexSessRuleLst ) / sizeof( *g_mmutexSessRuleLst ) );
+  pthread_mutex_destroy( &g_mutexSessRuleLst );
 }
 
 int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive)
@@ -52,10 +52,9 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   int iRetVal = 0;
   SDBAbonRule soRule(true,false);
   std::map<std::string, std::list<std::string> >::iterator iter;
-  int iPrio = 1;
 
   /* блокируем доступ к хранилищу */
-  CHECK_FCT_DO(pcrf_lock(g_mmutexSessRuleLst, iPrio), goto cleanup_and_exit);
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessRuleLst ), goto cleanup_and_exit );
 
   /* ищем сессию */
   iter = g_mapSessRuleLst.find(p_strSessionId);
@@ -74,7 +73,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
 
   cleanup_and_exit:
   /* освобождаем хранилище */
-  pcrf_unlock( g_mmutexSessRuleLst, iPrio );
+  pthread_mutex_unlock( &g_mutexSessRuleLst );
 
   if (0 == iRetVal) {
     /* фиксируем в статистике успешное завершение */
@@ -87,20 +86,13 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   return iRetVal;
 }
 
-void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName, bool p_bLowPriority )
+void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName )
 {
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
-  int iPrio = 1;
 
-  /* для операций с низким приоритетом проходим два уровня блокировки хранилища */
-  /* блокируем мьютекс доступа к хранилищу с низким приотитетом */
-  if ( ! p_bLowPriority ) {
-  } else {
-    iPrio = 2;
-  }
   /* блокируем общий мьютекс доступа к хранилищу */
-  CHECK_FCT_DO( pcrf_lock( g_mmutexSessRuleLst, iPrio ), goto cleanup_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessRuleLst ), goto cleanup_and_exit );
 
   /* ищем сессию в хранилище */
   iter = g_mapSessRuleLst.find(p_strSessionId);
@@ -108,22 +100,16 @@ void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::str
     /* если нашли, то дополняем правил список ее */
     iter->second.push_back( p_strRuleName );
     stat_measure(g_psoSessionRuleCacheStat, "rule inserted", &coTM);
-    if ( !p_bLowPriority ) {
-      LOG_D( "%s: rule inserted: %s; %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
-    }
   } else {
     /* если сессия не найдена добавляем ее в хранилище */
     std::list<std::string> list;
     list.push_back( p_strRuleName );
     g_mapSessRuleLst.insert( std::pair<std::string, std::list<std::string> >( p_strSessionId, list ) );
     stat_measure(g_psoSessionRuleCacheStat, "session inserted", &coTM);
-    if ( !p_bLowPriority ) {
-      LOG_D( "%s: session inserted: %s; %s", __FUNCTION__, p_strSessionId.c_str(), p_strRuleName.c_str() );
-    }
   }
 
 cleanup_and_exit:
-  pcrf_unlock( g_mmutexSessRuleLst, iPrio );
+  pthread_mutex_unlock( &g_mutexSessRuleLst );
 
   return;
 }
@@ -132,10 +118,9 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
 {
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
-  int iPrio = 1;
 
   /* блокируем доступ к хранилищу кэша правил сессий */
-  CHECK_FCT_DO(pcrf_lock(g_mmutexSessRuleLst, iPrio), goto cleanup_and_exit);
+  CHECK_FCT_DO(pthread_mutex_lock( &g_mutexSessRuleLst ), goto cleanup_and_exit);
 
   iter = g_mapSessRuleLst.find(p_strSessionId);
   if (iter != g_mapSessRuleLst.end()) {
@@ -147,7 +132,7 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
 
   cleanup_and_exit:
   /* освобождаем хранилище */
-  pcrf_unlock( g_mmutexSessRuleLst, iPrio );
+  pthread_mutex_unlock( &g_mutexSessRuleLst );
 
   return;
 }
@@ -157,10 +142,9 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
   std::list<std::string>::iterator iterLst;
-  int iPrio = 1;
 
   /* блокируем доступ к хранилищу */
-  CHECK_FCT_DO( pcrf_lock( g_mmutexSessRuleLst, iPrio ), goto cleanup_and_exit );
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessRuleLst ), goto cleanup_and_exit );
 
   /* ищем сессию */
   iter = g_mapSessRuleLst.find(p_strSessionId);
@@ -182,7 +166,7 @@ void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std:
   }
 
   cleanup_and_exit:
-  pcrf_unlock( g_mmutexSessRuleLst, iPrio );
+  pthread_mutex_unlock( &g_mutexSessRuleLst );
 
   return;
 }
@@ -218,7 +202,7 @@ static void * pcrf_session_rule_load_list( void * )
       coStream
         >> strSessionId
         >> strRuleName;
-      pcrf_session_rule_cache_insert_local( strSessionId, strRuleName, true );
+      pcrf_session_rule_cache_insert_local( strSessionId, strRuleName );
     }
     coTM.GetDifference(NULL, mcTime, sizeof(mcTime));
     coStream.close();
