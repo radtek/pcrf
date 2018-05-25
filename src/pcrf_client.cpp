@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <list>
+#include <unordered_map>
 
 extern CLog *g_pcoLog;
 
@@ -27,7 +28,7 @@ extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque);
 
 static pthread_mutex_t g_tLocalQueueMutex;
-static std::list<SSessionInfo> g_listLocalRefQueue;
+static std::unordered_map<std::string, uint32_t> g_mapLocalRefreshQueue;
 
 /* функция для обработки просроченного запроса */
 static void pcrf_client_req_expire (void *p_pvData, DiamId_t p_pDiamId, size_t p_stDiamIdLen, msg **p_ppMsg)
@@ -581,13 +582,14 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
 
   /* задаем время завершения ожидания семафора */
   pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
+
   /* очередь сессий на обновление */
   std::vector<SRefQueue> vectQueue;
   std::vector<SRefQueue>::iterator iter;
-  std::list<SSessionInfo>::iterator iterLocalQueue;
-  std::list<SSessionInfo>::iterator iterLocalQueueLast;
-  size_t stLocalQueueCnt;
-  size_t stCnt;
+  /* локальная очередь сессий на завершение */
+  std::unordered_map<std::string, uint32_t>::iterator iterLocalQueue;
+  std::list<std::string> listSessionIdList;
+  std::list<std::string>::iterator iterSessionIdList;
 
   while ( ! g_iStop ) {
     /* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
@@ -627,20 +629,32 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     }
 
     /* обрабатываем локальную очередь на завершение сессий */
-    /* получаем какое количество элементов находится в очереди на момент запуска обработки */
+    /* блокируем мьютекс */
     CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
-    stLocalQueueCnt = g_listLocalRefQueue.size();
-    CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
-    /* обходим все элементы очереди до заданного на момент исполнения количества элементов */
-    iterLocalQueue = g_listLocalRefQueue.begin();
-    iterLocalQueueLast = iterLocalQueue;
-    for ( stCnt = 0; stCnt < stLocalQueueCnt &&iterLocalQueueLast != g_listLocalRefQueue.end(); ++stCnt, ++iterLocalQueueLast ) {
-      pcrf_client_rar_w_SRCause( *iterLocalQueueLast );
+    /* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
+    iterLocalQueue = g_mapLocalRefreshQueue.begin();
+    while ( iterLocalQueue != g_mapLocalRefreshQueue.end() ) {
+      listSessionIdList.push_back( iterLocalQueue->first );
+      ++iterLocalQueue;
     }
     /* очищаем локальную очередь */
-    CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
-    g_listLocalRefQueue.erase( iterLocalQueue, iterLocalQueueLast );
+    g_mapLocalRefreshQueue.clear();
+    /* снимаем блокировку мьютекса */
     CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
+
+    /* обрабатываем список сессий */
+    iterSessionIdList = listSessionIdList.begin();
+    while ( iterSessionIdList != listSessionIdList.end() ) {
+      {
+        SSessionInfo soSessInfo;
+        SRequestInfo soReqInfo;
+
+        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, soSessInfo, soReqInfo ) ) {
+          pcrf_client_rar_w_SRCause( soSessInfo );
+        }
+      }
+      ++iterSessionIdList;
+    }
 
     clear_and_continue:
     vectQueue.clear();
@@ -654,10 +668,10 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
   pthread_exit( 0 );
 }
 
-void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo)
+void pcrf_local_refresh_queue_add( std::string &p_strSessionId )
 {
   CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
-  g_listLocalRefQueue.push_back(p_soSessionInfo);
+  g_mapLocalRefreshQueue.insert( std::pair<std::string, uint32_t>( p_strSessionId, 0 ) );
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
 }
 

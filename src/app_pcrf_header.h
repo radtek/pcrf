@@ -339,7 +339,7 @@ int pcrf_session_cache_lock();
 void pcrf_session_cache_unlock();
 
 /* функция для добавления элемента в локальную очередь обновления политик */
-void pcrf_local_refresh_queue_add(SSessionInfo &p_soSessionInfo);
+void pcrf_local_refresh_queue_add( std::string &p_strSessionId );
 
 #define NSEC_PER_USEC   1000L     
 #define USEC_PER_SEC    1000000L

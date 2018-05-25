@@ -2,6 +2,7 @@
 PROJECT("PCRF Diameter Application" C)
 
 SET(CMAKE_BUILD_TYPE MaxPerformance)
+SET(CMAKE_CXX_FLAGS "--std=c++0x")
 
 # Parser files
 BISON_FILE(app_pcrf_conf.y)

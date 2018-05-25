@@ -151,7 +151,7 @@ static int app_pcrf_ccr_cb(
   otl_connect *pcoDBConn = NULL;
   std::vector<SDBAbonRule> vectAbonRules;    /* список правил профиля абонента */
   std::vector<SDBAbonRule> vectActive;       /* список активных правил абонента */
-  SSessionInfo *psoSessShouldBeTerm = NULL;
+  std::string *pstrSessShouldBeTerm = NULL;
 
   bool bRulesChanged = false;        /* признак того, что правила были изменены */
   bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
@@ -265,10 +265,8 @@ static int app_pcrf_ccr_cb(
           if ( 0 == iSessNotFound ) {
           } else {
             /* если сессия ugw не найдена просим завершить ее. таким образом избавляемся от сессий, неизвестных pcrf */
-            psoSessShouldBeTerm = new SSessionInfo;
-            psoSessShouldBeTerm->m_coSessionId = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
-            psoSessShouldBeTerm->m_coOriginHost = soMsgInfoCache.m_psoSessInfo->m_coOriginHost;
-            psoSessShouldBeTerm->m_coOriginRealm = soMsgInfoCache.m_psoSessInfo->m_coOriginRealm;
+            pstrSessShouldBeTerm = new std::string;
+            *pstrSessShouldBeTerm = soMsgInfoCache.m_psoSessInfo->m_coSessionId.v;
           }
           break;
         case GX_CISCO_SCE:
@@ -567,9 +565,9 @@ static int app_pcrf_ccr_cb(
   stat_measure( g_psoGxSesrverStat, __FUNCTION__, &coTM );
 
   /* если сессию следует завершить */
-  if ( NULL != psoSessShouldBeTerm ) {
-    pcrf_local_refresh_queue_add( *psoSessShouldBeTerm );
-    delete psoSessShouldBeTerm;
+  if ( NULL != pstrSessShouldBeTerm ) {
+    pcrf_local_refresh_queue_add( *pstrSessShouldBeTerm );
+    delete pstrSessShouldBeTerm;
   }
 
   return 0;
@@ -2188,7 +2186,7 @@ int pcrf_procera_terminate_session( otl_value<std::string> &p_coUGWSessionId )
 
   pcrf_procera_db_load_sess_list( p_coUGWSessionId, vectSessList );
   for ( std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter ) {
-    pcrf_local_refresh_queue_add( *iter );
+    pcrf_local_refresh_queue_add( iter->m_coSessionId.v );
   }
 
   return iRetVal;
@@ -2447,14 +2445,7 @@ int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo )
   iterList = listSessionId.begin();
 
   for ( ; iterList != listSessionId.end(); ++iterList ) {
-    {
-      SSessionInfo soSessInfo;
-      SRequestInfo soReqInfo;
-
-      if ( 0 == pcrf_session_cache_get( *iterList, soSessInfo, soReqInfo ) ) {
-        pcrf_local_refresh_queue_add( soSessInfo );
-      }
-    }
+    pcrf_local_refresh_queue_add( *iterList );
   }
 
   return 0;
