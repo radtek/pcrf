@@ -472,7 +472,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
         SSessionInfo soUGWSessInfo;
         std::string strUGWSessionId;
-        if ( 0 == pcrf_server_find_core_sess_byframedip( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
+        if ( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
           strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
           /* ищем информацию о базовой сессии в кеше */
           pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo );

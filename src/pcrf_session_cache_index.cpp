@@ -39,7 +39,7 @@ int pcrf_session_cache_index_frameIPAddress_insert_session(std::string &p_strFra
     std::list<std::string> listSessionIdList;
 
     listSessionIdList.push_back( p_strSessionId );
-    g_mapFramedIPIndex.insert( std::make_pair<std::string, std::list<std::string> >( p_strFramedIPAddress, listSessionIdList ) );
+    g_mapFramedIPIndex.insert( std::pair<std::string, std::list<std::string> >( p_strFramedIPAddress, listSessionIdList ) );
     LOG_D( "inserted: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
   }
 

@@ -240,9 +240,9 @@ int pcrf_rule_cache_get_rule_info(
 /* поиск сессии в ядре для загрузки данных для SCE */
 int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
 /* поиск сессии в ядре для загрузки данных для Procera */
-int pcrf_server_find_core_sess_byframedip( otl_connect *p_pcoDBConn, std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
+int pcrf_server_find_core_sess_byframedip( std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
 /* поиск IP-CAN сессии */
-int pcrf_server_find_IPCAN_sess_byframedip( otl_connect *p_pcoDBConn, otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo );
+int pcrf_server_find_IPCAN_sess_byframedip( otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo );
 /* загрузка списка правил абонента из БД */
 int pcrf_load_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<std::string> &p_vectRuleList );
 /* загрузка Monitoring Key из БД */

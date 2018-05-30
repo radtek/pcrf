@@ -219,7 +219,7 @@ static int app_pcrf_ccr_cb(
           SSessionInfo soSessInfo;
           /* загрузка данных сессии UGW для обслуживания запроса Procera */
           pstrUgwSessionId = new std::string;
-          if ( 0 == pcrf_server_find_core_sess_byframedip( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) && 0 == soSessInfo.m_coSessionId.is_null() ) {
+          if ( 0 == pcrf_server_find_core_sess_byframedip( soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) && 0 == soSessInfo.m_coSessionId.is_null() ) {
             *pstrUgwSessionId = soSessInfo.m_coSessionId.v;
             pcrf_session_cache_get( *pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo );
           } else {
@@ -288,7 +288,7 @@ static int app_pcrf_ccr_cb(
         {
           SSessionInfo soSessInfo;
           pstrUgwSessionId = new std::string;
-          if ( 0 == pcrf_server_find_core_sess_byframedip( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) && 0 == soSessInfo.m_coSessionId.is_null() ) {
+          if ( 0 == pcrf_server_find_core_sess_byframedip( soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) && 0 == soSessInfo.m_coSessionId.is_null() ) {
             *pstrUgwSessionId = soSessInfo.m_coSessionId.v;
             pcrf_session_cache_get( *pstrUgwSessionId, *soMsgInfoCache.m_psoSessInfo, *soMsgInfoCache.m_psoReqInfo );
           } else {
@@ -2449,4 +2449,43 @@ int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo )
   }
 
   return 0;
+}
+
+int pcrf_server_find_core_sess_byframedip( std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo )
+{
+  int iRetVal = 0;
+  std::list<std::string> listSessionId;
+  std::list<std::string>::iterator iterList;
+  SRequestInfo soReqInfo;
+
+  CHECK_FCT( pcrf_session_cache_index_frameIPAddress_get_sessionList( p_strFramedIPAddress, listSessionId ) );
+
+  iterList = listSessionId.begin();
+
+  if ( iterList != listSessionId.end() ) {
+    CHECK_FCT( pcrf_session_cache_get( *iterList, p_soSessInfo, soReqInfo ) );
+  } else {
+    iRetVal = 1403;
+  }
+
+  return iRetVal;
+}
+
+int pcrf_server_find_IPCAN_sess_byframedip( otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo )
+{
+  CTimeMeasurer coTM;
+
+  if ( 0 == p_coIPAddr.is_null() ) {
+    LOG_D( "Framed-IP-Address: '%s'; Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
+      p_coIPAddr.v.c_str(),
+      p_soIPCANSessInfo.m_coSessionId.is_null() ? "<null>" : p_soIPCANSessInfo.m_coSessionId.v.c_str(),
+      p_soIPCANSessInfo.m_coOriginHost.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginHost.v.c_str(),
+      p_soIPCANSessInfo.m_coOriginRealm.is_null() ? "<null>" : p_soIPCANSessInfo.m_coOriginRealm.v.c_str() );
+    return ( pcrf_server_find_core_sess_byframedip( p_coIPAddr.v, p_soIPCANSessInfo ) );
+  } else {
+    LOG_D( "Framed-IP-Address is empty" );
+    return EINVAL;
+  }
+
+  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 }
