@@ -44,8 +44,6 @@ int pcrf_extract_UMI (avp *p_psoAVP, SRequestInfo &p_soReqInfo);
 int pcrf_extract_USU (avp *p_psoAVP, SSessionUsageInfo &p_soUsageInfo);
 /* парсинг Default-EPS-Bearer-QoS */
 int pcrf_extract_DefaultEPSBearerQoS (avp *p_soAVPValue, SRequestInfo &p_soReqInfo);
-/* парсинг 3GPP-User-Location-Info */
-int pcrf_parse_user_location (avp_value &p_soAVPValue, SUserLocationInfo &p_soUserLocationInfo);
 /* парсинг RAI */
 int pcrf_parse_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue);
 /* посылает команду на изменение локации пользователя на сервер Procera */
@@ -650,8 +648,8 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 		/* QoS-Class-Identifier */
 		if (! p_soAbonRule.m_coQoSClassIdentifier.is_null ()) {
 			// /* TODO #1 */
-			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
-			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.v.compare("GERAN")
 			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
 			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
 			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
@@ -675,8 +673,8 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateUL.v : ui32Value;
 			}
 			// /* TODO #1 */
-			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
-			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.v.compare("GERAN")
 			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
 			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
 			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
@@ -699,8 +697,8 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule)
 				ui32Value = ui32Value > p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v ? p_psoReqInfo->m_psoReqInfo->m_coAPNAggregateMaxBitrateDL.v : ui32Value;
 			}
 			// /* TODO #1 */
-			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.is_null()
-			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.compare("GERAN")
+			// if (!p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.is_null()
+			// 	&& 0 == p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType.v.compare("GERAN")
 			// 	&& !p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.is_null()
 			// 	&& (0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250070700308195")
 			// 		|| 0 == p_psoReqInfo->m_psoSessInfo->m_coEndUserIMSI.v.compare("250270100006021"))) {
@@ -890,7 +888,7 @@ avp * pcrf_make_CRI (
 			if (NULL == psoAVPCRI) {
 				CHECK_FCT_DO (fd_msg_avp_new (g_psoDictChargingRuleInstall, 0, &psoAVPCRI), return NULL);
 				/* Bearer-Identifier */
-				if (0 == p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType
+				if (0 == p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_iIPCANType
 						&& ! p_psoReqInfo->m_psoReqInfo->m_coBearerIdentifier.is_null ()) {
 					CHECK_FCT_DO (fd_msg_avp_new (g_psoDictBearerIdentifier, 0, &psoAVPChild), return NULL);
 					soAVPVal.os.data = (uint8_t *) p_psoReqInfo->m_psoReqInfo->m_coBearerIdentifier.v.c_str ();
@@ -965,7 +963,7 @@ avp * pcrf_make_CRD (
 	int iIpCanType;
 
 	/* сохраняем значение IP-CAN-Type в локальной переменной, т.к. оно часто испольуется */
-	iIpCanType = p_psoReqInfo->m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType;
+	iIpCanType = p_psoReqInfo->m_psoReqInfo->m_soUserEnvironment.m_iIPCANType;
 
 	/* если это динамическое правило */
 	if (! p_soAbonRule.m_coDynamicRuleFlag.is_null () && p_soAbonRule.m_coDynamicRuleFlag.v) {
@@ -1530,37 +1528,37 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 		case 10415: /* 3GPP */
 			switch (psoAVPHdr->avp_code) {
 			case 6: /* 3GPP-SGSN-Address */
-        pcrf_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress);
+        pcrf_ip_addr_to_string(psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len, p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress);
 			break;
 			case 18: /* 3GPP-SGSN-MCC-MNC */
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
-        p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.v.insert( 3, 1, '-' );
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.set_non_null();
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+				p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC.v.insert(0, (const char *)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len);
+        p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC.v.insert( 3, 1, '-' );
+				p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC.set_non_null();
+				p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
 				break;
 			case 21: /* 3GPP-RAT-Type */
 				if (!psoAVPHdr->avp_value->os.len)
 					break;
 				switch (psoAVPHdr->avp_value->os.data[0]) {
 				case 1:
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "UTRAN";
-          p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = "UTRAN";
+          p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
           break;
 				case 2:
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "GERAN";
-          p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = "GERAN";
+          p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
           break;
 				case 3:
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "WLAN";
-          p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = "WLAN";
+          p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
           break;
 				case 4:
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "GAN";
-          p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = "GAN";
+          p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
           break;
 				case 5:
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = "HSPA Evolution";
-          p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = "HSPA Evolution";
+          p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
           break;
 				default:
           UTL_LOG_N(*g_pcoLog, "unknown 3GPP-RAT-Type: '%u'", psoAVPHdr->avp_value->os.data[0]);
@@ -1568,7 +1566,7 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				}
 				break;
 			case 22: /* 3GPP-User-Location-Info */
-				pcrf_parse_user_location(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo);
+        pcrf_parse_user_location( psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc, &p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded );
 				break;
 			case 515: /* Max-Requested-Bandwidth-DL */
 				p_psoMsgInfo->m_psoReqInfo->m_coMaxRequestedBandwidthDl = psoAVPHdr->avp_value->u32;
@@ -1580,7 +1578,7 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				pcrf_extract_SF(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
 				break;
 			case 909: /* RAI */
-				pcrf_parse_RAI(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRAI);
+				pcrf_parse_RAI(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coRAI);
 				break;
 			case 1000: /* Bearer-Usage */
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
@@ -1626,10 +1624,10 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				p_psoMsgInfo->m_psoReqInfo->m_coGuaranteedBitrateUl = psoAVPHdr->avp_value->u32;
 				break;
 			case 1027: /* IP-CAN-Type */
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_iIPCANType = psoAVPHdr->avp_value->i32;
-				p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+				p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_iIPCANType = psoAVPHdr->avp_value->i32;
+				p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
 				if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType = mcValue;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coIPCANType = mcValue;
 				}
 				break;
 			case 1029: /* QoS-Negotiation */
@@ -1643,10 +1641,10 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				}
 				break;
 			case 1032: /* RAT-Type */
-        p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_iRATType = psoAVPHdr->avp_value->i32;
-        p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_bLoaded = true;
+        p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_iRATType = psoAVPHdr->avp_value->i32;
+        p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_bLoaded = true;
         if (0 == pcrf_extract_avp_enum_val(psoAVPHdr, mcValue, sizeof(mcValue))) {
-					p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRATType = mcValue;
+					p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coRATType = mcValue;
 				}
 				break;
 			case 1040: /* APN-Aggregate-Max-Bitrate-DL */
@@ -1660,15 +1658,15 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				pcrf_extract_DefaultEPSBearerQoS(psoAVP, *p_psoMsgInfo->m_psoReqInfo);
 				break;
       case 1050: /* AN-GW-Address */
-        if ( 0 != p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.is_null() ) {
+        if ( 0 != p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress.is_null() ) {
           sSA4 soAddr;
 
           memset( &soAddr, 0, sizeof( soAddr ) );
           if ( 0 == fd_dictfct_Address_interpret( psoAVPHdr->avp_value, &soAddr ) ) {
             if ( AF_INET == soAddr.sin_family ) {
-              pcrf_ip_addr_to_string( reinterpret_cast<uint8_t*>( &soAddr.sin_addr.s_addr ), sizeof( soAddr.sin_addr.s_addr ), p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress );
+              pcrf_ip_addr_to_string( reinterpret_cast<uint8_t*>( &soAddr.sin_addr.s_addr ), sizeof( soAddr.sin_addr.s_addr ), p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress );
             } else if ( AF_INET6 == soAddr.sin_family ) {
-              pcrf_ip_addr_to_string( reinterpret_cast<uint8_t*>( &soAddr.sin_addr.s_addr ), sizeof( soAddr.sin_addr.s_addr ), p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coSGSNIPv6Address );
+              pcrf_ip_addr_to_string( reinterpret_cast<uint8_t*>( &soAddr.sin_addr.s_addr ), sizeof( soAddr.sin_addr.s_addr ), p_psoMsgInfo->m_psoReqInfo->m_soUserEnvironment.m_coSGSNIPv6Address );
             }
           }
         }
@@ -2067,9 +2065,9 @@ int pcrf_procera_change_uli( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqDat
   soAbonRule.m_coRuleGroupFlag = 0;
 
   pcrf_procera_make_uli_rule(
-    0 == p_soReqData.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null() ?
-    p_soReqData.m_psoReqInfo->m_soUserLocationInfo.m_coECGI :
-    p_soReqData.m_psoReqInfo->m_soUserLocationInfo.m_coCGI,
+    0 == p_soReqData.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI.is_null() ?
+    p_soReqData.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI :
+    p_soReqData.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
     soAbonRule );
   vectNewRule.push_back( soAbonRule );
 
@@ -2244,9 +2242,9 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
       }
       /* user location */
       pcrf_procera_make_uli_rule(
-        0 == p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI.is_null() ?
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI :
-        p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI,
+        0 == p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI.is_null() ?
+        p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI :
+        p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
         soAbonRule );
       p_vectAbonRules.push_back( soAbonRule );
     }

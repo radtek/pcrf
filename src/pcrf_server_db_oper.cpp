@@ -511,11 +511,11 @@ int pcrf_load_abon_rule_list(
     p_pcoDBConn,
     p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str(),
     p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect,
-    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType.v.c_str(),
     p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC.v.c_str(),
+    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress.v.c_str(),
     p_soMsgInfo.m_psoSessInfo->m_coIMEI.v.c_str()
   );
 
@@ -552,10 +552,10 @@ int pcrf_load_abon_rule_list(
     coStream
       << p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
       << p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect
-      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType
-      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType
+      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType
+      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType
       << p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
-      << p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress
+      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress
       << p_soMsgInfo.m_psoSessInfo->m_coIMEI;
     if ( ! coStream.eof() ) {
       coStream
@@ -663,7 +663,7 @@ void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 {
 	/* если нечего сохранять в БД */
-	if (p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_bLoaded) {
+	if (p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_bLoaded) {
   } else {
 		return;
   }
@@ -678,17 +678,17 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId,                           m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coDateTime,                                                         m_eSQLParamType_OTLDateTime);
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNMCCMNC,      m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNAddress,     m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coSGSNIPv6Address, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRATType,         m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coIPCANType,       m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coCGI,             m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coECGI,            m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coTAI,             m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserLocationInfo.m_coRAI,             m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId,                               m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, coDateTime,                                                             m_eSQLParamType_OTLDateTime);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC,           m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress,          m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNIPv6Address,      m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType,              m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType,            m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,       m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,      m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI,       m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coRAI,       m_eSQLParamType_StdString);
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionLocation "

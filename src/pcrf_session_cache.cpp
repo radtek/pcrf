@@ -669,17 +669,17 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coSubscriberId    = p_soSessionInfo.m_strSubscriberId;
   psoTmp->m_coFramedIPAddr    = p_soSessionInfo.m_coFramedIPAddress;
   psoTmp->m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
-  psoTmp->m_coIPCANType       = p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType;
-  psoTmp->m_iIPCANType        = p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType;
-  psoTmp->m_coSGSNMCCMNC      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC;
-  psoTmp->m_coSGSNIPAddr      = p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress;
-  psoTmp->m_coRATType         = p_soRequestInfo.m_soUserLocationInfo.m_coRATType;
-  psoTmp->m_iRATType          = p_soRequestInfo.m_soUserLocationInfo.m_iRATType;
+  psoTmp->m_coIPCANType       = p_soRequestInfo.m_soUserEnvironment.m_coIPCANType;
+  psoTmp->m_iIPCANType        = p_soRequestInfo.m_soUserEnvironment.m_iIPCANType;
+  psoTmp->m_coSGSNMCCMNC      = p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC;
+  psoTmp->m_coSGSNIPAddr      = p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress;
+  psoTmp->m_coRATType         = p_soRequestInfo.m_soUserEnvironment.m_coRATType;
+  psoTmp->m_iRATType          = p_soRequestInfo.m_soUserEnvironment.m_iRATType;
   psoTmp->m_coOriginHost      = p_soSessionInfo.m_coOriginHost;
   psoTmp->m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
-  psoTmp->m_coCGI             = p_soRequestInfo.m_soUserLocationInfo.m_coCGI;
-  psoTmp->m_coECGI            = p_soRequestInfo.m_soUserLocationInfo.m_coECGI;
-  psoTmp->m_coTAI             = p_soRequestInfo.m_soUserLocationInfo.m_coTAI;
+  psoTmp->m_coCGI             = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI;
+  psoTmp->m_coECGI            = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI;
+  psoTmp->m_coTAI             = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI;
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
 
@@ -711,23 +711,23 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
     }
     if (p_soSessionInfo.m_coFramedIPAddress.is_null())                  p_soSessionInfo.m_coFramedIPAddress                   = iter->second->m_coFramedIPAddr;
     if (p_soSessionInfo.m_coCalledStationId.is_null())                  p_soSessionInfo.m_coCalledStationId                   = iter->second->m_coCalledStationId;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType.is_null())   p_soRequestInfo.m_soUserLocationInfo.m_coIPCANType    = iter->second->m_coIPCANType;
-                                                                        p_soRequestInfo.m_soUserLocationInfo.m_iIPCANType     = iter->second->m_iIPCANType;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC.is_null())  p_soRequestInfo.m_soUserLocationInfo.m_coSGSNMCCMNC   = iter->second->m_coSGSNMCCMNC;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress.is_null()) p_soRequestInfo.m_soUserLocationInfo.m_coSGSNAddress  = iter->second->m_coSGSNIPAddr;
-    if (p_soRequestInfo.m_soUserLocationInfo.m_coRATType.is_null())     p_soRequestInfo.m_soUserLocationInfo.m_coRATType      = iter->second->m_coRATType;
-                                                                        p_soRequestInfo.m_soUserLocationInfo.m_iRATType       = iter->second->m_iRATType;
+    if (p_soRequestInfo.m_soUserEnvironment.m_coIPCANType.is_null())    p_soRequestInfo.m_soUserEnvironment.m_coIPCANType     = iter->second->m_coIPCANType;
+                                                                        p_soRequestInfo.m_soUserEnvironment.m_iIPCANType      = iter->second->m_iIPCANType;
+    if (p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC.is_null())   p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC    = iter->second->m_coSGSNMCCMNC;
+    if (p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress.is_null())  p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress   = iter->second->m_coSGSNIPAddr;
+    if (p_soRequestInfo.m_soUserEnvironment.m_coRATType.is_null())      p_soRequestInfo.m_soUserEnvironment.m_coRATType       = iter->second->m_coRATType;
+                                                                        p_soRequestInfo.m_soUserEnvironment.m_iRATType        = iter->second->m_iRATType;
     if (p_soSessionInfo.m_coOriginHost.is_null())                       p_soSessionInfo.m_coOriginHost                        = iter->second->m_coOriginHost;
     if (p_soSessionInfo.m_coOriginRealm.is_null())                      p_soSessionInfo.m_coOriginRealm                       = iter->second->m_coOriginRealm;
     /* если в запросе не было информации о лоакции */
-    if ( p_soRequestInfo.m_soUserLocationInfo.m_coCGI.is_null()
-      && p_soRequestInfo.m_soUserLocationInfo.m_coECGI.is_null()
-      && p_soRequestInfo.m_soUserLocationInfo.m_coTAI.is_null() )
+    if ( p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI.is_null()
+      && p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI.is_null()
+      && p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI.is_null() )
     {
       /* берем данные из кеша */
-      p_soRequestInfo.m_soUserLocationInfo.m_coCGI  = iter->second->m_coCGI;
-      p_soRequestInfo.m_soUserLocationInfo.m_coECGI = iter->second->m_coECGI;
-      p_soRequestInfo.m_soUserLocationInfo.m_coTAI  = iter->second->m_coTAI;
+      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI  = iter->second->m_coCGI;
+      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI = iter->second->m_coECGI;
+      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI  = iter->second->m_coTAI;
     }
     if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second->m_coIMEISV;
     if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;

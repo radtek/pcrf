@@ -73,7 +73,15 @@ struct SSessionUsageInfo {
 	otl_value<uint64_t> m_coCCOutputOctets;
 	otl_value<uint64_t> m_coCCTotalOctets;
 };
-struct SUserLocationInfo {
+struct SUserLocation {
+  otl_value<std::string> m_coCGI;
+  otl_value<std::string> m_coRAI;
+  otl_value<std::string> m_coTAI;
+  otl_value<std::string> m_coECGI;
+};
+/* парсинг 3GPP-User-Location-Info */
+int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserLocationInfo, bool *p_pbLoaded = NULL );
+struct SUserEnvironment {
 	bool m_bLoaded;
 	otl_value<std::string> m_coSGSNMCCMNC;
 	otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
@@ -82,11 +90,8 @@ struct SUserLocationInfo {
   int32_t m_iRATType;
   otl_value<std::string> m_coIPCANType;
 	int32_t m_iIPCANType;
-	otl_value<std::string> m_coRAI;
-	otl_value<std::string> m_coCGI;
-	otl_value<std::string> m_coECGI;
-	otl_value<std::string> m_coTAI;
-	SUserLocationInfo() : m_bLoaded(false), m_iIPCANType(0), m_iRATType (0) { }
+  SUserLocation          m_soUsrLoc;
+	SUserEnvironment() : m_bLoaded(false), m_iIPCANType(0), m_iRATType (0) { }
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -112,7 +117,7 @@ struct SRequestInfo {
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
 	otl_value<std::string> m_coQoSNegotiation;
-	SUserLocationInfo m_soUserLocationInfo;
+	SUserEnvironment m_soUserEnvironment;
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
