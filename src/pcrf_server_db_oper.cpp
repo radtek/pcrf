@@ -142,23 +142,23 @@ void pcrf_fill_otl_datetime( otl_value<otl_datetime> &p_coOtlDateTime, tm *p_pso
 
 void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
 {
-  std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParameters = new std::list<SSQLQueueParam*>;
   otl_value<std::string> coSubscriberId( p_soSessInfo.m_strSubscriberId );
   otl_value<otl_datetime> coTime;
 
   pcrf_fill_otl_datetime( coTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId,       m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, coSubscriberId,                   m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginHost,      m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginRealm,     m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserIMSI,     m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserE164,     m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coIMEI,            m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, coTime,                           m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParameters, coTime,                           m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coFramedIPAddress, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coCalledStationId, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId);
+  pcrf_sql_queue_add_param( plistParameters, coSubscriberId );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginHost );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginRealm );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserIMSI );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserE164 );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coIMEI );
+  pcrf_sql_queue_add_param( plistParameters, coTime );
+  pcrf_sql_queue_add_param( plistParameters, coTime );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coFramedIPAddress );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coCalledStationId );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionList (session_id,subscriber_id,origin_host,origin_realm,end_user_imsi,end_user_e164,imeisv,time_start,time_last_req,framed_ip_address,called_station_id)"
@@ -174,12 +174,12 @@ void pcrf_db_update_session (
   otl_value<otl_datetime> &p_coTimeLast,
   otl_value<std::string> &p_coTermCause )
 {
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
 
-  pcrf_sql_queue_add_param( plistParam, p_coTimeEnd,   m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, p_coTimeLast,  m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, p_coTermCause, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_coSessionId, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_coTimeEnd );
+  pcrf_sql_queue_add_param( plistParam, p_coTimeLast );
+  pcrf_sql_queue_add_param( plistParam, p_coTermCause );
+  pcrf_sql_queue_add_param( plistParam, p_coSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionList"
@@ -308,14 +308,14 @@ void pcrf_db_insert_rule (
     pcrf_session_rule_cache_insert( p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v );
   }
 
-  std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParameters = new std::list<SSQLQueueParam*>;
   otl_value<otl_datetime> coDateTime;
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, coDateTime,                 m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParameters, p_soRule.m_coRuleName,      m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId );
+  pcrf_sql_queue_add_param( plistParameters, coDateTime );
+  pcrf_sql_queue_add_param( plistParameters, p_soRule.m_coRuleName );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionRule "
@@ -328,13 +328,13 @@ void pcrf_db_insert_rule (
 
 void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
 {
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<otl_datetime> coTimeEnd;
 
   pcrf_fill_otl_datetime( coTimeEnd, NULL );
 
-  pcrf_sql_queue_add_param( plistParam, coTimeEnd,     m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, p_coSessionId, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, coTimeEnd );
+  pcrf_sql_queue_add_param( plistParam, p_coSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionRule set time_end = :time_end/*timestamp*/ where session_id = :session_id /* char[255] */ and time_end is null",
@@ -350,7 +350,7 @@ void pcrf_db_close_session_rule (
 {
   pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, p_strRuleName);
 
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<otl_datetime> coTimeEnd;
   otl_value<std::string>  coFailureCode;
   otl_value<std::string>  coRuleName( p_strRuleName );
@@ -362,10 +362,10 @@ void pcrf_db_close_session_rule (
     coFailureCode = *p_pstrRuleFailureCode;
   }
 
-  pcrf_sql_queue_add_param( plistParam, coTimeEnd,                  m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, coFailureCode,              m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soSessInfo.m_coSessionId, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coRuleName,                 m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, coTimeEnd );
+  pcrf_sql_queue_add_param( plistParam, coFailureCode );
+  pcrf_sql_queue_add_param( plistParam, p_soSessInfo.m_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, coRuleName );
 
   pcrf_sql_queue_enqueue(
     "update "
@@ -643,15 +643,15 @@ int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strS
 
 void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
 {
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<std::string>    coSessionId( p_strSessionId );
   otl_value<otl_datetime>   coDateTime;
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
   /* закрываем все открытые записи */
-  pcrf_sql_queue_add_param( plistParam, coDateTime,  m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, coSessionId, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, coDateTime );
+  pcrf_sql_queue_add_param( plistParam, coSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionLocation set time_end = :time_end/*timestamp*/ where time_end is null and session_id = :session_id /*char[255]*/",
@@ -672,23 +672,23 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
   pcrf_server_db_close_user_loc( p_soMsgInfo.m_psoSessInfo->m_coSessionId );
 
   /* добавляем новую запись */
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
 
   otl_value<otl_datetime> coDateTime;
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId,                               m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coDateTime,                                                             m_eSQLParamType_OTLDateTime);
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC,           m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress,          m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNIPv6Address,      m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType,              m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType,            m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,       m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,      m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI,       m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coRAI,       m_eSQLParamType_StdString);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, coDateTime);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNIPv6Address );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coRAI);
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionLocation "
@@ -781,7 +781,7 @@ void pcrf_server_db_insert_refqueue (
 	otl_datetime *p_coDateTime,
 	const char *p_pszAction)
 {
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<std::string> coIdenType;
   otl_value<std::string> coIdent( p_strIdentifier );
 	otl_value<std::string> coAction;
@@ -799,10 +799,10 @@ void pcrf_server_db_insert_refqueue (
     pcrf_fill_otl_datetime( coRefreshDate, NULL );
   }
 
-  pcrf_sql_queue_add_param( plistParam, coIdenType,    m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coIdent,       m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coRefreshDate, m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParam, coAction,      m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, coIdenType );
+  pcrf_sql_queue_add_param( plistParam, coIdent );
+  pcrf_sql_queue_add_param( plistParam, coRefreshDate );
+  pcrf_sql_queue_add_param( plistParam, coAction );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.refreshQueue "
@@ -932,15 +932,15 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
 
 void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo )
 {
-  std::list<SSQLQueueParam> *plistParam = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<std::string> coSubscriber( p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
 
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId,   m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, coSubscriber,                               m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTetheringFlag, m_eSQLParamType_UInt );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginHost,  m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginRealm, m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI );
+  pcrf_sql_queue_add_param( plistParam, coSubscriber );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTetheringFlag );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginHost );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginRealm );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.tetheringdetection (session_id, end_user_imsi, subscriber_id, event_date, tethering_status, origin_host, origin_realm) "

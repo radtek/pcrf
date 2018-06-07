@@ -208,7 +208,7 @@ static void pcrf_tracer (
   otl_value<std::string> coOTLResultCode;
   otl_value<std::string> coParsedPack;
   otl_value<otl_datetime> coDateTime;
-  std::list<SSQLQueueParam> *plistParameters = new std::list<SSQLQueueParam>;
+  std::list<SSQLQueueParam*> *plistParameters = new std::list<SSQLQueueParam*>;
 
   /* копируем Session-Id */
   if ( 0 < strSessionId.length() ) {
@@ -293,15 +293,15 @@ static void pcrf_tracer (
   pcrf_fill_otl_datetime( coDateTime, NULL );
   coParsedPack = pmcBuf;
 
-  pcrf_sql_queue_add_param( plistParameters, coSessionId,     m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, coDateTime,      m_eSQLParamType_OTLDateTime );
-  pcrf_sql_queue_add_param( plistParameters, coRequestType,   m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, coOriginHost,    m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, coOTLOriginReal, m_eSQLParamType_StdString );
-  pcrf_sql_queue_add_param( plistParameters, coDestinHost,    m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, coOTLDestinReal, m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, coOTLResultCode, m_eSQLParamType_StdString);
-  pcrf_sql_queue_add_param( plistParameters, coParsedPack,    m_eSQLParamType_StdString );
+  pcrf_sql_queue_add_param( plistParameters, coSessionId);
+  pcrf_sql_queue_add_param( plistParameters, coDateTime );
+  pcrf_sql_queue_add_param( plistParameters, coRequestType );
+  pcrf_sql_queue_add_param( plistParameters, coOriginHost );
+  pcrf_sql_queue_add_param( plistParameters, coOTLOriginReal );
+  pcrf_sql_queue_add_param( plistParameters, coDestinHost);
+  pcrf_sql_queue_add_param( plistParameters, coOTLDestinReal);
+  pcrf_sql_queue_add_param( plistParameters, coOTLResultCode);
+  pcrf_sql_queue_add_param( plistParameters, coParsedPack );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.requestList"

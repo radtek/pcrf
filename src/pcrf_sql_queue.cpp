@@ -9,14 +9,16 @@ static volatile int g_iWork;
 /* функция обработки очереди запросов */
 static void * pcrf_sql_queue_oper(void *);
 
+std::string pcrf_sql_queue_to_string( SSQLQueueParam *p_tParam );
+
 struct SSQLRequestInfo
 {
   const char *m_pszRequest;
-  std::list<SSQLQueueParam> *m_plistParamList;
+  std::list<SSQLQueueParam*> *m_plistParamList;
   const char *m_pszReqName;
   SSQLRequestInfo(
     const char *p_pszSQLReq,
-    std::list<SSQLQueueParam> *p_plistParam,
+    std::list<SSQLQueueParam*> *p_plistParam,
     const char *p_pszReqName )
     : m_pszRequest( p_pszSQLReq ), m_plistParamList( p_plistParam ), m_pszReqName( p_pszReqName )
   { }
@@ -80,7 +82,7 @@ void pcrf_sql_queue_fini()
 static void pcrf_sql_queue_dump_request( const char *p_pszStatementText, const SSQLRequestInfo *p_psoSQLReqInfo )
 {
   std::string strReqData;
-  std::list<SSQLQueueParam>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
+  std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
   char mcValue[256];
   int iFnRes;
 
@@ -89,60 +91,8 @@ static void pcrf_sql_queue_dump_request( const char *p_pszStatementText, const S
 
   for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
     strReqData += '\t';
-    if ( NULL != iter->m_pvParam ) {
-    } else {
-      strReqData += "<null data pointed>";
-    }
-    switch ( iter->m_eParamType ) {
-      case m_eSQLParamType_Int:
-        iFnRes = snprintf( mcValue, sizeof(mcValue), "'%d'", reinterpret_cast<otl_value<int>*>( iter->m_pvParam )->v );
-        if ( 0 < iFnRes ) {
-          if ( iFnRes < sizeof( mcValue ) ) {
-          } else {
-            mcValue[ sizeof( mcValue ) - 1 ] = '\0';
-          }
-          strReqData += mcValue;
-        } else {
-          strReqData += "<snprintf error>";
-        }
-        break;
-      case m_eSQLParamType_UInt:
-        iFnRes = snprintf( mcValue, sizeof( mcValue ), "'%u'", reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam )->v );
-        if ( 0 < iFnRes ) {
-          if ( iFnRes < sizeof( mcValue ) ) {
-          } else {
-            mcValue[ sizeof( mcValue ) - 1 ] = '\0';
-          }
-          strReqData += mcValue;
-        } else {
-          strReqData += "<snprintf error>";
-        }
-        break;
-      case m_eSQLParamType_StdString:
-        strReqData += '\'';
-        strReqData += reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam )->v.c_str();
-        strReqData += '\'';
-        break;
-      case m_eSQLParamType_Char:
-        strReqData += '\'';
-        strReqData += reinterpret_cast<otl_value<char*>*>( iter->m_pvParam )->v;
-        strReqData += '\'';
-        break;
-      case m_eSQLParamType_OTLDateTime:
-        strReqData += "<datetime>";
-        break;
-      default:
-        iFnRes = snprintf( mcValue, sizeof( mcValue ), "<unsupported parameter type: %u>", iter->m_eParamType );
-        if ( 0 < iFnRes ) {
-          if ( iFnRes < sizeof( mcValue ) ) {
-          } else {
-            mcValue[ sizeof( mcValue ) - 1 ] = '\0';
-          }
-          strReqData += mcValue;
-        } else {
-          strReqData += "<snprintf error>";
-        }
-    }
+    strReqData += pcrf_sql_queue_to_string( *iter );
+    strReqData += "; ";
   }
 
   g_pcoLog->Dump( "noti", strReqData.c_str() );
@@ -170,37 +120,10 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     coStream.set_commit( 0 );
 
     /* передаем параметры зароса */
-    std::list<SSQLQueueParam>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
+    std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
     LOG_D( "%s: %s: parameter list size: %u", __FUNCTION__, p_psoSQLReqInfo->m_pszReqName, p_psoSQLReqInfo->m_plistParamList->size() );
     for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
-      if ( NULL != iter->m_pvParam ) {
-      } else {
-        iRetVal = EINVAL;
-      }
-      switch ( iter->m_eParamType ) {
-        case m_eSQLParamType_Int:
-          coStream << * reinterpret_cast<otl_value<int>*>(iter->m_pvParam);
-          LOG_D( "%s: %d", __FUNCTION__, reinterpret_cast<otl_value<int>*>( iter->m_pvParam )->v );
-          break;
-        case m_eSQLParamType_UInt:
-          coStream << * reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
-          LOG_D( "%s: %u", __FUNCTION__, reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam )->v );
-          break;
-        case m_eSQLParamType_StdString:
-          coStream << * reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
-          LOG_D( "%s: %s", __FUNCTION__, reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam )->v.c_str() );
-          break;
-        case m_eSQLParamType_Char:
-          coStream << * reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
-          LOG_D( "%s: %s", __FUNCTION__, reinterpret_cast<otl_value<char*>*>( iter->m_pvParam )->v );
-          break;
-        case m_eSQLParamType_OTLDateTime:
-          coStream << * reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
-          LOG_D( "%s: datetime", __FUNCTION__ );
-          break;
-        default:
-          LOG_D( "%s: unsupported parameter type: %u", iter->m_eParamType );
-      }
+      ( *iter )->push_data( coStream );
     }
     coStream.check_end_of_row();
     LOG_D( "commited: %u", coStream.get_rpc() );
@@ -231,34 +154,9 @@ void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
     return;
   }
 
-  std::list<SSQLQueueParam>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
+  std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
   for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
-    if ( NULL != iter->m_pvParam ) {
-      switch ( iter->m_eParamType ) {
-        case m_eSQLParamType_Invalid:
-          break;
-        case m_eSQLParamType_Int:
-          delete reinterpret_cast<otl_value<int>*>( iter->m_pvParam );
-          break;
-        case m_eSQLParamType_UInt:
-          delete reinterpret_cast<otl_value<unsigned>*>( iter->m_pvParam );
-          break;
-        case m_eSQLParamType_StdString:
-          delete reinterpret_cast<otl_value<std::string>*>( iter->m_pvParam );
-          break;
-        case m_eSQLParamType_Char:
-          delete reinterpret_cast<otl_value<char*>*>( iter->m_pvParam );
-          break;
-        case m_eSQLParamType_OTLDateTime:
-          delete reinterpret_cast<otl_value<otl_datetime>*>( iter->m_pvParam );
-          break;
-        default:
-          UTL_LOG_D( *g_pcoLog, "unsupported parameter type: '%u'", iter->m_eParamType );
-          break;
-      }
-      iter->m_eParamType = m_eSQLParamType_Invalid;
-      iter->m_pvParam = NULL;
-    }
+    delete dynamic_cast< SSQLQueueParam* >( *iter );
   }
 
   delete p_psoSQLReqInfo->m_plistParamList;
@@ -345,7 +243,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
             break;
           }
         }
-        pcrf_sql_queue_clean_single( &( *iter ) );
+        pcrf_sql_queue_clean_single( &*iter );
         pthread_mutex_lock( &( psoSQLQueue->m_mutexSQLQueue ) );
         iter = psoSQLQueue->m_listSQLQueue.erase( iter );
         pthread_mutex_unlock( &( psoSQLQueue->m_mutexSQLQueue ) );
@@ -372,7 +270,7 @@ clean_and_exit:
   pthread_exit(NULL);
 }
 
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId )
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
@@ -410,4 +308,10 @@ void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueuePar
   stat_measure( g_psoSQLQueueStat, "enqueued", &coTM );
 
   LOG_D( "leave: %s", __FUNCTION__ );
+}
+
+std::string pcrf_sql_queue_to_string( SSQLQueueParam *p_tParam )
+{
+  std::string strRetVal;
+  return strRetVal;
 }

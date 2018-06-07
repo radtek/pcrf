@@ -368,28 +368,27 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 }
 #endif
 
-/* очередь sql-запросов */
-enum ESQLParamType {
-  m_eSQLParamType_Invalid,
-  m_eSQLParamType_Int,
-  m_eSQLParamType_UInt,
-  m_eSQLParamType_StdString,
-  m_eSQLParamType_Char,
-  m_eSQLParamType_OTLDateTime
-};
 struct SSQLQueueParam {
-  ESQLParamType m_eParamType;
-  void *m_pvParam;
-  SSQLQueueParam( ESQLParamType p_eParamType, void *p_pvParam ) : m_eParamType( p_eParamType ), m_pvParam( p_pvParam ) { }
+  virtual void push_data( otl_stream & ) = 0;
+  virtual void push_data( otl_nocommit_stream & ) = 0;
+  virtual ~SSQLQueueParam() = 0;
 };
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL );
+
+template<class T>
+struct SSQLData : public SSQLQueueParam {
+  T m_tParam;
+  SSQLData( T &p_tParam ) : m_tParam( p_tParam ) { }
+  void push_data( otl_stream &p_coStream ) { p_coStream << m_tParam; }
+  void push_data( otl_nocommit_stream &p_coStream ) { p_coStream << m_tParam; }
+};
+
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL );
 
 template <class T>
-void pcrf_sql_queue_add_param( std::list<SSQLQueueParam> *p_plistParameters, const T &p_tParam, ESQLParamType p_eSQLParamType )
+void pcrf_sql_queue_add_param( std::list<SSQLQueueParam*> *p_plistParameters, T &p_tParam )
 {
-  T *tParam = new T( p_tParam );
-  SSQLQueueParam soParam( p_eSQLParamType, tParam );
-  p_plistParameters->push_back( soParam );
+  SSQLData<T> *ptParam = new SSQLData<T>( p_tParam );
+  p_plistParameters->push_back( ptParam );
 }
 
 /* отправка запроса на предоставление данных Usage-Monitoring */
