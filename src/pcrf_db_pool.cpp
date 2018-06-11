@@ -68,7 +68,7 @@ int pcrf_db_pool_init (void)
 			}
 			psoLast = psoTmp;
 			/* создаем объект класса подключения к БД */
-			psoTmp->m_pcoDBConn = new otl_connect;
+			psoTmp->m_pcoDBConn = new otl_connect();
 			psoTmp->m_pcoDBConn->otl_initialize(1);
 #ifdef DEBUG
 			psoTmp->m_pcoTM = new CTimeMeasurer();

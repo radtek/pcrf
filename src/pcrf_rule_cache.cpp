@@ -148,7 +148,6 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         CHECK_FCT_DO( load_rule_flows( pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr ), /* continue */ );
         /* сохраняем правило в локальном хранилище */
         p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_coRuleName.v, soAbonRule ) );
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();
@@ -174,7 +173,6 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
           >> soAbonRule.m_coSCE_RealTimeMonitor;
         CHECK_FCT_DO(load_sce_rule_mk(pcoDBConn, uiRuleId, soAbonRule.m_vectMonitKey), /* continue */);
         p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
       }
     }
     coStream.close();

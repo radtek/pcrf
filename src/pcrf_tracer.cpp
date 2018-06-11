@@ -103,6 +103,7 @@ static void pcrf_tracer (
     { UTL_LOG_E( *g_pcoLog, "Error while dumping a message" ); return; } );
 
   /* добываем необходимые значения из запроса */
+  uint32_t    ui32ApplicationId = 0;
   std::string strSessionId;
   std::string strOriginHost;
   std::string strOriginReal;
@@ -126,6 +127,9 @@ static void pcrf_tracer (
       continue;
     }
     switch ( psoAVPHdr->avp_code ) {
+      case 258: /* Auth-Application-Id */
+        ui32ApplicationId = psoAVPHdr->avp_value->u32;
+        break;  /* Auth-Application-Id */
       case 263: /* Session-Id */
         if ( NULL != psoAVPHdr->avp_value ) {
           strSessionId.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
@@ -189,7 +193,7 @@ static void pcrf_tracer (
   stat_measure( g_psoReqStat, strRequestType.c_str(), NULL );
 
   /* если нет необходимости трассировки */
-  if (0 == g_psoConf->m_iTraceReq) {
+  if (0 == g_psoConf->m_iTraceReq || ui32ApplicationId == 16777236 ) {
     if ( NULL != pmcBuf ) {
       fd_cleanup_buffer( pmcBuf );
     }

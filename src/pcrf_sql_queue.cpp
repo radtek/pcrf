@@ -9,8 +9,6 @@ static volatile int g_iWork;
 /* функция обработки очереди запросов */
 static void * pcrf_sql_queue_oper(void *);
 
-std::string pcrf_sql_queue_to_string( SSQLQueueParam *p_tParam );
-
 struct SSQLRequestInfo
 {
   const char *m_pszRequest;
@@ -82,18 +80,11 @@ void pcrf_sql_queue_fini()
 static void pcrf_sql_queue_dump_request( const char *p_pszStatementText, const SSQLRequestInfo *p_psoSQLReqInfo )
 {
   std::string strReqData;
-  std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
   char mcValue[256];
   int iFnRes;
 
   strReqData = "statement name: ";
   strReqData += p_pszStatementText;
-
-  for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
-    strReqData += '\t';
-    strReqData += pcrf_sql_queue_to_string( *iter );
-    strReqData += "; ";
-  }
 
   g_pcoLog->Dump( "noti", strReqData.c_str() );
 }
@@ -118,6 +109,7 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
   try {
     otl_stream coStream( 1, p_psoSQLReqInfo->m_pszRequest, *p_pcoDBConn, NULL, p_psoSQLReqInfo->m_pszReqName );
     coStream.set_commit( 0 );
+    coStream.set_flush( false );
 
     /* передаем параметры зароса */
     std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
@@ -128,7 +120,7 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
     coStream.check_end_of_row();
     LOG_D( "commited: %u", coStream.get_rpc() );
     stat_measure( g_psoSQLQueueStat, "operated", &coTM );
-#ifdef _DEBUG
+#ifdef DEBUG
     stat_measure( g_psoSQLQueueStat, p_psoSQLReqInfo->m_pszReqName, &coTM );
 #endif
     coStream.close();
@@ -216,20 +208,25 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
         /* выполняем очередной запрос */
         if ( 0 == pcrf_sql_queue_oper_single( pcoDBConn, &( *iter ) ) ) {
           bShouldCommit = true;
-          if ( ++iCount > 100 ) {
+          ++iCount;
+          if ( iCount > 100 ) {
+            pcoDBConn->commit();
+            bShouldCommit = false;
+            LOG_D( "%s: '%u' records is commited due the maximum number of uncommitted records was exceeded", __FUNCTION__, iCount );
+            iCount = 0;
+          } else if ( iCount > 10 ) {
             /* запрашиваем текущее время */
             CHECK_FCT_DO( gettimeofday( &soTVNow, NULL ), break );
             /* если прошло достаточное время с момента последнего коммита */
             if ( soTVLastCommit.tv_sec < soTVNow.tv_sec && soTVLastCommit.tv_usec <= soTVNow.tv_usec
-              || soTVLastCommit.tv_sec + 1 < soTVNow.tv_sec )
-            {
+              || soTVLastCommit.tv_sec + 1 < soTVNow.tv_sec ) {
               /* выполняем коммит */
+              LOG_D( "%s: commited '%u' by timeout", __FUNCTION__, iCount );
               pcoDBConn->commit();
+              bShouldCommit = false;
               /* запоминаем время последнего коммита */
               soTVLastCommit = soTVNow;
-              bShouldCommit = false;
             }
-            iCount = 0;
           }
         } else {
           /* при обработке возникла ошибка,
@@ -251,6 +248,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
       /* выполняем коммит после завершения обработки очередной порции запросов из очереди */
       if ( bShouldCommit ) {
         pcoDBConn->commit();
+        LOG_D( "%s: '%u' rows was commited", __FUNCTION__, iCount );
       }
     } else {
       goto clean_and_exit;
@@ -308,10 +306,4 @@ void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueuePar
   stat_measure( g_psoSQLQueueStat, "enqueued", &coTM );
 
   LOG_D( "leave: %s", __FUNCTION__ );
-}
-
-std::string pcrf_sql_queue_to_string( SSQLQueueParam *p_tParam )
-{
-  std::string strRetVal;
-  return strRetVal;
 }

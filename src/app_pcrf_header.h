@@ -371,7 +371,7 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 struct SSQLQueueParam {
   virtual void push_data( otl_stream & ) = 0;
   virtual void push_data( otl_nocommit_stream & ) = 0;
-  virtual ~SSQLQueueParam() = 0;
+  virtual ~SSQLQueueParam() { }
 };
 
 template<class T>
