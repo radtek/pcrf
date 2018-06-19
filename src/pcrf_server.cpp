@@ -2078,7 +2078,7 @@ int pcrf_procera_change_uli( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soReqDat
   for ( std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter ) {
     CHECK_FCT_DO( pcrf_procera_db_load_location_rule( p_pcoDBConn, iter->m_coSessionId, vectOldRule ), break );
     *soReqInfo.m_psoSessInfo = *iter;
-    CHECK_FCT_DO( pcrf_client_rar( soReqInfo, &vectOldRule, vectNewRule, NULL, NULL, 0 ), break );
+    CHECK_FCT_DO( pcrf_client_gx_rar( soReqInfo, &vectOldRule, vectNewRule, NULL, NULL, 0 ), break );
   }
   pcrf_server_DBStruct_cleanup( &soReqInfo );
 

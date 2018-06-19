@@ -292,26 +292,25 @@ int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
 struct SRARResult {
   pthread_mutex_t m_mutexWait;
   int m_iResultCode;
-  bool m_bInit;
-  SRARResult() : m_bInit(false), m_iResultCode(0)
+  int Init ()
   {
     /* инициализируем мьютекс */
-    CHECK_FCT_DO(pthread_mutex_init(&m_mutexWait, NULL), return);
-    m_bInit = true;
+    CHECK_FCT( pthread_mutex_init( &m_mutexWait, NULL ) );
     /* блокируем его, т.к. он создается разблокированным */
-    CHECK_FCT_DO(pthread_mutex_lock(&m_mutexWait), return);
+    CHECK_FCT( pthread_mutex_lock( &m_mutexWait ) );
+
+    return 0;
   }
-  ~SRARResult()
+  void Fini()
   {
-    if (m_bInit) {
-      pthread_mutex_destroy(&m_mutexWait);
-      m_bInit = false;
-    }
+    pthread_mutex_destroy( &m_mutexWait );
   }
+  SRARResult() : m_iResultCode( 0 ) { }
+  ~SRARResult() { }
 };
 
 /* функция для посылки RAR */
-int pcrf_client_rar(
+int pcrf_client_gx_rar(
   SMsgDataForDB p_soReqInfo,
   std::vector<SDBAbonRule> *p_pvectActiveRules,
   std::vector<SDBAbonRule> &p_vectAbonRules,
