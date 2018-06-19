@@ -852,7 +852,7 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
       *pcoDBConn );
     coStream
       << p_coUGWSessionId
-      << soSessInfo.m_uiPeerDialect;
+      << GX_PROCERA;
     while ( ! coStream.eof() ) {
       coStream
         >> soSessInfo.m_coSessionId
