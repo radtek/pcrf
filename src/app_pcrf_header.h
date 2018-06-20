@@ -1,9 +1,4 @@
-﻿#include "pcrf_otl.h"
-#include "utils/log/log.h"
-#include "utils/timemeasurer/timemeasurer.h"
-#include "utils/stat/stat.h"
-
-#include <freeDiameter/extension.h>
+﻿#include <freeDiameter/extension.h>
 #include <stdint.h>
 
 #include <time.h>
@@ -11,6 +6,13 @@
 #include <vector>
 #include <map>
 #include <list>
+
+#include "pcrf_otl.h"
+#include "utils/log/log.h"
+#include "utils/timemeasurer/timemeasurer.h"
+#include "utils/stat/stat.h"
+
+#include "pcrf_session_cache_index.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -336,8 +338,6 @@ void pcrf_session_cache_remove (std::string &p_strSessionId);
 /* передача данных другим нодам */
 struct SSessionCache;
 void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
-/* получение списка session-id по subscriber-id */
-int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId );
 /* получение списка session-id по Framed-IP-Address */
 int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
 int pcrf_session_cache_lock();

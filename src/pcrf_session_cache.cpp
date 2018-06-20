@@ -1,11 +1,3 @@
-#include "app_pcrf.h"
-#include "app_pcrf_header.h"
-
-#include "utils/ps_common.h"
-#include "utils/pspacket/pspacket.h"
-
-#include "pcrf_session_cache_index.h"
-
 #include <semaphore.h>
 #include <pthread.h>
 #include <sys/socket.h>
@@ -13,35 +5,21 @@
 #include <poll.h>
 #include <errno.h>
 #include <list>
-#include <set>
 
 #include <signal.h>
 
+#include "app_pcrf.h"
+#include "app_pcrf_header.h"
+#include "utils/ps_common.h"
+#include "utils/pspacket/pspacket.h"
+#include "pcrf_session_cache.h"
+#include "pcrf_session_cache_index.h"
 #include "utils/log/log.h"
+
 extern CLog *g_pcoLog;
 
 #include "utils/stat/stat.h"
 static SStat *g_psoSessionCacheStat;
-
-struct SSessionCache {
-  otl_value<std::string>  m_coSubscriberId;
-  otl_value<std::string>  m_coFramedIPAddr;
-  otl_value<std::string>  m_coCalledStationId;
-  otl_value<std::string>  m_coIPCANType;
-  otl_value<std::string>  m_coSGSNMCCMNC;
-  otl_value<std::string>  m_coSGSNIPAddr;
-  otl_value<std::string>  m_coRATType;
-  otl_value<std::string>  m_coOriginHost;
-  otl_value<std::string>  m_coOriginRealm;
-  otl_value<std::string>  m_coCGI;
-  otl_value<std::string>  m_coECGI;
-  otl_value<std::string>  m_coTAI;
-  otl_value<std::string>  m_coIMEISV;
-  otl_value<std::string>  m_coEndUserIMSI;
-  int32_t                 m_iIPCANType;
-  int32_t                 m_iRATType;
-  SSessionCache() : m_iIPCANType(0), m_iRATType(0) { }
-};
 
 struct SNode {
 	DiamId_t  m_diamid;
@@ -54,11 +32,6 @@ struct SNode {
 
 /* хранилище для информации о сессиях */
 static std::map<std::string,SSessionCache*> *g_pmapSessionCache;
-static std::map<std::string,std::list<std::string> > *g_pmapParent;
-static std::map<std::string,std::string> *g_pmapChild;
-/* индекс хранилища сессий по subscriber-id */
-/* ключ - subscriber-id, значение - список сессий */
-static std::map<std::string, std::set<std::string> > *g_pmapSubscriberId;
 
 /* массив мьютексов для организации доступа к хранилищу с приоритетами */
 static pthread_mutex_t g_mutexSessionCache;
@@ -122,9 +95,6 @@ int pcrf_session_cache_init( pthread_t *p_ptThread )
   g_psoSessionCacheStat = stat_get_branch ("session cache");
   /* создаем кеш сессий */
   g_pmapSessionCache = new std::map<std::string,SSessionCache*>;
-  g_pmapParent = new std::map<std::string,std::list<std::string> >;
-  g_pmapChild = new std::map<std::string,std::string>;
-  g_pmapSubscriberId = new std::map<std::string, std::set<std::string> >;
   /* загружаем список сессий из БД */
   CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_cache_load_session_list, NULL ) );
   /* создаем список нод */
@@ -138,12 +108,8 @@ int pcrf_session_cache_init( pthread_t *p_ptThread )
 
   UTL_LOG_N( *g_pcoLog,
     "session cache is initialized successfully!\n"
-    "\tsession storage capasity is '%u' records\n"
-    "\tparent link storage capasity is '%u' records\n"
-    "\tchild link storage capasity is '%u' records",
-    g_pmapSessionCache->max_size(),
-    g_pmapParent->max_size(),
-    g_pmapChild->max_size() );
+    "\tsession cache capasity is '%u' records\n",
+    g_pmapSessionCache->max_size() );
 
   CHECK_FCT( fd_event_trig_regcb( SIGUSR1, "app_pcrf", sig_oper ) );
 
@@ -168,15 +134,6 @@ void pcrf_session_cache_fini (void)
       }
     }
     delete g_pmapSessionCache;
-  }
-  if (NULL != g_pmapParent) {
-    delete g_pmapParent;
-  }
-  if (NULL != g_pmapChild) {
-    delete g_pmapChild;
-  }
-  if ( NULL != g_pmapSubscriberId ) {
-    delete g_pmapSubscriberId;
   }
   /* освобождаем ресурсы нод */
   pcrf_session_cache_fini_node ();
@@ -203,123 +160,10 @@ int pcrf_make_timespec_timeout (timespec &p_soTimeSpec, uint32_t p_uiSec, uint32
   return 0;
 }
 
-static inline void pcrf_session_cache_update_child (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo)
-{
-  std::map<std::string,std::list<std::string> >::iterator iterParent = g_pmapParent->find (p_strSessionId);
-  std::list<std::string>::iterator iterList;
-  std::map<std::string,SSessionCache*>::iterator iterCache;
-
-  if (iterParent != g_pmapParent->end()) {
-    for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
-      iterCache = g_pmapSessionCache->find (*iterList);
-      if (iterCache != g_pmapSessionCache->end ()) {
-        if (! p_psoSessionInfo->m_coSubscriberId.is_null())     iterCache->second->m_coSubscriberId    = p_psoSessionInfo->m_coSubscriberId;
-        if (! p_psoSessionInfo->m_coFramedIPAddr.is_null())     iterCache->second->m_coFramedIPAddr    = p_psoSessionInfo->m_coFramedIPAddr;
-        if (! p_psoSessionInfo->m_coCalledStationId.is_null())  iterCache->second->m_coCalledStationId = p_psoSessionInfo->m_coCalledStationId;
-        if (! p_psoSessionInfo->m_coIPCANType.is_null())        iterCache->second->m_coIPCANType       = p_psoSessionInfo->m_coIPCANType;
-                                                                iterCache->second->m_iIPCANType        = p_psoSessionInfo->m_iIPCANType;
-        if (! p_psoSessionInfo->m_coSGSNMCCMNC.is_null())       iterCache->second->m_coSGSNMCCMNC      = p_psoSessionInfo->m_coSGSNMCCMNC;
-        if (! p_psoSessionInfo->m_coSGSNIPAddr.is_null())       iterCache->second->m_coSGSNIPAddr      = p_psoSessionInfo->m_coSGSNIPAddr;
-        if (! p_psoSessionInfo->m_coRATType.is_null())          iterCache->second->m_coRATType         = p_psoSessionInfo->m_coRATType;
-                                                                iterCache->second->m_iRATType          = p_psoSessionInfo->m_iRATType;
-        if (! p_psoSessionInfo->m_coCGI.is_null())              iterCache->second->m_coCGI             = p_psoSessionInfo->m_coCGI;
-        if (! p_psoSessionInfo->m_coECGI.is_null())             iterCache->second->m_coECGI            = p_psoSessionInfo->m_coECGI;
-        if (! p_psoSessionInfo->m_coTAI.is_null())              iterCache->second->m_coTAI             = p_psoSessionInfo->m_coTAI;
-      }
-    }
-  }
-}
-
-static inline void pcrf_session_cache_rm_parent2child_link (std::string &p_strSessionId, std::string &p_strParentSessionId)
-{
-  std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
-  if (iter != g_pmapParent->end()) {
-    for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
-      if (*iterLst == p_strSessionId) {
-        iterLst = iter->second.erase (iterLst);
-      } else {
-        ++iterLst;
-      }
-    }
-  }
-}
-
-static inline void pcrf_session_cache_mk_parent2child (std::string &p_strSessionId, std::string &p_strParentSessionId)
-{
-  std::map<std::string,std::list<std::string> >::iterator iter = g_pmapParent->find (p_strParentSessionId);
-  if (iter != g_pmapParent->end ()) {
-    iter->second.push_back (p_strSessionId);
-  } else {
-    std::list<std::string> lst;
-    lst.push_back (p_strSessionId);
-    g_pmapParent->insert (std::pair<std::string,std::list<std::string> > (p_strParentSessionId, lst));
-  }
-}
-
-static inline void pcrf_session_cache_mk_link2parent (std::string &p_strSessionId, std::string *p_pstrParentSessionId)
-{
-  if (NULL != p_pstrParentSessionId) {
-  } else {
-    return;
-  }
-  /* создаем линк к дочернему элементу */
-  pcrf_session_cache_mk_parent2child (p_strSessionId, *p_pstrParentSessionId);
-
-  /* создаем линк к родителю */
-  std::pair<std::map<std::string,std::string>::iterator,bool> pair;
-  pair = g_pmapChild->insert (std::pair<std::string,std::string> (p_strSessionId, *p_pstrParentSessionId));
-  /* если связка уже существует */
-  if (! pair.second) {
-    /* если отношения между родительской и дочерней сессией не изменились */
-    if (pair.first != g_pmapChild->end()) {
-      if (pair.first->second == (*p_pstrParentSessionId)) {
-      } else {
-        UTL_LOG_N(*g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str());
-        pcrf_session_cache_rm_parent2child_link(p_strSessionId, pair.first->second);
-        pair.first->second = *p_pstrParentSessionId;
-        pcrf_session_cache_mk_parent2child(p_strSessionId, *p_pstrParentSessionId);
-      }
-    } else {
-      UTL_LOG_E(*g_pcoLog, "insertion of child2parent link failed: map: size: '%u'; max size: '%u'", g_pmapChild->size(), g_pmapChild->max_size());
-    }
-  }
-}
-
-static inline void pcrf_session_cache_remove_link (std::string &p_strSessionId)
-{
-  std::map<std::string,std::list<std::string> >::iterator iterParent;
-  std::list<std::string>::iterator iterList;
-  std::map<std::string,std::string>::iterator iterChild;
-
-  iterParent = g_pmapParent->find (p_strSessionId);
-  /* если сессия родительская */
-  if (iterParent != g_pmapParent->end ()) {
-    /* обходим список всех дочерних сессий */
-    for (iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList) {
-      /* ищем и удаляем дочернюю сессию */
-      iterChild = g_pmapChild->find (*iterList);
-      if (iterChild != g_pmapChild->end() && iterChild->second == p_strSessionId) {
-        g_pmapChild->erase (iterChild);
-      }
-    }
-    g_pmapParent->erase(iterParent);
-  } else {
-    iterChild = g_pmapChild->find (p_strSessionId);
-    /* если сессия дочерняя */
-    if (iterChild != g_pmapChild->end ()) {
-      /* удаляем связку родительской сессии */
-      pcrf_session_cache_rm_parent2child_link (p_strSessionId, iterChild->second);
-      /* удаляем связку с родетельской сессией */
-      g_pmapChild->erase (iterChild);
-    }
-  }
-}
-
 static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, std::string *p_pstrParentSessionId )
 {
   CTimeMeasurer coTM;
   std::pair<std::map<std::string,SSessionCache*>::iterator,bool> insertResult;
-  std::pair<std::map<std::string, std::set<std::string> >::iterator, bool> insertSubscrIdRes;
   int iPrio;
 
   /* дожидаемся завершения всех операций */
@@ -345,16 +189,7 @@ static inline void pcrf_session_cache_insert_local (std::string &p_strSessionId,
 
   /* создаем индекс по subscriber-id */
   if ( p_psoSessionInfo && 0 == p_psoSessionInfo->m_coSubscriberId.is_null() ) {
-    std::set<std::string> setSessionIdList;
-
-    setSessionIdList.insert( p_strSessionId );
-    insertSubscrIdRes = g_pmapSubscriberId->insert( std::pair < std::string, std::set<std::string> >( p_psoSessionInfo->m_coSubscriberId.v, setSessionIdList ) );
-    if ( insertSubscrIdRes.second ) {
-      /* если создана новая запись */
-    } else {
-      /* если запись уже существует */
-      insertSubscrIdRes.first->second.insert( p_strSessionId );
-    }
+    pcrf_session_cache_index_subscriberId_insert_session( p_psoSessionInfo->m_coSubscriberId.v, p_strSessionId );
   }
 
   /* сохраняем связку между сессиями */
@@ -744,18 +579,6 @@ clean_and_exit:
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
   return iRetVal;
-}
-
-static void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubscriberId, std::string &p_strSessionId )
-{
-  std::map<std::string, std::set<std::string> >::iterator iter = g_pmapSubscriberId->find( p_strSubscriberId );
-
-  if ( iter != g_pmapSubscriberId->end() ) {
-    std::set<std::string>::iterator iterSessId = iter->second.find( p_strSessionId );
-    if ( iterSessId != iter->second.end() ) {
-      iter->second.erase( iterSessId );
-    }
-  }
 }
 
 static void pcrf_session_cache_remove_local (std::string &p_strSessionId)
@@ -1354,34 +1177,6 @@ static void * pcrf_session_cache_load_session_list( void * )
   pthread_exit( piRetVal );
 }
 
-int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId )
-{
-  LOG_D( "enter: %s; subscriber-id: %s", __FUNCTION__, p_strSubscriberId.c_str() );
-
-  int iRetVal = 0;
-  std::map<std::string, std::set<std::string> >::iterator iter;
-
-  CHECK_FCT_DO( ( iRetVal = pthread_mutex_lock( &g_mutexSessionCache ) ), goto clean_and_exit );
-
-  iter = g_pmapSubscriberId->find( p_strSubscriberId );
-
-  if ( iter != g_pmapSubscriberId->end() ) {
-    for ( std::set<std::string>::iterator iterList = iter->second.begin(); iterList != iter->second.end(); ++ iterList ) {
-      p_vectSessionId.push_back( *iterList );
-    }
-    LOG_D( "session list size: %d", p_vectSessionId.size() );
-  } else {
-    iRetVal = 1403;
-  }
-
-  clean_and_exit:
-  pthread_mutex_unlock( &g_mutexSessionCache );
-
-  LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
-
-  return iRetVal;
-}
-
 int pcrf_session_cache_lock()
 {
   CHECK_FCT( pthread_mutex_lock( &g_mutexSessionCache ) );
@@ -1390,4 +1185,32 @@ int pcrf_session_cache_lock()
 void pcrf_session_cache_unlock()
 {
   pthread_mutex_unlock( &g_mutexSessionCache );
+}
+
+void pcrf_session_cache_update_some_values( std::string &p_strSessionId, const SSessionCache *p_psoSomeNewInfo )
+{
+  std::map<std::string, SSessionCache*>::iterator iterCache;
+
+  iterCache = g_pmapSessionCache->find( p_strSessionId );
+
+  if ( iterCache != g_pmapSessionCache->end() ) {
+    if ( ! p_psoSomeNewInfo->m_coSubscriberId.is_null() )    iterCache->second->m_coSubscriberId    = p_psoSomeNewInfo->m_coSubscriberId;
+    if ( ! p_psoSomeNewInfo->m_coFramedIPAddr.is_null() )    iterCache->second->m_coFramedIPAddr    = p_psoSomeNewInfo->m_coFramedIPAddr;
+    if ( ! p_psoSomeNewInfo->m_coCalledStationId.is_null() ) iterCache->second->m_coCalledStationId = p_psoSomeNewInfo->m_coCalledStationId;
+    if ( ! p_psoSomeNewInfo->m_coIPCANType.is_null() )       iterCache->second->m_coIPCANType       = p_psoSomeNewInfo->m_coIPCANType;
+                                                             iterCache->second->m_iIPCANType        = p_psoSomeNewInfo->m_iIPCANType;
+    if ( ! p_psoSomeNewInfo->m_coSGSNMCCMNC.is_null() )      iterCache->second->m_coSGSNMCCMNC      = p_psoSomeNewInfo->m_coSGSNMCCMNC;
+    if ( ! p_psoSomeNewInfo->m_coSGSNIPAddr.is_null() )      iterCache->second->m_coSGSNIPAddr      = p_psoSomeNewInfo->m_coSGSNIPAddr;
+    if ( ! p_psoSomeNewInfo->m_coRATType.is_null() )         iterCache->second->m_coRATType         = p_psoSomeNewInfo->m_coRATType;
+                                                             iterCache->second->m_iRATType          = p_psoSomeNewInfo->m_iRATType;
+    /* если получены новые данные о локации */
+    if ( 0 == p_psoSomeNewInfo->m_coCGI.is_null()
+      || 0 == p_psoSomeNewInfo->m_coECGI.is_null()
+      || 0 == p_psoSomeNewInfo->m_coTAI.is_null() )
+    {
+                                                             iterCache->second->m_coCGI             = p_psoSomeNewInfo->m_coCGI;
+                                                             iterCache->second->m_coECGI            = p_psoSomeNewInfo->m_coECGI;
+                                                             iterCache->second->m_coTAI             = p_psoSomeNewInfo->m_coTAI;
+    }
+  }
 }
