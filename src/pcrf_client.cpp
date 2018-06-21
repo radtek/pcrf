@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <list>
-#include <unordered_map>
+#include <unordered_set>
 
 extern CLog *g_pcoLog;
 
@@ -28,7 +28,7 @@ extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque);
 
 static pthread_mutex_t g_tLocalQueueMutex;
-static std::unordered_map<std::string, uint32_t> g_mapLocalRefreshQueue;
+static std::unordered_set<std::string> g_setLocalRefreshQueue;
 
 /* функция для обработки просроченного запроса */
 static void pcrf_client_gx_raa_expire (void *p_pvData, DiamId_t p_pDiamId, size_t p_stDiamIdLen, msg **p_ppMsg)
@@ -595,7 +595,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
   std::vector<SRefQueue> vectQueue;
   std::vector<SRefQueue>::iterator iter;
   /* локальная очередь сессий на завершение */
-  std::unordered_map<std::string, uint32_t>::iterator iterLocalQueue;
+  std::unordered_set<std::string>::iterator iterLocalQueue;
   std::list<std::string> listSessionIdList;
   std::list<std::string>::iterator iterSessionIdList;
 
@@ -640,13 +640,13 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     /* блокируем мьютекс */
     CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
     /* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
-    iterLocalQueue = g_mapLocalRefreshQueue.begin();
-    while ( iterLocalQueue != g_mapLocalRefreshQueue.end() ) {
-      listSessionIdList.push_back( iterLocalQueue->first );
+    iterLocalQueue = g_setLocalRefreshQueue.begin();
+    while ( iterLocalQueue != g_setLocalRefreshQueue.end() ) {
+      listSessionIdList.push_back( *iterLocalQueue );
       ++iterLocalQueue;
     }
     /* очищаем локальную очередь */
-    g_mapLocalRefreshQueue.clear();
+    g_setLocalRefreshQueue.clear();
     /* снимаем блокировку мьютекса */
     CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
 
@@ -681,7 +681,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
 void pcrf_local_refresh_queue_add( std::string &p_strSessionId )
 {
   CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
-  g_mapLocalRefreshQueue.insert( std::pair<std::string, uint32_t>( p_strSessionId, 0 ) );
+  g_setLocalRefreshQueue.insert( p_strSessionId );
   CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
 }
 
