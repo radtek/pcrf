@@ -634,7 +634,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     /* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
     iterLocalQueue = g_setLocalRefreshQueue.begin();
     while ( iterLocalQueue != g_setLocalRefreshQueue.end() ) {
-      listSessionIdList.push_back( iterLocalQueue->first );
+      listSessionIdList.push_back( *iterLocalQueue );
       ++iterLocalQueue;
     }
     /* очищаем локальную очередь */
