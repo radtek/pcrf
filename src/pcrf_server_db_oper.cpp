@@ -26,7 +26,7 @@ int pcrf_server_DBstruct_init (struct SMsgDataForDB *p_psoMsgToDB)
 	return iRetVal;
 }
 
-int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_psoMsgInfo )
+int pcrf_server_req_db_store( struct SMsgDataForDB *p_psoMsgInfo )
 {
   /* проверка параметров */
   if ( NULL != p_psoMsgInfo->m_psoSessInfo && NULL != p_psoMsgInfo->m_psoReqInfo ) {
@@ -45,7 +45,7 @@ int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_
         break;
       case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
         /* закрываем открытые записи о локациях */
-        pcrf_server_db_close_user_loc( p_psoMsgInfo->m_psoSessInfo->m_coSessionId );
+        pcrf_server_db_close_user_loc( p_psoMsgInfo->m_psoSessInfo->m_strSessionId );
       case UPDATE_REQUEST: /* UPDATE_REQUEST */
       case EVENT_REQUEST: /* EVENT_REQUEST */
         /* выполянем запрос на обновление записи */
@@ -53,7 +53,7 @@ int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_
         otl_value<otl_datetime> coTimeLast;
 
         pcrf_fill_otl_datetime( coTimeLast, NULL );
-        pcrf_db_update_session( p_psoMsgInfo->m_psoSessInfo->m_coSessionId, p_psoMsgInfo->m_psoSessInfo->m_coTimeEnd, coTimeLast, p_psoMsgInfo->m_psoSessInfo->m_coTermCause );
+        pcrf_db_update_session( p_psoMsgInfo->m_psoSessInfo->m_strSessionId, p_psoMsgInfo->m_psoSessInfo->m_coTimeEnd, coTimeLast, p_psoMsgInfo->m_psoSessInfo->m_coTermCause );
         /* для TERMINATION_REQUEST информацию о локациях не сохраняем */
         if ( p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType != TERMINATION_REQUEST ) {
           /* сохраняем в БД данные о локации абонента */
@@ -83,14 +83,14 @@ void pcrf_server_policy_db_store( SMsgDataForDB *p_psoMsgInfo )
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		/* сначала фиксируем информацию, полученную в запросе */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-      pcrf_db_close_session_rule( *( p_psoMsgInfo->m_psoSessInfo ), iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
+      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
     }
 		/* потом закрываем оставшиеся правила */
-    pcrf_db_close_session_rule_all( p_psoMsgInfo->m_psoSessInfo->m_coSessionId );
+    pcrf_db_close_session_rule_all( p_psoMsgInfo->m_psoSessInfo->m_strSessionId );
 		break;
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
 		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-      pcrf_db_close_session_rule( *( p_psoMsgInfo->m_psoSessInfo ), iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
+      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
     }
 		break;
 	case EVENT_REQUEST: /* EVENT_REQUEST */
@@ -148,7 +148,7 @@ void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
 
   pcrf_fill_otl_datetime( coTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId);
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_strSessionId );
   pcrf_sql_queue_add_param( plistParameters, coSubscriberId );
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginHost );
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginRealm );
@@ -165,11 +165,11 @@ void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
     "values(:session_id/*char[255]*/,:subscriber_id/*char[64]*/,:origin_host/*char[255]*/,:origin_realm/*char[255]*/,:end_user_imsi/*char[32]*/,:end_user_e164/*char[16]*/,:imeisv/*char[20]*/,:start_time/*timestamp*/,:time_last/*timestamp*/,:framed_ip_address/*char[16]*/,:called_station_id/*char[255]*/)",
     plistParameters,
     "insert session",
-    &( p_soSessInfo.m_coSessionId.v ) );
+    &( p_soSessInfo.m_strSessionId ) );
 }
 
 void pcrf_db_update_session (
-  otl_value<std::string> &p_coSessionId,
+  std::string &p_strSessionId,
   otl_value<otl_datetime> &p_coTimeEnd,
   otl_value<otl_datetime> &p_coTimeLast,
   otl_value<std::string> &p_coTermCause )
@@ -179,7 +179,7 @@ void pcrf_db_update_session (
   pcrf_sql_queue_add_param( plistParam, p_coTimeEnd );
   pcrf_sql_queue_add_param( plistParam, p_coTimeLast );
   pcrf_sql_queue_add_param( plistParam, p_coTermCause );
-  pcrf_sql_queue_add_param( plistParam, p_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, p_strSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionList"
@@ -187,7 +187,7 @@ void pcrf_db_update_session (
     " where session_id = :session_id/*char[255]*/",
     plistParam,
     "update session",
-    &( p_coSessionId.v ) );
+    &p_strSessionId );
 }
 
 int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo, int &p_iUpdateRule )
@@ -284,7 +284,7 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
     }
     p_pcoDBConn->commit();
     coStream.close();
-    LOG_D( "Session-Id: %s: usage monitoring information is stored", p_soSessInfo.m_coSessionId.v.c_str() );
+    LOG_D( "Session-Id: %s: usage monitoring information is stored", p_soSessInfo.m_strSessionId.c_str() );
   } catch ( otl_exception &coExcept ) {
     UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
     p_pcoDBConn->rollback();
@@ -305,7 +305,7 @@ void pcrf_db_insert_rule (
 	SDBAbonRule &p_soRule)
 {
   if ( 0 == p_soRule.m_coRuleName.is_null() && 0 < p_soRule.m_coRuleName.v.length() ) {
-    pcrf_session_rule_cache_insert( p_soSessInfo.m_coSessionId.v, p_soRule.m_coRuleName.v );
+    pcrf_session_rule_cache_insert( p_soSessInfo.m_strSessionId, p_soRule.m_coRuleName.v );
   }
 
   std::list<SSQLQueueParam*> *plistParameters = new std::list<SSQLQueueParam*>;
@@ -313,7 +313,7 @@ void pcrf_db_insert_rule (
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coSessionId );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_strSessionId );
   pcrf_sql_queue_add_param( plistParameters, coDateTime );
   pcrf_sql_queue_add_param( plistParameters, p_soRule.m_coRuleName );
 
@@ -323,10 +323,10 @@ void pcrf_db_insert_rule (
     "values (:session_id /*char[255]*/, :time_start/*timestamp*/, :rule_name /*char[255]*/)",
     plistParameters,
     "insert rule",
-    &( p_soSessInfo.m_coSessionId.v ) );
+    &( p_soSessInfo.m_strSessionId ) );
 }
 
-void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
+void pcrf_db_close_session_rule_all ( std::string &p_strSessionId )
 {
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<otl_datetime> coTimeEnd;
@@ -334,21 +334,26 @@ void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
   pcrf_fill_otl_datetime( coTimeEnd, NULL );
 
   pcrf_sql_queue_add_param( plistParam, coTimeEnd );
-  pcrf_sql_queue_add_param( plistParam, p_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, p_strSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionRule set time_end = :time_end/*timestamp*/ where session_id = :session_id /* char[255] */ and time_end is null",
     plistParam,
     "close rule all",
-    &( p_coSessionId.v ) );
+    &p_strSessionId );
 }
 
 void pcrf_db_close_session_rule (
-	SSessionInfo &p_soSessInfo,
+	SSessionInfo *p_psoSessInfo,
 	std::string &p_strRuleName,
   std::string *p_pstrRuleFailureCode)
 {
-  pcrf_session_rule_cache_remove_rule(p_soSessInfo.m_coSessionId.v, p_strRuleName);
+  if ( NULL != p_psoSessInfo ) {
+  } else {
+    return;
+  }
+
+  pcrf_session_rule_cache_remove_rule(p_psoSessInfo->m_strSessionId, p_strRuleName);
 
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<otl_datetime> coTimeEnd;
@@ -364,7 +369,7 @@ void pcrf_db_close_session_rule (
 
   pcrf_sql_queue_add_param( plistParam, coTimeEnd );
   pcrf_sql_queue_add_param( plistParam, coFailureCode );
-  pcrf_sql_queue_add_param( plistParam, p_soSessInfo.m_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, p_psoSessInfo->m_strSessionId );
   pcrf_sql_queue_add_param( plistParam, coRuleName );
 
   pcrf_sql_queue_enqueue(
@@ -379,7 +384,7 @@ void pcrf_db_close_session_rule (
       "and time_end is null",
     plistParam,
     "close rule",
-    &( p_soSessInfo.m_coSessionId.v ) );
+    &p_psoSessInfo->m_strSessionId );
 }
 
 /* загружает идентификатор абонента (subscriber_id) из БД */
@@ -641,23 +646,22 @@ int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strS
   return iRetVal;
 }
 
-void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
+void pcrf_server_db_close_user_loc(std::string &p_strSessionId)
 {
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
-  otl_value<std::string>    coSessionId( p_strSessionId );
   otl_value<otl_datetime>   coDateTime;
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
   /* закрываем все открытые записи */
   pcrf_sql_queue_add_param( plistParam, coDateTime );
-  pcrf_sql_queue_add_param( plistParam, coSessionId );
+  pcrf_sql_queue_add_param( plistParam, p_strSessionId );
 
   pcrf_sql_queue_enqueue(
     "update ps.sessionLocation set time_end = :time_end/*timestamp*/ where time_end is null and session_id = :session_id /*char[255]*/",
     plistParam,
     "close location",
-    &( coSessionId.v ) );
+    &p_strSessionId );
 }
 
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
@@ -669,7 +673,7 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
   }
 
   /* закрываем открытые записи */
-  pcrf_server_db_close_user_loc( p_soMsgInfo.m_psoSessInfo->m_coSessionId );
+  pcrf_server_db_close_user_loc( p_soMsgInfo.m_psoSessInfo->m_strSessionId );
 
   /* добавляем новую запись */
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
@@ -678,7 +682,7 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
 
   pcrf_fill_otl_datetime( coDateTime, NULL );
 
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_strSessionId );
   pcrf_sql_queue_add_param( plistParam, coDateTime);
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress );
@@ -697,7 +701,7 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
     "(:session_id/*char[255]*/, :time_start/*timestamp*/, null, :sgsn_mcc_mnc/*char[10]*/, :sgsn_ip_address/*char[15]*/, :sgsn_ipv6_address/*char[50]*/, :rat_type/*char[50]*/, :ip_can_type/*char[20]*/, :cgi/*char[20]*/, :ecgi/*char[20]*/, :tai/*char[20]*/, :rai/*char[20]*/)",
     plistParam,
     "insert location",
-    &( p_soMsgInfo.m_psoSessInfo->m_coSessionId.v ) );
+    &( p_soMsgInfo.m_psoSessInfo->m_strSessionId ) );
 }
 
 int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo )
@@ -778,7 +782,7 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
 void pcrf_server_db_insert_refqueue (
 	const char *p_pszIdentifierType,
 	const std::string &p_strIdentifier,
-	otl_datetime *p_coDateTime,
+	otl_datetime *p_pcoDateTime,
 	const char *p_pszAction)
 {
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
@@ -793,8 +797,8 @@ void pcrf_server_db_insert_refqueue (
 	if (NULL != p_pszAction) {
 		coAction = p_pszAction;
   }
-	if (NULL != p_coDateTime) {
-		coRefreshDate = *p_coDateTime;
+	if (NULL != p_pcoDateTime) {
+		coRefreshDate = *p_pcoDateTime;
   } else {
     pcrf_fill_otl_datetime( coRefreshDate, NULL );
   }
@@ -813,7 +817,7 @@ void pcrf_server_db_insert_refqueue (
     "insert refresh record" );
 }
 
-int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
+int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
 {
   otl_connect *pcoDBConn;
 
@@ -851,11 +855,11 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
         "and sl.time_end is null",
       *pcoDBConn );
     coStream
-      << p_coUGWSessionId
+      << p_strUGWSessionId
       << GX_PROCERA;
     while ( ! coStream.eof() ) {
       coStream
-        >> soSessInfo.m_coSessionId
+        >> soSessInfo.m_strSessionId
         >> soSessInfo.m_coOriginHost
         >> soSessInfo.m_coOriginRealm;
       p_vectSessList.push_back( soSessInfo );
@@ -879,13 +883,8 @@ int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, st
   return iRetVal;
 }
 
-int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList)
+int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList)
 {
-  if (NULL != p_pcoDBConn && 0 == p_coSessionId.is_null()) {
-  } else {
-    return EINVAL;
-  }
-
 	int iRetVal = 0;
   int iRepeat = 1;
   CTimeMeasurer coTM;
@@ -908,12 +907,12 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std:
       "where session_id = :session_id/*char[256]*/ and time_end is null and rule_name like '/User-Location/%'",
 			*p_pcoDBConn);
 		coStream
-			<< p_coSessionId;
+			<< p_strSessionId;
     while (! coStream.eof()) {
       coStream
         >> soRule.m_coRuleName;
       p_vectRuleList.push_back(soRule);
-      UTL_LOG_D(*g_pcoLog, "rule name: '%s'; session-id: '%s'", soRule.m_coRuleName.v.c_str(), p_coSessionId.v.c_str());
+      UTL_LOG_D(*g_pcoLog, "rule name: '%s'; session-id: '%s'", soRule.m_coRuleName.v.c_str(), p_strSessionId.c_str());
     }
 		coStream.close();
 	} catch (otl_exception &coExcept) {
@@ -935,7 +934,7 @@ void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo )
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
   otl_value<std::string> coSubscriber( p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
 
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coSessionId);
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_strSessionId);
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI );
   pcrf_sql_queue_add_param( plistParam, coSubscriber );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTetheringFlag );
@@ -947,5 +946,5 @@ void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo )
     "values (:session_id/*char[255]*/, :imsi/*char[32]*/, :subscriber_id/*char[64]*/, sysdate, :tethering_status/*unsigned*/, :origin_host/*char[255]*/, :origin_realm/*char[255]*/)",
     plistParam,
     "insert tethering flag",
-    &( p_soMsgInfo.m_psoSessInfo->m_coSessionId.v ) );
+    &( p_soMsgInfo.m_psoSessInfo->m_strSessionId ) );
 }

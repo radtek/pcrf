@@ -301,7 +301,7 @@ int pcrf_rule_cache_get_rule_info(
   if (iter != g_pmapRule->end()) {
     p_soRule = iter->second;
   } else {
-    iRetVal = 1403;
+    iRetVal = ENODATA;
   }
   CHECK_FCT(pthread_mutex_unlock(&g_mutexRuleCache));
 

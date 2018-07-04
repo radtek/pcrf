@@ -80,8 +80,6 @@ void pcrf_sql_queue_fini()
 static void pcrf_sql_queue_dump_request( const char *p_pszStatementText, const SSQLRequestInfo *p_psoSQLReqInfo )
 {
   std::string strReqData;
-  char mcValue[256];
-  int iFnRes;
 
   strReqData = "statement name: ";
   strReqData += p_pszStatementText;

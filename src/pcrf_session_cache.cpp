@@ -71,19 +71,17 @@ static void sig_oper( void )
   LOG_D( "enter into '%s'", __FUNCTION__ );
 
   SSessionInfo soSessionInfo;
-  SRequestInfo soRequestInfo;
-  otl_value<std::string> coSessionId;
+  std::string strSessionId;
   std::list<std::string> listSessionId;
 
-  coSessionId.v = "session-id";
-  coSessionId.set_non_null();
+  strSessionId = "session-id";
   soSessionInfo.m_coFramedIPAddress = "1.2.3.4";
 
-  pcrf_session_cache_insert( coSessionId, soSessionInfo, soRequestInfo, NULL );
-  pcrf_session_cache_insert( coSessionId, soSessionInfo, soRequestInfo, NULL );
+  pcrf_session_cache_insert( strSessionId, soSessionInfo, NULL, NULL );
+  pcrf_session_cache_insert( strSessionId, soSessionInfo, NULL, NULL );
 
   pcrf_session_cache_index_frameIPAddress_get_sessionList( soSessionInfo.m_coFramedIPAddress.v, listSessionId );
-  pcrf_session_cache_remove( coSessionId.v );
+  pcrf_session_cache_remove( strSessionId );
   pcrf_session_cache_index_frameIPAddress_get_sessionList( soSessionInfo.m_coFramedIPAddress.v, listSessionId );
 
   LOG_D( "leave '%s'", __FUNCTION__ );
@@ -489,11 +487,11 @@ void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, SSessionCache *
   }
 }
 
-void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId)
+void pcrf_session_cache_insert ( std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId)
 {
   CTimeMeasurer coTM;
   /* проверяем параметры */
-  if (0 == p_coSessionId.is_null()) {
+  if (0 == p_strSessionId.length()) {
   } else {
     return;
   }
@@ -504,27 +502,28 @@ void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionI
   psoTmp->m_coSubscriberId    = p_soSessionInfo.m_strSubscriberId;
   psoTmp->m_coFramedIPAddr    = p_soSessionInfo.m_coFramedIPAddress;
   psoTmp->m_coCalledStationId = p_soSessionInfo.m_coCalledStationId;
-  psoTmp->m_coIPCANType       = p_soRequestInfo.m_soUserEnvironment.m_coIPCANType;
-  psoTmp->m_iIPCANType        = p_soRequestInfo.m_soUserEnvironment.m_iIPCANType;
-  psoTmp->m_coSGSNMCCMNC      = p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC;
-  psoTmp->m_coSGSNIPAddr      = p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress;
-  psoTmp->m_coRATType         = p_soRequestInfo.m_soUserEnvironment.m_coRATType;
-  psoTmp->m_iRATType          = p_soRequestInfo.m_soUserEnvironment.m_iRATType;
   psoTmp->m_coOriginHost      = p_soSessionInfo.m_coOriginHost;
   psoTmp->m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
-  psoTmp->m_coCGI             = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI;
-  psoTmp->m_coECGI            = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI;
-  psoTmp->m_coTAI             = p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI;
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
-
-  pcrf_session_cache_cmd2remote( p_coSessionId.v, psoTmp, static_cast<uint16_t>( PCRF_CMD_INSERT_SESSION ), p_pstrParentSessionId );
-  pcrf_session_cache_insert_local( p_coSessionId.v, psoTmp, p_pstrParentSessionId );
+  if ( NULL != p_psoRequestInfo ) {
+    psoTmp->m_coIPCANType  = p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType;
+    psoTmp->m_iIPCANType   = p_psoRequestInfo->m_soUserEnvironment.m_iIPCANType;
+    psoTmp->m_coSGSNMCCMNC = p_psoRequestInfo->m_soUserEnvironment.m_coSGSNMCCMNC;
+    psoTmp->m_coSGSNIPAddr = p_psoRequestInfo->m_soUserEnvironment.m_coSGSNAddress;
+    psoTmp->m_coRATType    = p_psoRequestInfo->m_soUserEnvironment.m_coRATType;
+    psoTmp->m_iRATType     = p_psoRequestInfo->m_soUserEnvironment.m_iRATType;
+    psoTmp->m_coCGI        = p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI;
+    psoTmp->m_coECGI       = p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI;
+    psoTmp->m_coTAI        = p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI;
+  }
+  pcrf_session_cache_cmd2remote( p_strSessionId, psoTmp, static_cast<uint16_t>( PCRF_CMD_INSERT_SESSION ), p_pstrParentSessionId );
+  pcrf_session_cache_insert_local( p_strSessionId, psoTmp, p_pstrParentSessionId );
 
   return;
 }
 
-int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo)
+int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo *p_psoRequestInfo)
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
@@ -538,34 +537,37 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessi
   /* запрашиваем информацию о сессии из кеша */
   iter = g_pmapSessionCache->find (p_strSessionId);
   if (iter != g_pmapSessionCache->end ()) {
-    if ( p_soSessionInfo.m_coSessionId.is_null() )                      p_soSessionInfo.m_coSessionId                         = p_strSessionId;
     if (! iter->second->m_coSubscriberId.is_null ()) {
       p_soSessionInfo.m_strSubscriberId = iter->second->m_coSubscriberId.v;
     } else {
       p_soSessionInfo.m_strSubscriberId = "";
     }
-    if (p_soSessionInfo.m_coFramedIPAddress.is_null())                  p_soSessionInfo.m_coFramedIPAddress                   = iter->second->m_coFramedIPAddr;
-    if (p_soSessionInfo.m_coCalledStationId.is_null())                  p_soSessionInfo.m_coCalledStationId                   = iter->second->m_coCalledStationId;
-    if (p_soRequestInfo.m_soUserEnvironment.m_coIPCANType.is_null())    p_soRequestInfo.m_soUserEnvironment.m_coIPCANType     = iter->second->m_coIPCANType;
-                                                                        p_soRequestInfo.m_soUserEnvironment.m_iIPCANType      = iter->second->m_iIPCANType;
-    if (p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC.is_null())   p_soRequestInfo.m_soUserEnvironment.m_coSGSNMCCMNC    = iter->second->m_coSGSNMCCMNC;
-    if (p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress.is_null())  p_soRequestInfo.m_soUserEnvironment.m_coSGSNAddress   = iter->second->m_coSGSNIPAddr;
-    if (p_soRequestInfo.m_soUserEnvironment.m_coRATType.is_null())      p_soRequestInfo.m_soUserEnvironment.m_coRATType       = iter->second->m_coRATType;
-                                                                        p_soRequestInfo.m_soUserEnvironment.m_iRATType        = iter->second->m_iRATType;
-    if (p_soSessionInfo.m_coOriginHost.is_null())                       p_soSessionInfo.m_coOriginHost                        = iter->second->m_coOriginHost;
-    if (p_soSessionInfo.m_coOriginRealm.is_null())                      p_soSessionInfo.m_coOriginRealm                       = iter->second->m_coOriginRealm;
-    /* если в запросе не было информации о лоакции */
-    if ( p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI.is_null()
-      && p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI.is_null()
-      && p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI.is_null() )
-    {
-      /* берем данные из кеша */
-      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coCGI  = iter->second->m_coCGI;
-      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coECGI = iter->second->m_coECGI;
-      p_soRequestInfo.m_soUserEnvironment.m_soUsrLoc.m_coTAI  = iter->second->m_coTAI;
+    if ( p_soSessionInfo.m_strSessionId.length() == 0 )                      p_soSessionInfo.m_strSessionId                        = p_strSessionId;
+    if ( p_soSessionInfo.m_coFramedIPAddress.is_null() )                     p_soSessionInfo.m_coFramedIPAddress                   = iter->second->m_coFramedIPAddr;
+    if ( p_soSessionInfo.m_coCalledStationId.is_null() )                     p_soSessionInfo.m_coCalledStationId                   = iter->second->m_coCalledStationId;
+    if ( p_soSessionInfo.m_coOriginHost.is_null() )                          p_soSessionInfo.m_coOriginHost                        = iter->second->m_coOriginHost;
+    if ( p_soSessionInfo.m_coOriginRealm.is_null() )                         p_soSessionInfo.m_coOriginRealm                       = iter->second->m_coOriginRealm;
+    if ( p_soSessionInfo.m_coIMEI.is_null() )                                p_soSessionInfo.m_coIMEI                              = iter->second->m_coIMEISV;
+    if ( p_soSessionInfo.m_coEndUserIMSI.is_null() )                         p_soSessionInfo.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
+    if ( NULL != p_psoRequestInfo ) {
+      if ( p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType.is_null() )   p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType   = iter->second->m_coIPCANType;
+                                                                             p_psoRequestInfo->m_soUserEnvironment.m_iIPCANType    = iter->second->m_iIPCANType;
+      if ( p_psoRequestInfo->m_soUserEnvironment.m_coSGSNMCCMNC.is_null() )  p_psoRequestInfo->m_soUserEnvironment.m_coSGSNMCCMNC  = iter->second->m_coSGSNMCCMNC;
+      if ( p_psoRequestInfo->m_soUserEnvironment.m_coSGSNAddress.is_null() ) p_psoRequestInfo->m_soUserEnvironment.m_coSGSNAddress = iter->second->m_coSGSNIPAddr;
+      if ( p_psoRequestInfo->m_soUserEnvironment.m_coRATType.is_null() )     p_psoRequestInfo->m_soUserEnvironment.m_coRATType     = iter->second->m_coRATType;
+                                                                             p_psoRequestInfo->m_soUserEnvironment.m_iRATType      = iter->second->m_iRATType;
+      /* если в запросе не было информации о лоакции */
+      if ( p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI.is_null()
+        && p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI.is_null()
+        && p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI.is_null() )
+      {
+        /* берем данные из кеша */
+        p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI  = iter->second->m_coCGI;
+        p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI = iter->second->m_coECGI;
+        p_psoRequestInfo->m_soUserEnvironment.m_soUsrLoc.m_coTAI  = iter->second->m_coTAI;
+      }
+
     }
-    if (p_soSessionInfo.m_coIMEI.is_null())                             p_soSessionInfo.m_coIMEI                              = iter->second->m_coIMEISV;
-    if (p_soSessionInfo.m_coEndUserIMSI.is_null())                      p_soSessionInfo.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
     stat_measure( g_psoSessionCacheStat, "hit", &coTM );
   } else {
     stat_measure( g_psoSessionCacheStat, "miss", &coTM );

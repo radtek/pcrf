@@ -55,9 +55,7 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
 
   /* формируем общие параметры */
   /* записываем Session-Id */
-  if ( 0 == p_soReqData.m_psoSessInfo->m_coSessionId.is_null() ) {
-    p_strData += p_soReqData.m_psoSessInfo->m_coSessionId.v;
-  }
+  p_strData += p_soReqData.m_psoSessInfo->m_strSessionId;
   p_strData += '\t';
 
   /* формируем временную метку */

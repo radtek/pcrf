@@ -1,11 +1,13 @@
-#include "app_pcrf.h"
-#include "app_pcrf_header.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <list>
 #include <unordered_set>
+
+#include "app_pcrf.h"
+#include "app_pcrf_header.h"
+#include "pcrf_session_cache.h"
 
 extern CLog *g_pcoLog;
 
@@ -129,8 +131,7 @@ static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
 	/* обрабатываем Result-Code */
 	switch (iRC) {
 	case 5002: /* DIAMETER_UNKNOWN_SESSION_ID */
-    otl_value<std::string> coSessionId( strSessionId );
-    pcrf_client_db_fix_staled_sess( coSessionId );
+    pcrf_client_db_fix_staled_sess( strSessionId );
     pcrf_session_cache_remove(strSessionId);
     break;
 	}
@@ -151,13 +152,19 @@ static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
 
 /* отправка Re-Auth сообщения */
 int pcrf_client_gx_rar (
-	SMsgDataForDB p_soReqInfo,
+  SSessionInfo *p_psoSessInfo,
+  SRequestInfo *p_psoReqInfo,
 	std::vector<SDBAbonRule> *p_pvectActiveRules,
-	std::vector<SDBAbonRule> &p_vectAbonRules,
+	std::vector<SDBAbonRule> *p_pvectAbonRules,
   std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
   uint32_t p_uiUsec )
 {
+  if ( NULL != p_psoSessInfo ) {
+  } else {
+    return EINVAL;
+  }
+
 	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
 	msg           *psoReq       = NULL;
@@ -179,10 +186,10 @@ int pcrf_client_gx_rar (
     avp_value soAVPValue;
     avp *psoAVP;
 
-    CHECK_FCT_DO (iRetVal = fd_sess_fromsid_msg ((uint8_t *)p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str (), p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length (), &psoSess, &iIsNew), goto out);
+    CHECK_FCT_DO (iRetVal = fd_sess_fromsid_msg ((uint8_t *)p_psoSessInfo->m_strSessionId.c_str (), p_psoSessInfo->m_strSessionId.length (), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictSessionID, 0, &psoAVP), goto out);
-		soAVPValue.os.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(p_soReqInfo.m_psoSessInfo->m_coSessionId.v.data ()));
-		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coSessionId.v.length ();
+		soAVPValue.os.data = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(p_psoSessInfo->m_strSessionId.data ()));
+		soAVPValue.os.len = p_psoSessInfo->m_strSessionId.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_FIRST_CHILD, psoAVP), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_sess_set (psoReq, psoSess), goto out);
@@ -199,8 +206,8 @@ int pcrf_client_gx_rar (
     avp *psoAVP;
 
     CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictDestHost, 0, &psoAVP), goto out);
-		soAVPValue.os.data = reinterpret_cast<uint8_t*>(const_cast<char*>(p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.data()));
-		soAVPValue.os.len  = p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.length ();
+		soAVPValue.os.data = reinterpret_cast<uint8_t*>(const_cast<char*>(p_psoSessInfo->m_coOriginHost.v.data()));
+		soAVPValue.os.len  = p_psoSessInfo->m_coOriginHost.v.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -211,8 +218,8 @@ int pcrf_client_gx_rar (
     avp *psoAVP;
 
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_new (g_psoDictDestRealm, 0, &psoAVP), goto out);
-		soAVPValue.os.data = reinterpret_cast<uint8_t *>(const_cast<char*>(p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.data()));
-		soAVPValue.os.len = p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.length ();
+		soAVPValue.os.data = reinterpret_cast<uint8_t *>(const_cast<char*>(p_psoSessInfo->m_coOriginRealm.v.data()));
+		soAVPValue.os.len = p_psoSessInfo->m_coOriginRealm.v.length ();
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_setvalue (psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO (iRetVal = fd_msg_avp_add (psoReq, MSG_BRW_LAST_CHILD, psoAVP), goto out);
 	}
@@ -249,7 +256,7 @@ int pcrf_client_gx_rar (
   if (NULL != p_pvectActiveRules) {
     avp *psoAVP;
 
-    psoAVP = pcrf_make_CRR( *( p_soReqInfo.m_psoSessInfo ), *p_pvectActiveRules );
+    psoAVP = pcrf_make_CRR( p_psoSessInfo, *p_pvectActiveRules );
     if (psoAVP) {
       /* put 'Charging-Rule-Remove' into request */
       CHECK_FCT_DO(iRetVal = fd_msg_avp_add(psoReq, MSG_BRW_LAST_CHILD, psoAVP), );
@@ -257,23 +264,23 @@ int pcrf_client_gx_rar (
   }
 
   /* Usage-Monitoring-Information */
-  CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_soReqInfo.m_psoSessInfo ) ), /* continue */ );
+  CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_psoSessInfo ) ), /* continue */ );
 
   /* Charging-Rule-Install */
-  {
+  if ( NULL != p_pvectAbonRules ) {
     avp *psoAVP;
 
-    psoAVP = pcrf_make_CRI( &p_soReqInfo, p_vectAbonRules, psoReq );
-    if (psoAVP) {
+    psoAVP = pcrf_make_CRI( p_psoSessInfo, p_psoReqInfo, *p_pvectAbonRules, psoReq );
+    if ( psoAVP ) {
       /* put 'Charging-Rule-Install' into request */
-      CHECK_FCT_DO((iRetVal = fd_msg_avp_add(psoReq, MSG_BRW_LAST_CHILD, psoAVP)), /* continue */);
+      CHECK_FCT_DO( ( iRetVal = fd_msg_avp_add( psoReq, MSG_BRW_LAST_CHILD, psoAVP ) ), /* continue */ );
     }
   }
 
   LOG_D("Session-Id: '%s'; Origin-Host: '%s'; Origin-Realm: '%s'",
-    p_soReqInfo.m_psoSessInfo->m_coSessionId.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str(),
-    p_soReqInfo.m_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coOriginHost.v.c_str(),
-    p_soReqInfo.m_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : p_soReqInfo.m_psoSessInfo->m_coOriginRealm.v.c_str());
+    p_psoSessInfo->m_strSessionId.c_str(),
+    p_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : p_psoSessInfo->m_coOriginHost.v.c_str(),
+    p_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : p_psoSessInfo->m_coOriginRealm.v.c_str());
 
 
   /* выделяем память для структуры, хранящей состояние сессии (запроса) */
@@ -281,7 +288,7 @@ int pcrf_client_gx_rar (
     psoMsgState = new sess_state;
     psoMsgState->m_psoRARResult = p_psoRARRes;
 
-    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", p_soReqInfo.m_psoSessInfo->m_coSessionId.v.c_str(), psoMsgState->m_psoRARResult);
+    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", p_psoSessInfo->m_strSessionId.c_str(), psoMsgState->m_psoRARResult);
     LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
 
     /* Store this value in the session */
@@ -332,10 +339,10 @@ int pcrf_client_gx_rar_w_SRCause (SSessionInfo &p_soSessInfo)
     avp           *psoAVP;
     avp_value     soAVPValue;
 
-    CHECK_FCT_DO(fd_sess_fromsid_msg((uint8_t *)p_soSessInfo.m_coSessionId.v.data(), p_soSessInfo.m_coSessionId.v.length(), &psoSess, &iIsNew), goto out);
+    CHECK_FCT_DO(fd_sess_fromsid_msg((uint8_t *)p_soSessInfo.m_strSessionId.data(), p_soSessInfo.m_strSessionId.length(), &psoSess, &iIsNew), goto out);
 		CHECK_FCT_DO(fd_msg_avp_new(g_psoDictSessionID, 0, &psoAVP), goto out);
-		soAVPValue.os.data = (uint8_t *)p_soSessInfo.m_coSessionId.v.data();
-		soAVPValue.os.len = p_soSessInfo.m_coSessionId.v.length();
+		soAVPValue.os.data = (uint8_t *)p_soSessInfo.m_strSessionId.data();
+		soAVPValue.os.len = p_soSessInfo.m_strSessionId.length();
 		CHECK_FCT_DO(fd_msg_avp_setvalue(psoAVP, &soAVPValue), goto out);
 		CHECK_FCT_DO(fd_msg_avp_add(psoReq, MSG_BRW_FIRST_CHILD, psoAVP), goto out);
 		CHECK_FCT_DO(fd_msg_sess_set(psoReq, psoSess), goto out);
@@ -467,11 +474,11 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* инициализация структуры хранения данных сообщения */
     CHECK_FCT_DO( pcrf_server_DBstruct_init( &soSessInfo ), goto clear_and_continue );
     /* задаем идентификтор сессии */
-    soSessInfo.m_psoSessInfo->m_coSessionId = *iterSess;
+    soSessInfo.m_psoSessInfo->m_strSessionId = *iterSess;
     /* загружаем из БД информацию о сессии абонента */
     {
       /* ищем информацию о базовой сессии в кеше */
-      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_coSessionId.v, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo ) ) {
+      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, *soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo ) ) {
         goto clear_and_continue;
       }
       /* необходимо определить диалект хоста */
@@ -480,10 +487,10 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
         SSessionInfo soUGWSessInfo;
         std::string strUGWSessionId;
-        if ( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) && 0 == soUGWSessInfo.m_coSessionId.is_null() ) {
-          strUGWSessionId = soUGWSessInfo.m_coSessionId.v;
+        if ( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) ) {
+          strUGWSessionId = soUGWSessInfo.m_strSessionId;
           /* ищем информацию о базовой сессии в кеше */
-          pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, *soSessInfo.m_psoReqInfo );
+          pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo );
         }
       }
     }
@@ -505,7 +512,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       goto clear_and_continue;
     }
     /* загружаем список активных правил */
-    CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_coSessionId.v, vectActive ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, vectActive ), /* continue */ );
     /* формируем список неактуальных правил */
     pcrf_server_select_notrelevant_active( vectAbonRules, vectActive );
     /* формируем список ключей мониторинга */
@@ -514,7 +521,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
     /* проверяем наличие изменений в политиках */
     if ( !pcrf_client_is_any_changes( vectActive, vectAbonRules ) ) {
-      UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
+      UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_strSessionId.c_str() );
       goto clear_and_continue;
     }
 
@@ -566,7 +573,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     }
 
     /* посылаем RAR-запрос */
-    CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo, &vectActive, vectAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, &vectActive, &vectAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
 
     /* освобождаем ресуры*/
     clear_and_continue:
@@ -655,9 +662,8 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     while ( iterSessionIdList != listSessionIdList.end() ) {
       {
         SSessionInfo soSessInfo;
-        SRequestInfo soReqInfo;
 
-        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, soSessInfo, soReqInfo ) ) {
+        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, soSessInfo, NULL ) ) {
           pcrf_client_gx_rar_w_SRCause( soSessInfo );
         }
       }

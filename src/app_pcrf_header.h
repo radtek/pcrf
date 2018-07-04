@@ -1,4 +1,7 @@
-﻿#include <freeDiameter/extension.h>
+﻿#ifndef __APP_PCRF_HEADER_H__
+#define __APP_PCRF_HEADER_H__
+
+#include <freeDiameter/extension.h>
 #include <stdint.h>
 
 #include <time.h>
@@ -7,12 +10,11 @@
 #include <map>
 #include <list>
 
+#include "pcrf_common_data_types.h"
 #include "pcrf_otl.h"
 #include "utils/log/log.h"
 #include "utils/timemeasurer/timemeasurer.h"
 #include "utils/stat/stat.h"
-
-#include "pcrf_session_cache_index.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +26,7 @@ extern "C" {
 #define GX_CISCO_SCE  2
 #define GX_PROCERA    3
 #define GX_ERICSSN    4
+#define RX_IMS       10
 
 /* функции сервера */
 /* кешированные данные из запроса */
@@ -43,8 +46,8 @@ struct SDBMonitoringInfo {
 };
 struct SSessionInfo {
 	unsigned int m_uiPeerDialect;
-	otl_value<std::string> m_coSessionId;
-	std::string m_strSubscriberId;
+	std::string  m_strSessionId;
+	std::string  m_strSubscriberId;
 	otl_value<std::string> m_coOriginHost;
 	otl_value<std::string> m_coOriginRealm;
 	otl_value<uint32_t> m_coOriginStateId;
@@ -58,8 +61,7 @@ struct SSessionInfo {
   uint32_t               m_ui32FramedIPAddress;
 	otl_value<otl_datetime> m_coTimeEnd;
 	otl_value<std::string> m_coTermCause;
-	otl_value<uint32_t> m_coFeatureListId;	/* Feature-List-Id */
-	otl_value<uint32_t> m_coFeatureList;	/* Feature-List */
+  std::list<SSF>         m_listSF; /* Supported-Features */
 	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
@@ -84,16 +86,16 @@ struct SUserLocation {
 /* парсинг 3GPP-User-Location-Info */
 int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserLocationInfo, bool *p_pbLoaded = NULL );
 struct SUserEnvironment {
-	bool m_bLoaded;
-	otl_value<std::string> m_coSGSNMCCMNC;
-	otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
-	otl_value<std::string> m_coSGSNIPv6Address;
-	otl_value<std::string> m_coRATType;
+  bool m_bLoaded;
+  otl_value<std::string> m_coSGSNMCCMNC;
+  otl_value<std::string> m_coSGSNAddress; /* 3GPP-SGSN-Address */
+  otl_value<std::string> m_coSGSNIPv6Address;
+  otl_value<std::string> m_coRATType;
   int32_t m_iRATType;
   otl_value<std::string> m_coIPCANType;
-	int32_t m_iIPCANType;
+  int32_t m_iIPCANType;
   SUserLocation          m_soUsrLoc;
-	SUserEnvironment() : m_bLoaded(false), m_iIPCANType(0), m_iRATType (0) { }
+  SUserEnvironment() : m_bLoaded(false), m_iRATType (0), m_iIPCANType( 0 ) { }
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -173,22 +175,26 @@ struct SDBAbonRule {
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
+
+/* включение Supported-Features в запрос */
+void pcrf_make_SF( msg_or_avp *p_psoAns, std::list<SSF> &p_listSupportedFeatures );
+
 /* сохранение запроса в БД */
 /* формирование даты/времени в структуре OTL, если параметр p_psoTime не задан используется текущее время */
 void pcrf_fill_otl_datetime( otl_value<otl_datetime> &p_coOtlDateTime, tm *p_psoTime );
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
-int pcrf_server_req_db_store( otl_connect *p_pcoDBConn, struct SMsgDataForDB *p_psoMsgInfo );
+int pcrf_server_req_db_store( struct SMsgDataForDB *p_psoMsgInfo );
 void pcrf_server_policy_db_store( SMsgDataForDB *p_psoMsgInfo );
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
 /* закрываем запись в таблице выданных политик */
 void pcrf_db_close_session_rule (
-	SSessionInfo &p_soSessInfo,
+	SSessionInfo *p_psoSessInfo,
 	std::string &p_strRuleName,
   std::string *p_pstrRuleFailureCode = NULL);
 /* закрывает все записи сессии в таблице выданных политик */
-void pcrf_db_close_session_rule_all( otl_value<std::string> &p_coSessionId );
+void pcrf_db_close_session_rule_all( std::string &p_strSessionId );
 /* закрывает все открыте записи сессии в таблице локаций пользователя */
-void pcrf_server_db_close_user_loc( otl_value<std::string> &p_strSessionId );
+void pcrf_server_db_close_user_loc( std::string &p_strSessionId );
 /* добавление записи в таблицу выданых политик */
 void pcrf_db_insert_rule( SSessionInfo &p_soSessInfo, SDBAbonRule &p_soRule );
 
@@ -210,12 +216,12 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
 /* формирование очереди изменения политик */
 int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue );
 /* завершение зависшей сессии */
-void pcrf_client_db_fix_staled_sess (otl_value<std::string> &p_coSessionId);
+void pcrf_client_db_fix_staled_sess( std::string &p_coSessionId );
 /* формирование списка сессий абонента */
 int pcrf_client_db_load_session_list( otl_connect *p_pcoDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList );
 /* обновление записи в таблице сессий */
 void pcrf_db_update_session(
-  otl_value<std::string> &p_coSessionId,
+  std::string &p_strSessionId,
   otl_value<otl_datetime> &p_coTimeEnd,
   otl_value<otl_datetime> &p_coTimeLast,
   otl_value<std::string> &p_coTermCause );
@@ -264,9 +270,9 @@ void pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonR
 void pcrf_make_mk_list( std::vector<SDBAbonRule> &p_vectAbonRules, SSessionInfo *p_psoSessInfo );
 
 /* функция заполнения avp Charging-Rule-Remove */
-struct avp * pcrf_make_CRR( SSessionInfo &p_soSessInfo, std::vector<SDBAbonRule> &p_vectActive );
+struct avp * pcrf_make_CRR( SSessionInfo *p_psoSessInfo, std::vector<SDBAbonRule> &p_vectActive );
 /* функция заполнения avp Charging-Rule-Install */
-struct avp * pcrf_make_CRI( SMsgDataForDB *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules, msg *p_soAns );
+struct avp * pcrf_make_CRI( SSessionInfo *p_psoSessInfo, SRequestInfo *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules, msg *p_soAns );
 /* функция заполнения avp Usage-Monitoring-Information */
 int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bIsNeedUMR = false );
 /* запись TETHERING_REPORT в БД */
@@ -313,9 +319,10 @@ struct SRARResult {
 
 /* функция для посылки RAR */
 int pcrf_client_gx_rar(
-  SMsgDataForDB p_soReqInfo,
+  SSessionInfo *p_psoSessInfo,
+  SRequestInfo *p_psoReqInfo,
   std::vector<SDBAbonRule> *p_pvectActiveRules,
-  std::vector<SDBAbonRule> &p_vectAbonRules,
+  std::vector<SDBAbonRule> *p_pvectAbonRules,
   std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
   uint32_t p_uiUsec );
@@ -324,24 +331,10 @@ int pcrf_client_gx_rar(
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
 
 /* загрузка активных сессий Procera по ip-адресу */
-int pcrf_procera_db_load_sess_list( otl_value<std::string> &p_coUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
+int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
 
 /* функция для закрытия всех правил локации сессии Procera */
-int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, otl_value<std::string> &p_coSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
-
-/* добавление данных о сессии в кеш */
-void pcrf_session_cache_insert (otl_value<std::string> &p_coSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo, std::string *p_pstrParentSessionId);
-/* загрузка данных о сессии из кеша */
-int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo &p_soRequestInfo);
-/* удаление данных из кеша */
-void pcrf_session_cache_remove (std::string &p_strSessionId);
-/* передача данных другим нодам */
-struct SSessionCache;
-void pcrf_session_cache_cmd2remote(std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam);
-/* получение списка session-id по Framed-IP-Address */
-int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
-int pcrf_session_cache_lock();
-void pcrf_session_cache_unlock();
+int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add( std::string &p_strSessionId );
@@ -368,8 +361,7 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
 #endif
 
 struct SSQLQueueParam {
-  virtual void push_data( otl_stream & ) = 0;
-  virtual void push_data( otl_nocommit_stream & ) = 0;
+  virtual void push_data( otl_stream &p_coStream ) = 0;
   virtual ~SSQLQueueParam() { }
 };
 
@@ -378,7 +370,6 @@ struct SSQLData : public SSQLQueueParam {
   T m_tParam;
   SSQLData( T &p_tParam ) : m_tParam( p_tParam ) { }
   void push_data( otl_stream &p_coStream ) { p_coStream << m_tParam; }
-  void push_data( otl_nocommit_stream &p_coStream ) { p_coStream << m_tParam; }
 };
 
 void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL );
@@ -395,3 +386,5 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
 
 /* функция генерации cdr */
 int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData );
+
+#endif /* __APP_PCRF_HEADER_H__ */

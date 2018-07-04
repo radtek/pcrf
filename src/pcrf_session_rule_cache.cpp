@@ -1,8 +1,9 @@
+#include <list>
+
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "utils/ps_common.h"
-
-#include <list>
+#include "pcrf_session_cache.h"
 
 extern CLog *g_pcoLog;
 
@@ -68,7 +69,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
     }
   } else {
     LOG_D("%s: session not found: '%s'", __FUNCTION__, p_strSessionId.c_str());
-    iRetVal = 1403;
+    iRetVal = ENODATA;
   }
 
   cleanup_and_exit:

@@ -1,8 +1,8 @@
 #include <map>
 #include <set>
 
-#include "app_pcrf_header.h"
 #include "pcrf_session_cache_index.h"
+#include "app_pcrf_header.h"
 #include "utils/log/log.h"
 
 extern CLog *g_pcoLog;
@@ -183,6 +183,26 @@ void pcrf_session_cache_remove_link( std::string &p_strSessionId )
   }
 }
 
+int pcrf_session_cache_get_linked_session_list( std::string &p_strSessionId, std::list<std::string> &p_listSessionId )
+{
+  int iRetVal = 0;
+  std::map<std::string, std::list<std::string> >::iterator iter;
+
+  CHECK_FCT( pcrf_session_cache_lock() );
+
+  iter = g_mapParent.find( p_strSessionId );
+  if ( iter != g_mapParent.end() ) {
+    /* копируем список */
+    p_listSessionId = iter->second;
+  } else {
+    iRetVal = ENODATA;
+  }
+
+  pcrf_session_cache_unlock();
+
+  return iRetVal;
+}
+
 void pcrf_session_cache_index_subscriberId_insert_session( std::string &p_strSubscriberId, std::string &p_strSessionId )
 {
   std::set<std::string> setSessionIdList;
@@ -215,10 +235,9 @@ int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId
     }
     LOG_D( "session list size: %d", p_vectSessionId.size() );
   } else {
-    iRetVal = 1403;
+    iRetVal = ENODATA;
   }
 
-  clean_and_exit:
   pcrf_session_cache_unlock();
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
