@@ -150,6 +150,7 @@ struct SDBAbonRule {
 	otl_value<int32_t> m_coDynamicRuleFlag;
 	otl_value<int32_t> m_coRuleGroupFlag;
 	otl_value<int32_t> m_coPrecedenceLevel;
+  otl_value<int32_t> m_coFlowStatus;
 	otl_value<uint32_t> m_coRatingGroupId;
 	otl_value<uint32_t> m_coServiceId;
 	otl_value<int32_t> m_coMeteringMethod;

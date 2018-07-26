@@ -129,6 +129,7 @@ extern struct dict_object *g_psoDictChargingRuleBaseName;
 extern struct dict_object *g_psoDictChargingRuleName;
 extern struct dict_object *g_psoDictRatingGroup;
 extern struct dict_object *g_psoDictServiceIdentifier;
+extern struct dict_object *g_psoDictAVPFlowStatus;
 extern struct dict_object *g_psoDictFlowDescription;
 extern struct dict_object *g_psoDictSessionReleaseCause;
 extern struct dict_object *g_psoDictFlowInformation;

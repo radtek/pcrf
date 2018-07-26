@@ -939,6 +939,12 @@ avp * pcrf_make_CRD (
 			CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
 			CHECK_FCT_DO (fd_msg_avp_add (psoAVPCRD, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
 		}
+    if ( 0 == p_soAbonRule.m_coFlowStatus.is_null() ) {
+      CHECK_FCT_DO( fd_msg_avp_new( g_psoDictAVPFlowStatus, 0, &psoAVPChild ), return NULL );
+      soAVPVal.i32 = p_soAbonRule.m_coFlowStatus.v;
+      CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return NULL );
+      CHECK_FCT_DO( fd_msg_avp_add( psoAVPCRD, MSG_BRW_LAST_CHILD, psoAVPChild ), return NULL );
+    }
 		/* Rating-Group */
 		if (! p_soAbonRule.m_coRatingGroupId.is_null ()) {
 			CHECK_FCT_DO (fd_msg_avp_new (g_psoDictRatingGroup, 0, &psoAVPChild), return NULL);
