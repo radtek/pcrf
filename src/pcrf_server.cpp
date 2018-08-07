@@ -15,9 +15,6 @@ avp * pcrf_make_QoSI (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule);
 /* функция заполнения avp Charging-Rule-Definition */
 avp * pcrf_make_CRD (SMsgDataForDB *p_psoReqInfo, SDBAbonRule &p_soAbonRule);
 
-/* функция заполнения avp Supported-Features */
-avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo);
-
 /* функция заполнения Subscription-Id */
 int pcrf_make_SI(msg *p_psoMsg, SMsgDataForDB &p_soReqInfo);
 
@@ -37,7 +34,7 @@ int pcrf_extract_UEI(avp *p_psoAVP, SSessionInfo &p_soSessInfo);
 /* выборка рапорта о назначении политик */
 int pcrf_extract_CRR (avp *p_psoAVP, SSessionInfo &p_soSessInfo);
 /* выборка значений Supported-Features */
-int pcrf_extract_SF (avp *p_psoAVP, SSessionInfo &p_soSessInfo);
+int pcrf_extract_SF( avp *p_psoAVP, std::list<SSF> &p_listSupportedFeatures );
 /* выборка значений Usage-Monitoring-Information */
 int pcrf_extract_UMI (avp *p_psoAVP, SRequestInfo &p_soReqInfo);
 /* выборка значений Used-Service-Unit */
@@ -398,11 +395,7 @@ static int app_pcrf_ccr_cb(
   switch ( soMsgInfoCache.m_psoReqInfo->m_iCCRequestType ) {
     case INITIAL_REQUEST: /* INITIAL_REQUEST */
       /* Supported-Features */
-      psoChildAVP = pcrf_make_SF( &soMsgInfoCache );
-      if ( psoChildAVP ) {
-        /* put 'Supported-Features' into answer */
-        CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), /* continue */ );
-      }
+      pcrf_make_SF( ans, soMsgInfoCache.m_psoSessInfo->m_listSF );
       /* дополняем ответ на CCR-I для Procera информацией о пользователе */
       /* Subscription-Id */
       if ( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
@@ -1108,35 +1101,33 @@ avp * pcrf_make_CRD (
 	return psoAVPRetVal;
 }
 
-avp * pcrf_make_SF (SMsgDataForDB *p_psoReqInfo)
+void pcrf_make_SF( msg_or_avp *p_psoAns, std::list<SSF> &p_listSupportedFeatures )
 {
-	avp * psoAVPSF = NULL;
-	avp * psoAVPChild = NULL;
-	avp_value soAVPVal;
+  avp * psoAVPSF = NULL;
+  avp * psoAVPChild = NULL;
+  avp_value soAVPVal;
 
-	if (! p_psoReqInfo->m_psoSessInfo->m_coFeatureListId.is_null () && ! p_psoReqInfo->m_psoSessInfo->m_coFeatureList.is_null ()) {
-		/* Supported-Features */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictSupportedFeatures, 0, &psoAVPSF), return NULL);
-		/* Vendor- Id */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictVendorId, 0, &psoAVPChild), return NULL);
-		soAVPVal.u32 = (uint32_t) 10415;
-		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-		CHECK_FCT_DO (fd_msg_avp_add (psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		/* Feature-List-Id */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictFeatureListID, 0, &psoAVPChild), return NULL);
-		soAVPVal.u32 = (uint32_t) p_psoReqInfo->m_psoSessInfo->m_coFeatureListId.v;
-		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-		CHECK_FCT_DO (fd_msg_avp_add (psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-		/* Feature-List */
-		CHECK_FCT_DO (fd_msg_avp_new (g_psoDictFeatureList, 0, &psoAVPChild), return NULL);
-		soAVPVal.u32 = (uint32_t) p_psoReqInfo->m_psoSessInfo->m_coFeatureList.v;
-		CHECK_FCT_DO (fd_msg_avp_setvalue (psoAVPChild, &soAVPVal), return NULL);
-		CHECK_FCT_DO (fd_msg_avp_add (psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild), return NULL);
-	} else {
-		return NULL;
-	}
-
-	return psoAVPSF;
+  for ( std::list<SSF>::iterator iter = p_listSupportedFeatures.begin(); iter != p_listSupportedFeatures.end(); ++iter ) {
+    /* Supported-Features */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictSupportedFeatures, 0, &psoAVPSF ), return );
+    /* Vendor- Id */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictVendorId, 0, &psoAVPChild ), return );
+    soAVPVal.u32 = iter->m_ui32VendorId;
+    CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return );
+    CHECK_FCT_DO( fd_msg_avp_add( psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild ), return );
+    /* Feature-List-Id */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictFeatureListID, 0, &psoAVPChild ), return );
+    soAVPVal.u32 = iter->m_ui32FeatureListID;
+    CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return );
+    CHECK_FCT_DO( fd_msg_avp_add( psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild ), return );
+    /* Feature-List */
+    CHECK_FCT_DO( fd_msg_avp_new( g_psoDictFeatureList, 0, &psoAVPChild ), return );
+    soAVPVal.u32 = iter->m_ui32FeatureList;
+    CHECK_FCT_DO( fd_msg_avp_setvalue( psoAVPChild, &soAVPVal ), return );
+    CHECK_FCT_DO( fd_msg_avp_add( psoAVPSF, MSG_BRW_LAST_CHILD, psoAVPChild ), return );
+    /* put 'Supported-Features' into answer */
+    CHECK_FCT_DO( fd_msg_avp_add( p_psoAns, MSG_BRW_LAST_CHILD, psoAVPSF ), return );
+  }
 }
 
 int pcrf_make_SI(msg *p_psoMsg, SMsgDataForDB &p_soReqInfo)
@@ -1577,7 +1568,7 @@ int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_ps
 				p_psoMsgInfo->m_psoReqInfo->m_coMaxRequestedBandwidthUl = psoAVPHdr->avp_value->u32;
 				break;
 			case 628: /* Supported-Features */
-				pcrf_extract_SF(psoAVP, *(p_psoMsgInfo->m_psoSessInfo));
+        pcrf_extract_SF( psoAVP, p_psoMsgInfo->m_psoSessInfo->m_listSF );
 				break;
 			case 909: /* RAI */
 				pcrf_parse_RAI(*psoAVPHdr->avp_value, p_psoMsgInfo->m_psoReqInfo->m_soUserLocationInfo.m_coRAI);
@@ -1866,45 +1857,53 @@ int pcrf_extract_CRR (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 	return iRetVal;
 }
 
-int pcrf_extract_SF (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
+int pcrf_extract_SF( avp *p_psoAVP, std::list<SSF> &p_listSupportedFeatures )
 {
-	int iRetVal = 0;
+  int iRetVal = 0;
 
-	avp *psoAVP;
-	struct avp_hdr *psoAVPHdr;
+  avp *psoAVP;
+  struct avp_hdr *psoAVPHdr;
+  SSF soSF;
 
-	iRetVal = fd_msg_browse_internal((void *)p_psoAVP, MSG_BRW_FIRST_CHILD, (void **)&psoAVP, NULL);
-	if (iRetVal) {
-		return iRetVal;
-	}
+  iRetVal = fd_msg_browse_internal( ( void * )p_psoAVP, MSG_BRW_FIRST_CHILD, ( void ** )&psoAVP, NULL );
+  if ( iRetVal ) {
+    return iRetVal;
+  }
 
-	do {
-		/* получаем заголовок AVP */
-		if (NULL == psoAVP)
-			break;
-		iRetVal = fd_msg_avp_hdr(psoAVP, &psoAVPHdr);
-		if (iRetVal) {
-			break;
-		}
-		switch (psoAVPHdr->avp_vendor) {
-		case 10415: /* 3GPP */
-			switch (psoAVPHdr->avp_code) {
-			case 629: /* Feature-List-Id */
-				p_soSessInfo.m_coFeatureListId = psoAVPHdr->avp_value->u32;
-				break;
-			case 630: /* Feature-List */
-				p_soSessInfo.m_coFeatureList = psoAVPHdr->avp_value->u32;
-				break;
-			}
-			break;
-		case 0:
-			break;
-		default:
-			break;
-		}
-	} while (0 == fd_msg_browse_internal((void *)psoAVP, MSG_BRW_NEXT, (void **)&psoAVP, NULL));
+  do {
+    /* получаем заголовок AVP */
+    if ( NULL == psoAVP )
+      break;
+    iRetVal = fd_msg_avp_hdr( psoAVP, &psoAVPHdr );
+    if ( iRetVal ) {
+      break;
+    }
+    switch ( psoAVPHdr->avp_vendor ) {
+      case 0: /* Diameter */
+        switch ( psoAVPHdr->avp_code ) {
+          case 266: /* Vendor-Id */
+            soSF.m_ui32VendorId = psoAVPHdr->avp_value->u32;
+            break;  /* Vendor-Id */
+        }
+        break; /* Diameter */
+      case 10415: /* 3GPP */
+        switch ( psoAVPHdr->avp_code ) {
+          case 629: /* Feature-List-Id */
+            soSF.m_ui32FeatureListID = psoAVPHdr->avp_value->u32;
+            break;
+          case 630: /* Feature-List */
+            soSF.m_ui32FeatureList = psoAVPHdr->avp_value->u32;
+            break;
+        }
+        break;    /* 3GPP */
+      default:
+        break;
+    }
+  } while ( 0 == fd_msg_browse_internal( ( void * )psoAVP, MSG_BRW_NEXT, ( void ** )&psoAVP, NULL ) );
 
-	return iRetVal;
+  p_listSupportedFeatures.push_back( soSF );
+
+  return iRetVal;
 }
 
 int pcrf_extract_UMI (avp *p_psoAVP, SRequestInfo &p_soReqInfo)

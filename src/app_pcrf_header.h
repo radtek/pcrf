@@ -1,7 +1,5 @@
-﻿#include "pcrf_otl.h"
-#include "utils/log/log.h"
-#include "utils/timemeasurer/timemeasurer.h"
-#include "utils/stat/stat.h"
+﻿#ifndef __APP_PCRF_HEADER_H__
+#define __APP_PCRF_HEADER_H__
 
 #include <freeDiameter/extension.h>
 #include <stdint.h>
@@ -11,6 +9,12 @@
 #include <vector>
 #include <map>
 #include <list>
+
+#include "pcrf_common_data_types.h"
+#include "pcrf_otl.h"
+#include "utils/log/log.h"
+#include "utils/timemeasurer/timemeasurer.h"
+#include "utils/stat/stat.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,9 +60,8 @@ struct SSessionInfo {
   uint32_t               m_ui32FramedIPAddress;
 	otl_value<otl_datetime> m_coTimeEnd;
 	otl_value<std::string> m_coTermCause;
-	otl_value<uint32_t> m_coFeatureListId;	/* Feature-List-Id */
-	otl_value<uint32_t> m_coFeatureList;	/* Feature-List */
-	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
+  std::list<SSF> m_listSF;                    /* Supported-Features */
+  std::vector<SSessionPolicyInfo> m_vectCRR;  /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
   SSessionInfo()
@@ -166,6 +169,10 @@ struct SDBAbonRule {
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
+
+/* включение Supported-Features в запрос */
+void pcrf_make_SF( msg_or_avp *p_psoAns, std::list<SSF> &p_listSupportedFeatures );
+
 /* сохранение запроса в БД */
 /* формирование даты/времени в структуре OTL, если параметр p_psoTime не задан используется текущее время */
 void pcrf_fill_otl_datetime( otl_value<otl_datetime> &p_coOtlDateTime, tm *p_psoTime );
@@ -392,3 +399,5 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
 
 /* функция генерации cdr */
 int pcrf_cdr_write_cdr( SMsgDataForDB &p_soReqData );
+
+#endif /* __APP_PCRF_HEADER_H__ */
