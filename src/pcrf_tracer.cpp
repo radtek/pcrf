@@ -192,8 +192,10 @@ static void pcrf_tracer (
   /* статистика по запросам */
   stat_measure( g_psoReqStat, strRequestType.c_str(), NULL );
 
-  /* если нет необходимости трассировки */
-  if (0 == g_psoConf->m_iTraceReq || ui32ApplicationId == 16777236 ) {
+  /* если трассировка включена следуем дальше */
+  if ( 0 != g_psoConf->m_iTraceReq || ui32ApplicationId == 16777236 ) {
+  } else {
+    /* если нет необходимости трассировки */
     if ( NULL != pmcBuf ) {
       fd_cleanup_buffer( pmcBuf );
     }

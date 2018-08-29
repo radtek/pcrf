@@ -33,7 +33,9 @@ int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strF
 
   if ( iterList != g_mapFramedIPIndex.end() ) {
     p_listSessionId = iterList->second;
-    LOG_D( "%u SessionId-s retreived", p_listSessionId.size() );
+    LOG_D( "Framed-IP-Address index: %u SessionId-s retreived", p_listSessionId.size() );
+  } else {
+    LOG_D( "Framed-IP-Address index: Framed-IP-Address %s not found", p_strFramedIPAddress.c_str() );
   }
 
   pcrf_session_cache_unlock();
@@ -49,13 +51,13 @@ int pcrf_session_cache_index_frameIPAddress_insert_session(std::string &p_strFra
   iterList = g_mapFramedIPIndex.find( p_strFramedIPAddress );
   if ( iterList != g_mapFramedIPIndex.end() ) {
     iterList->second.push_back( p_strSessionId );
-    LOG_D( "appended: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
+    LOG_D( "Framed-IP-Address index: appended: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
   } else {
     std::list<std::string> listSessionIdList;
 
     listSessionIdList.push_back( p_strSessionId );
     g_mapFramedIPIndex.insert( std::pair<std::string, std::list<std::string> >( p_strFramedIPAddress, listSessionIdList ) );
-    LOG_D( "inserted: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
+    LOG_D( "Framed-IP-Address index: inserted: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
   }
 
   return iRetVal;
@@ -74,13 +76,13 @@ int pcrf_session_cache_index_frameIPAddress_remove_session( std::string &p_strFr
     for ( iterSessList = iterList->second.begin(); iterSessList != iterList->second.end(); ) {
       if ( 0 == p_strSessionId.compare( *iterSessList ) ) {
         iterSessList = iterList->second.erase( iterSessList );
-        LOG_D( "removed: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
+        LOG_D( "Framed-IP-Address index: removed: Framed-IP-Address: %s; Session-Id: %s", p_strFramedIPAddress.c_str(), p_strSessionId.c_str() );
       } else {
         ++iterSessList;
       }
     }
   } else {
-    LOG_D( "framedIPAddress %s is not found in session cache index" );
+    LOG_D( "Framed-IP-Address index: framedIPAddress %s is not found" );
   }
 
   return iRetVal;
@@ -105,22 +107,28 @@ static inline void pcrf_session_cache_rm_parent2child_link( std::string &p_strSe
     for ( std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ) {
       if ( *iterLst == p_strSessionId ) {
         iterLst = iter->second.erase( iterLst );
+        LOG_D( "session link: unlink: session-id: %s; parent session-id: %s", p_strSessionId.c_str(), p_strParentSessionId.c_str() );
       } else {
         ++iterLst;
       }
     }
+  } else {
+    LOG_D( "session link: unlink: parent session-id: %s is not found", p_strParentSessionId.c_str() );
   }
 }
 
 static inline void pcrf_session_cache_mk_parent2child( std::string &p_strSessionId, std::string &p_strParentSessionId )
 {
   std::map<std::string, std::list<std::string> >::iterator iter = g_mapParent.find( p_strParentSessionId );
+
   if ( iter != g_mapParent.end() ) {
     iter->second.push_back( p_strSessionId );
+    LOG_D( "session link: parent to child link created: parent session-id: %s; session-id: %s", p_strParentSessionId.c_str(), p_strSessionId.c_str() );
   } else {
     std::list<std::string> lst;
     lst.push_back( p_strSessionId );
     g_mapParent.insert( std::pair<std::string, std::list<std::string> >( p_strParentSessionId, lst ) );
+    LOG_D( "session link: parent to child link inserted: parent session-id: %s; session-id: %s", p_strParentSessionId.c_str(), p_strSessionId.c_str() );
   }
 }
 
@@ -141,15 +149,18 @@ void pcrf_session_cache_mk_link2parent( std::string &p_strSessionId, std::string
     /* если отношения между родительской и дочерней сессией не изменились */
     if ( pair.first != g_mapChild.end() ) {
       if ( pair.first->second == ( *p_pstrParentSessionId ) ) {
+        LOG_D( "session lik: it passed the same child to parent pair: session-id: %s; parent session-id: %s", p_strSessionId.c_str(), p_pstrParentSessionId->c_str() );
       } else {
-        UTL_LOG_N( *g_pcoLog, "session id '%s': parent was changed from '%s' to '%s'", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str() );
+        LOG_D( "session lik: child to parent: session-id: %s; previous parent session-id: %s; new parent session-id: %s", p_strSessionId.c_str(), pair.first->second.c_str(), p_pstrParentSessionId->c_str() );
         pcrf_session_cache_rm_parent2child_link( p_strSessionId, pair.first->second );
         pair.first->second = *p_pstrParentSessionId;
         pcrf_session_cache_mk_parent2child( p_strSessionId, *p_pstrParentSessionId );
       }
     } else {
-      UTL_LOG_E( *g_pcoLog, "insertion of child2parent link failed: map: size: '%u'; max size: '%u'", g_mapChild.size(), g_mapChild.max_size() );
+      LOG_E( "session link: insertion of child to parent link failed: map: size: '%u'; max size: '%u'", g_mapChild.size(), g_mapChild.max_size() );
     }
+  } else {
+    LOG_D( "session link: child to parent link inserted: session-id: %s; parent session-id: %s", p_strSessionId.c_str(), p_pstrParentSessionId->c_str() );
   }
 }
 
@@ -167,9 +178,11 @@ void pcrf_session_cache_remove_link( std::string &p_strSessionId )
       /* ищем и удаляем дочернюю сессию */
       iterChild = g_mapChild.find( *iterList );
       if ( iterChild != g_mapChild.end() && iterChild->second == p_strSessionId ) {
+        LOG_D( "session link: child to parent link removed: session-id: %s; parent session-id: %s", iterChild->first.c_str(), iterChild->second.c_str() );
         g_mapChild.erase( iterChild );
       }
     }
+    LOG_D( "session link: parent session removed: parent session-id: %s", iterParent->first.c_str() );
     g_mapParent.erase( iterParent );
   } else {
     iterChild = g_mapChild.find( p_strSessionId );
@@ -179,11 +192,12 @@ void pcrf_session_cache_remove_link( std::string &p_strSessionId )
       pcrf_session_cache_rm_parent2child_link( p_strSessionId, iterChild->second );
       /* удаляем связку с родетельской сессией */
       g_mapChild.erase( iterChild );
+      LOG_D( "session link: child to parent link removed: session-id: %s; parent session-id: %s", iterChild->first.c_str(), iterChild->second.c_str() );
     }
   }
 }
 
-int pcrf_session_cache_get_linked_session_list( std::string &p_strSessionId, std::list<std::string> &p_listSessionId )
+int pcrf_session_cache_get_linked_child_session_list( std::string &p_strSessionId, std::list<std::string> &p_listSessionId )
 {
   int iRetVal = 0;
   std::map<std::string, std::list<std::string> >::iterator iter;
@@ -199,6 +213,23 @@ int pcrf_session_cache_get_linked_session_list( std::string &p_strSessionId, std
   }
 
   pcrf_session_cache_unlock();
+
+  return iRetVal;
+}
+
+int pcrf_session_cache_get_linked_parent_session( std::string &p_strSessionId, std::string &p_strParentSessionId )
+{
+  int iRetVal = 0;
+  std::map<std::string, std::string>::iterator iter;
+
+  iter = g_mapChild.find( p_strSessionId );
+  if ( iter != g_mapChild.end() ) {
+    p_strParentSessionId = iter->second;
+    LOG_D( "session link: session-id: %s; parent session-id: %s", p_strSessionId.c_str(), p_strParentSessionId.c_str() );
+  } else {
+    iRetVal = ENODATA;
+    LOG_D( "session link: session-id: %s; parent session-id: not found", p_strSessionId.c_str() );
+  }
 
   return iRetVal;
 }

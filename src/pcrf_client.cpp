@@ -22,8 +22,6 @@ static pthread_t g_tThreadId;
 static int g_iStop;
 
 struct sess_state {
-  SRARResult *m_psoRARResult;
-  sess_state() : m_psoRARResult(NULL) {}
 };
 
 extern "C"
@@ -37,7 +35,7 @@ static void pcrf_client_gx_raa_expire (void *p_pvData, DiamId_t p_pDiamId, size_
 {
   std::string strDiamId;
   std::string strSessionId;
-  sess_state  *psoSessState = NULL;
+  SRARResult  *psoRARResult = reinterpret_cast< SRARResult* >( p_pvData );
   session     *psoSess      = NULL;
   os0_t       pszSessId     = NULL;
   size_t      stSessIdLen   = 0;
@@ -53,17 +51,12 @@ static void pcrf_client_gx_raa_expire (void *p_pvData, DiamId_t p_pDiamId, size_
     if ( NULL != psoSess && 0 == iIsNew ) {
       CHECK_FCT_DO( fd_sess_getsid( psoSess, &pszSessId, &stSessIdLen ), goto clean_and_exit );
       strSessionId.insert( 0, reinterpret_cast< char* >( pszSessId ), stSessIdLen );
-
-      /* получаем данные, ассоциированные с сессией */
-      if ( NULL != p_pvData ) {
-        psoSessState = reinterpret_cast< sess_state* >( p_pvData );
-      }
     }
   }
 
-  if (NULL != psoSessState && NULL != psoSessState->m_psoRARResult ) {
-    psoSessState->m_psoRARResult->m_iResultCode = ETIMEDOUT;
-    pthread_mutex_unlock(&psoSessState->m_psoRARResult->m_mutexWait);
+  if ( psoRARResult ) {
+    psoRARResult->m_iResultCode = ETIMEDOUT;
+    pthread_mutex_unlock( &psoRARResult->m_mutexWait );
   }
 
   /* готовимся к формированию корректной c-style строки */
@@ -86,8 +79,7 @@ static void pcrf_client_gx_raa_expire (void *p_pvData, DiamId_t p_pDiamId, size_
 /* получение ответа на Re-Auth сообщение */
 static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
 {
-  CTimeMeasurer     coTM;
-	struct sess_state *psoMsgState = NULL;
+  SRARResult *psoRARResult = reinterpret_cast< SRARResult* >( p_pvData );
 	struct session    *psoSess = NULL;
   std::string       strSessionId;
   os0_t             pszSessId = NULL;
@@ -104,18 +96,8 @@ static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
       /* запрашиваем идентификатор сессии */
       CHECK_FCT_DO(fd_sess_getsid(psoSess, &pszSessId, &stSessIdLen), goto clean_and_exit);
       strSessionId.insert(0, reinterpret_cast<char*>(pszSessId), stSessIdLen);
-      if ( NULL != p_pvData ) {
-        psoMsgState = reinterpret_cast<sess_state*>(p_pvData);
-      }
     }
 	}
-
-  if (NULL != psoMsgState) {
-    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", strSessionId.c_str(), psoMsgState->m_psoRARResult);
-  } else {
-    LOG_D("message state: <empty pointer>");
-  }
-  LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
 
 	/* Value of Result Code */
   {
@@ -137,17 +119,15 @@ static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
 	}
 
   clean_and_exit:
-  if (NULL != psoMsgState && NULL != psoMsgState->m_psoRARResult ) {
-    psoMsgState->m_psoRARResult->m_iResultCode = iRC;
-    CHECK_FCT_DO(pthread_mutex_unlock(&psoMsgState->m_psoRARResult->m_mutexWait), /* continue */);
+  if ( psoRARResult ) {
+    psoRARResult->m_iResultCode = iRC;
+    CHECK_FCT_DO( pthread_mutex_unlock( &psoRARResult->m_mutexWait ), /* continue */ );
   }
 	/* Free the message */
   if ( NULL != *p_ppMsg ) {
     CHECK_FCT_DO( fd_msg_free( *p_ppMsg ), return );
     *p_ppMsg = NULL;
   }
-
-	return;
 }
 
 /* отправка Re-Auth сообщения */
@@ -168,7 +148,6 @@ int pcrf_client_gx_rar (
 	int           iRetVal       = 0;
 	CTimeMeasurer coTM;
 	msg           *psoReq       = NULL;
-	sess_state    *psoMsgState  = NULL;
 	session       *psoSess      = NULL;
 
 	/* Create the request */
@@ -282,29 +261,14 @@ int pcrf_client_gx_rar (
     p_psoSessInfo->m_coOriginHost.is_null() ? "<null>" : p_psoSessInfo->m_coOriginHost.v.c_str(),
     p_psoSessInfo->m_coOriginRealm.is_null() ? "<null>" : p_psoSessInfo->m_coOriginRealm.v.c_str());
 
-
-  /* выделяем память для структуры, хранящей состояние сессии (запроса) */
-  if (NULL != p_psoRARRes) {
-    psoMsgState = new sess_state;
-    psoMsgState->m_psoRARResult = p_psoRARRes;
-
-    LOG_D("message state: Session-Id: '%s'; RAR-Result: '%p'", p_psoSessInfo->m_strSessionId.c_str(), psoMsgState->m_psoRARResult);
-    LOG_D("message state: session handler: '%p'; session info: '%p'", g_psoSessionHandler, psoSess);
-
-    /* Store this value in the session */
-    CHECK_FCT_DO((iRetVal = fd_sess_state_store(g_psoSessionHandler, psoSess, &psoMsgState)), delete psoMsgState; psoMsgState = NULL; goto out);
-
-    LOG_D("message state: '%p'", psoMsgState);
-  }
-
 	/* Send the request */
   if (0 == p_uiUsec) {
-    CHECK_FCT_DO((iRetVal = fd_msg_send(&psoReq, pcrf_client_gx_raa, psoMsgState )), goto out);
+    CHECK_FCT_DO((iRetVal = fd_msg_send(&psoReq, pcrf_client_gx_raa, p_psoRARRes )), goto out);
   } else {
     timespec soTimeSpec;
 
     CHECK_FCT_DO((iRetVal = pcrf_make_timespec_timeout(soTimeSpec, 0, p_uiUsec)), goto out);
-    CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_gx_raa, psoMsgState, pcrf_client_gx_raa_expire, &soTimeSpec)), goto out);
+    CHECK_FCT_DO((iRetVal = fd_msg_send_timeout(&psoReq, pcrf_client_gx_raa, p_psoRARRes, pcrf_client_gx_raa_expire, &soTimeSpec)), goto out);
   }
 
 out:
@@ -478,7 +442,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* загружаем из БД информацию о сессии абонента */
     {
       /* ищем информацию о базовой сессии в кеше */
-      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, *soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo ) ) {
+      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL ) ) {
         goto clear_and_continue;
       }
       /* необходимо определить диалект хоста */
@@ -490,7 +454,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
         if ( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) ) {
           strUGWSessionId = soUGWSessInfo.m_strSessionId;
           /* ищем информацию о базовой сессии в кеше */
-          pcrf_session_cache_get( strUGWSessionId, *soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo );
+          pcrf_session_cache_get( strUGWSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL );
         }
       }
     }
@@ -598,9 +562,6 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
   /* задаем время завершения ожидания семафора */
   pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-  /* очередь сессий на обновление */
-  std::vector<SRefQueue> vectQueue;
-  std::vector<SRefQueue>::iterator iter;
   /* локальная очередь сессий на завершение */
   std::unordered_set<std::string>::iterator iterLocalQueue;
   std::list<std::string> listSessionIdList;
@@ -623,23 +584,32 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     /* задаем время следующего запуска */
     pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-    /* запрашиваем подключение к БД */
-    if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
-    } else {
-      continue;
-    }
-    /* создаем список обновления политик */
-    CHECK_POSIX_DO( pcrf_client_db_refqueue( pcoDBConn, vectQueue ), goto clear_and_continue );
+    /* если очередь обновления политик не обрабатывается */
+    if ( 0 != g_psoConf->m_iOperateRefreshQueue ) {
+      /* очередь сессий на обновление */
+      std::vector<SRefQueue> vectQueue;
+      std::vector<SRefQueue>::iterator iter;
 
-    for ( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
-      /* обрабатываем запись очереди обновлений политик */
-      if ( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
-      } else {
-        continue;
-      }
-      if ( 0 == pcrf_client_db_delete_refqueue( pcoDBConn, *iter ) ) {
-      } else {
-        continue;
+      /* запрашиваем подключение к БД */
+      if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
+        /* создаем список обновления политик */
+        CHECK_POSIX_DO( pcrf_client_db_load_refqueue_data( pcoDBConn, vectQueue ), goto clear_external_refresh_queue_data );
+
+        for ( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
+          /* обрабатываем запись очереди обновлений политик */
+          if ( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
+            pcrf_client_db_delete_refqueue( pcoDBConn, *iter );
+          }
+        }
+
+        clear_external_refresh_queue_data:
+        /* очищаем вектор */
+        vectQueue.clear();
+        /* если мы получили в распоряжение подключение к БД его надо освободить */
+        if ( NULL != pcoDBConn ) {
+          pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
+          pcoDBConn = NULL;
+        }
       }
     }
 
@@ -663,7 +633,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
       {
         SSessionInfo soSessInfo;
 
-        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, soSessInfo, NULL ) ) {
+        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, &soSessInfo, NULL, NULL ) ) {
           pcrf_client_gx_rar_w_SRCause( soSessInfo );
         }
       }
@@ -671,14 +641,7 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
     }
 
     clear_and_continue:
-    vectQueue.clear();
     listSessionIdList.clear();
-
-    /* если мы получили в распоряжение подключение к БД его надо освободить */
-    if ( NULL != pcoDBConn ) {
-      pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
-      pcoDBConn = NULL;
-    }
   }
 
   pthread_exit( 0 );
@@ -697,18 +660,13 @@ int pcrf_cli_init (void)
 	/* создания списка сессий */
 	CHECK_FCT (fd_sess_handler_create (&g_psoSessionHandler, sess_state_cleanup, NULL, NULL));
 
-  /* если очередь обновления политик не обрабатывается */
-  if (0 == g_psoConf->m_iOperateRefreshQueue) {
-    return 0;
-  }
+  /* мьютекс локальной очереди обновления политик */
+	CHECK_POSIX (pthread_mutex_init (&g_tLocalQueueMutex, NULL));
 
   /* инициализация мьютекса обращения к БД */
 	CHECK_POSIX (pthread_mutex_init (&g_tDBReqMutex, NULL));
 	/* блокируем мьютекс чтобы перевести создаваемый ниже поток в состояние ожидания */
 	CHECK_POSIX (pthread_mutex_lock (&g_tDBReqMutex));
-
-  /* мьютекс локальной очереди обновленя политик */
-	CHECK_POSIX (pthread_mutex_init (&g_tLocalQueueMutex, NULL));
 
 	/* запуск потока для выполнения запросов к БД */
 	CHECK_POSIX (pthread_create (&g_tThreadId, NULL, pcrf_client_operate_refreshqueue, NULL));
@@ -725,11 +683,8 @@ void pcrf_cli_fini (void)
 	if (g_psoSessionHandler) {
 		CHECK_FCT_DO (fd_sess_handler_destroy (&g_psoSessionHandler, NULL), /* continue */ );
 	}
-
-  /* если очередь обновления политик не обрабатывается */
-  if (0 == g_psoConf->m_iOperateRefreshQueue) {
-    return;
-  }
+  /* освобождаем мьютекс локальной очереди обновления политик */
+	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tLocalQueueMutex), /* void */ );
 
 	/* останавливаем поток обработки запрсов к БД */
 	/* устанавливаем флаг завершения работы потока*/
@@ -740,8 +695,6 @@ void pcrf_cli_fini (void)
   if (0 != g_tThreadId) {
     CHECK_POSIX_DO(pthread_join(g_tThreadId, NULL), /* void */);
   }
-  /* освобождаем мьютекс локальной очереди обновления политик */
-	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tLocalQueueMutex), /* void */ );
 	/* освобождение ресурсов, занятых мьютексом */
 	CHECK_POSIX_DO (pthread_mutex_destroy (&g_tDBReqMutex), /* void */ );
 };
@@ -749,8 +702,6 @@ void pcrf_cli_fini (void)
 extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
 {
-  UTL_LOG_D(*g_pcoLog, "%p:%p:%p", state, sid, opaque);
-
   /* suppress compiler warning */
   sid = sid; opaque = opaque;
 

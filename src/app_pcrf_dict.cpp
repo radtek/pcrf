@@ -37,6 +37,7 @@ dict_object *g_psoDictRatingGroup = NULL;
 dict_object *g_psoDictServiceIdentifier = NULL;
 dict_object *g_psoDictAVPFlowStatus = NULL;
 dict_object *g_psoDictFlowDescription = NULL;
+dict_object *g_psoDictAVPFlowDirection = NULL;
 dict_object *g_psoDictSessionReleaseCause = NULL;
 dict_object *g_psoDictFlowInformation = NULL;
 dict_object *g_psoDictQoSInformation = NULL;
@@ -50,6 +51,7 @@ dict_object *g_psoDictPriorityLevel = NULL;
 dict_object *g_psoDictDefaultEPSBearerQoS = NULL;
 dict_object *g_psoDictPreemptionCapability = NULL;
 dict_object *g_psoDictPreemptionVulnerability = NULL;
+dict_object *g_psoDictAVPReportingLevel = NULL;
 dict_object *g_psoDictOnline = NULL;
 dict_object *g_psoDictOffline = NULL;
 dict_object *g_psoDictMeteringMethod = NULL;
@@ -287,6 +289,12 @@ int app_pcrf_dict_init (void)
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictFlowDescription, ENOENT));
 	}
 
+	/* Flow-Direction */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1080, NULL }};
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPFlowDirection, ENOENT));
+	}
+
 	/* Session-Release-Cause */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1045, NULL }};
@@ -363,6 +371,12 @@ int app_pcrf_dict_init (void)
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1048, NULL }};
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictPreemptionVulnerability, ENOENT));
+	}
+
+	/* Reporting-Level */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1011, NULL }};
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPReportingLevel, ENOENT));
 	}
 
 	/* Online */
@@ -462,6 +476,16 @@ int app_pcrf_dict_init (void)
 	}
 
 	/* дополняем словарь перечислимыми значениями */
+	/* Reporting-Level */
+	{
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictAVPReportingLevel, &psoDictType, ENOENT));
+		dict_enumval_data        t_1 = { (char *) "SERVICE_IDENTIFIER_LEVEL",     { (uint8_t *) 0, 0 }};
+		dict_enumval_data        t_2 = { (char *) "RATING_GROUP_LEVEL",           { (uint8_t *) 1, 0 }};
+		dict_enumval_data        t_3 = { (char *) "SPONSORED_CONNECTIVITY_LEVEL", { (uint8_t *) 2, 0 }};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3, psoDictType, NULL ) );
+  }
 	/* Online */
 	{
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictOnline, &psoDictType, ENOENT));
@@ -499,18 +523,20 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		dict_enumval_data        t_1 = { (char *) "3GPP-GPRS", { (uint8_t *) 0, 0 }};
-		dict_enumval_data        t_2 = { (char *) "DOCSIS",    { (uint8_t *) 1, 0 }};
-		dict_enumval_data        t_3 = { (char *) "xDSL",      { (uint8_t *) 2, 0 }};
-		dict_enumval_data        t_4 = { (char *) "WiMAX",     { (uint8_t *) 3, 0 }};
-		dict_enumval_data        t_5 = { (char *) "3GPP2",     { (uint8_t *) 4, 0 }};
-		dict_enumval_data        t_6 = { (char *) "3GPP-EPS",  { (uint8_t *) 5, 0 }};
+		dict_enumval_data        t_1 = { (char *) "3GPP-GPRS",    { (uint8_t *) 0, 0 }};
+		dict_enumval_data        t_2 = { (char *) "DOCSIS",       { (uint8_t *) 1, 0 }};
+		dict_enumval_data        t_3 = { (char *) "xDSL",         { (uint8_t *) 2, 0 }};
+		dict_enumval_data        t_4 = { (char *) "WiMAX",        { (uint8_t *) 3, 0 }};
+		dict_enumval_data        t_5 = { (char *) "3GPP2",        { (uint8_t *) 4, 0 }};
+		dict_enumval_data        t_6 = { (char *) "3GPP-EPS",     { (uint8_t *) 5, 0 }};
+		dict_enumval_data        t_7 = { (char *) "Non-3GPP-EPS", { (uint8_t *) 6, 0 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_4 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_5 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_6 , psoDictType, NULL));
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_7 , psoDictType, NULL));
 	}
 	/* RAT-Type */
 	{

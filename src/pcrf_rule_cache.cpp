@@ -26,7 +26,7 @@ static void *pcrf_rule_cache_update(void *p_pvParam);
 /* загрузка правил из БД */
 static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_pmapRule);
 /* загрузка Flow-Description правила */
-static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectRuleFlows);
+static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<SFlowInformation> &p_vectRuleInformation);
 /* загрузка ключей мониторинга sce */
 static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectMonitKey);
 
@@ -196,7 +196,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
   return iRetVal;
 }
 
-static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectRuleFlows)
+static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<SFlowInformation> &p_vectRuleInfo)
 {
   if (NULL != p_pcoDBConn) {
   } else {
@@ -207,11 +207,11 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
   int iRepeat = 1;
 
   sql_repeat:
-  p_vectRuleFlows.clear();
+  p_vectRuleInfo.clear();
 
   otl_nocommit_stream coStream;
   try {
-    std::string strFlowDescr;
+    SFlowInformation soFlowInfo;
     coStream.open(
       25,
       "select "
@@ -224,8 +224,8 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
     coStream
       << p_uiRuleId;
     while (0 == coStream.eof()) {
-      coStream >> strFlowDescr;
-      p_vectRuleFlows.push_back(strFlowDescr);
+      coStream >> soFlowInfo.m_coFlowDescription;
+      p_vectRuleInfo.push_back( soFlowInfo );
     }
     coStream.close();
   } catch (otl_exception &coExcept) {

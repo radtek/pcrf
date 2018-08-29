@@ -6,7 +6,7 @@
 
 extern CLog *g_pcoLog;
 
-int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue )
+int pcrf_client_db_load_refqueue_data( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -30,7 +30,7 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
     /* создаем объект класса потока ДБ */
     coStream.open(
       1000,
-      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf2' and refresh_date < sysdate",
       *p_pcoDBConn );
     /* делаем выборку из БД */
     while ( ! coStream.eof() ) {

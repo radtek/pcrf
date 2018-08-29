@@ -30,7 +30,7 @@ struct SSessionCache {
 /* добавление данных о сессии в кеш */
 void pcrf_session_cache_insert( std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId );
 /* загрузка данных о сессии из кеша */
-int pcrf_session_cache_get( std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo *p_psoRequestInfo );
+int pcrf_session_cache_get( std::string &p_strSessionId, SSessionInfo *p_psoSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId );
 /* удаление данных из кеша */
 void pcrf_session_cache_remove( std::string &p_strSessionId );
 /* передача данных другим нодам */

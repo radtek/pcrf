@@ -142,6 +142,10 @@ struct SPeerInfo {
 	int m_iIsConnected;
 	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = GX_UNDEF; }
 };
+struct SFlowInformation {
+  otl_value<std::string> m_coFlowDescription;
+  otl_value<int32_t> m_coFlowDirection;
+};
 /* структура для получения правил абонента из БД */
 struct SDBAbonRule {
 	bool m_bIsActive;
@@ -154,7 +158,8 @@ struct SDBAbonRule {
 	otl_value<uint32_t> m_coRatingGroupId;
 	otl_value<uint32_t> m_coServiceId;
 	otl_value<int32_t> m_coMeteringMethod;
-	otl_value<int32_t> m_coOnlineCharging;
+  otl_value<int32_t> m_coReportingLevel;
+  otl_value<int32_t> m_coOnlineCharging;
 	otl_value<int32_t> m_coOfflineCharging;
 	otl_value<int32_t> m_coQoSClassIdentifier;
 	SAllocationRetentionPriority m_soARP;
@@ -164,7 +169,7 @@ struct SDBAbonRule {
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
 	otl_value<int32_t> m_coRedirectAddressType;
 	otl_value<std::string> m_coRedirectServerAddress;
-	std::vector<std::string> m_vectFlowDescr;
+	std::vector<SFlowInformation> m_vectFlowDescr;
 	otl_value<int32_t> m_coSCE_PackageId;
 	otl_value<int32_t> m_coSCE_RealTimeMonitor;
 	otl_value<uint32_t> m_coSCE_UpVirtualLink;
@@ -215,7 +220,7 @@ int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &
 
 /* операции клиента с БД */
 /* формирование очереди изменения политик */
-int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue );
+int pcrf_client_db_load_refqueue_data( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue );
 /* завершение зависшей сессии */
 void pcrf_client_db_fix_staled_sess( std::string &p_coSessionId );
 /* формирование списка сессий абонента */
@@ -291,8 +296,11 @@ void pcrf_server_db_insert_refqueue(
 /* функция удаляет запись из очереди обновления политик */
 int pcrf_client_db_delete_refqueue( otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue );
 
-/* функция определяет протокол пира */
+/* определение диалекта пира */
+/* функция определяет диалект пира, результат записывается в SSessionInfo, в случае успеха возвращает 0 */
 int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
+/* функция определяет диалект пира, результат передается через возвращаемое значение, в случае неудачи возвращает GX_UNDEF [0] */
+int pcrf_peer_dialect_ret( std::string &p_strHostName, std::string &p_strRealm );
 /* определяет подключен ли пер */
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
 /* определяет есть ли подключенные пиры заданного диалекта */
@@ -300,7 +308,7 @@ int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
 
 struct SRARResult {
   pthread_mutex_t m_mutexWait;
-  int m_iResultCode;
+  int32_t m_iResultCode;
   int Init ()
   {
     /* инициализируем мьютекс */
