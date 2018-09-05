@@ -13,7 +13,8 @@ enum ETracerConditionType {
 extern "C" {
 #endif
 
-  void pcrf_tracer_set_condition( enum ETracerConditionType p_eTracerConditionType, void* p_pvValue );
+  void pcrf_tracer_set_condition( enum ETracerConditionType p_eTracerConditionType, const void* p_pvValue );
+  void pcrf_tracer_reset_condition( enum ETracerConditionType p_eTracerConditionType, const void* p_pvValue );
   void pcrf_tracer_remove_session( const char *p_pszSessionId );
 
 #ifdef __cplusplus

@@ -419,20 +419,46 @@ void pcrf_tracer_fini (void)
 	}
 }
 
-void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, void* p_pvValue )
+void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, const void* p_pvValue )
 {
   switch ( p_eTracerConditionType ) {
     case m_eIMSI:
       g_usetEndUserImsi.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: set tracer: IMSI: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
     case m_eE164:
       g_usetEndUserE164.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: set tracer: E164: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
     case m_eApplicationId:
-      g_usetApplicationId.insert( * reinterpret_cast< uint32_t* >( p_pvValue ) );
+      g_usetApplicationId.insert( * reinterpret_cast< const uint32_t* >( p_pvValue ) );
+      LOG_D( "%s: set tracer: Application-Id: %d", __FUNCTION__, * reinterpret_cast< const uint32_t* >( p_pvValue ) );
       break;
     case m_eAPN:
       g_usetAPN.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: set tracer: APN: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+  }
+}
+
+void pcrf_tracer_reset_condition( enum ETracerConditionType p_eTracerConditionType, const void* p_pvValue )
+{
+  switch ( p_eTracerConditionType ) {
+    case m_eIMSI:
+      g_usetEndUserImsi.erase( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: reset tracer: IMSI: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+    case m_eE164:
+      g_usetEndUserE164.erase( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: reset tracer: E164: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+    case m_eApplicationId:
+      g_usetApplicationId.erase( * reinterpret_cast< const uint32_t* >( p_pvValue ) );
+      LOG_D( "%s: reset tracer: Application-Id: %d", __FUNCTION__, * reinterpret_cast< const uint32_t* >( p_pvValue ) );
+      break;
+    case m_eAPN:
+      g_usetAPN.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      LOG_D( "%s: reset tracer: APN: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
   }
 }

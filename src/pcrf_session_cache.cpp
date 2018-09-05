@@ -637,25 +637,24 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
 
-void pcrf_session_cache_ps_reply( int p_iSock, sockaddr_in *p_psoAddr, uint16_t p_uiReqType, uint32_t p_uiReqNum, int p_iResCode )
+static void pcrf_session_cache_ps_reply( int p_iSock, sockaddr_in *p_psoAddr, uint16_t p_uiReqType, uint32_t p_uiReqNum, int p_iResCode, const char *p_pszMessage = NULL, uint16_t p_ui16MsgSize = 0 )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
   CPSPacket coPSPack;
-  uint8_t muiBuf[ 256 ];
+  uint8_t muiBuf[ 1024 ];
   int iReqLen;
+  int iResultCode = p_iResCode;
+  int iFnRes;
 
   CHECK_FCT_DO( coPSPack.Init( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), p_uiReqNum, p_uiReqType ), return );
-  iReqLen = coPSPack.AddAttr( reinterpret_cast<SPSRequest *>( muiBuf ), sizeof( muiBuf ), PS_RESULT, &p_iResCode, sizeof( p_iResCode ) );
+  CHECK_FCT_DO( 0 >= ( iReqLen = coPSPack.AddAttr( reinterpret_cast< SPSRequest * >( muiBuf ), sizeof( muiBuf ), PS_RESULT, &iResultCode, sizeof( iResultCode ) ) ), return );
+  if ( NULL != p_pszMessage && 0 != p_ui16MsgSize ) {
+    CHECK_FCT_DO( 0 >= ( iReqLen = coPSPack.AddAttr( reinterpret_cast< SPSRequest * >( muiBuf ), sizeof( muiBuf ), PS_DESCR, p_pszMessage, p_ui16MsgSize ) ), return );
+  }
   if ( 0 < iReqLen ) {
-    int iFnRes;
-
-    iFnRes = sendto( p_iSock, muiBuf, iReqLen, 0, reinterpret_cast<sockaddr*>( p_psoAddr ), sizeof( *p_psoAddr ) );
-    if ( 0 < iFnRes ) {
-      LOG_D( "%s: sendto: success: %d bytes", __FUNCTION__, iFnRes );
-    } else {
-      LOG_E( "%s: sendto: error: %d", __FUNCTION__, errno );
-    }
+    CHECK_FCT_DO( 0 >= ( iFnRes = sendto( p_iSock, muiBuf, iReqLen, 0, reinterpret_cast< sockaddr* >( p_psoAddr ), sizeof( *p_psoAddr ) ) ), return );
+    LOG_N( "%s: operation result: %d", __FUNCTION__, iFnRes );
   }
 
   LOG_D( "leave: %s", __FUNCTION__ );
@@ -672,7 +671,7 @@ static void pcrf_format_data_from_cache( std::string &p_strOut, const char *p_ps
 
 #define PCRF_FORMAT_DATA_FROM_CACHE(a,b,c) pcrf_format_data_from_cache(a,b,0 == (c).is_null() ? (c).v.c_str() : "<null>")
 
-static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId )
+static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId , std::string &p_strResult )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
@@ -702,39 +701,37 @@ static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId 
   pcrf_session_cache_unlock();
 
   if ( 0 != iDataFound ) {
-    std::string str;
-
-    str = "session info:";
-    pcrf_format_data_from_cache( str, "Session-Id", p_strSessionId.c_str() );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "Subscriber-Id", soSessionCache.m_coSubscriberId );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "Framed-IP-Address", soSessionCache.m_coFramedIPAddr );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "Called-Station-Id", soSessionCache.m_coCalledStationId );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "IP-CAN-Type", soSessionCache.m_coIPCANType );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "SGSN-MCC-MNC", soSessionCache.m_coSGSNMCCMNC );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "SGSN-IP-Address", soSessionCache.m_coSGSNIPAddr );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "RAT-Type", soSessionCache.m_coRATType );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "Origin-Host", soSessionCache.m_coOriginHost );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "Origin-Realm", soSessionCache.m_coOriginRealm );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "CGI", soSessionCache.m_coCGI );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "ECGI", soSessionCache.m_coECGI );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "TAI", soSessionCache.m_coTAI );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "IMEI-SV", soSessionCache.m_coIMEISV );
-    PCRF_FORMAT_DATA_FROM_CACHE( str, "End-User-IMSI", soSessionCache.m_coEndUserIMSI );
+    p_strResult = "session info:";
+    pcrf_format_data_from_cache( p_strResult, "Session-Id", p_strSessionId.c_str() );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "Subscriber-Id", soSessionCache.m_coSubscriberId );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "Framed-IP-Address", soSessionCache.m_coFramedIPAddr );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "Called-Station-Id", soSessionCache.m_coCalledStationId );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "IP-CAN-Type", soSessionCache.m_coIPCANType );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "SGSN-MCC-MNC", soSessionCache.m_coSGSNMCCMNC );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "SGSN-IP-Address", soSessionCache.m_coSGSNIPAddr );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "RAT-Type", soSessionCache.m_coRATType );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "Origin-Host", soSessionCache.m_coOriginHost );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "Origin-Realm", soSessionCache.m_coOriginRealm );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "CGI", soSessionCache.m_coCGI );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "ECGI", soSessionCache.m_coECGI );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "TAI", soSessionCache.m_coTAI );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "IMEI-SV", soSessionCache.m_coIMEISV );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "End-User-IMSI", soSessionCache.m_coEndUserIMSI );
 
     std::vector<SDBAbonRule> vectRuleList;
 
     pcrf_session_rule_cache_get( p_strSessionId, vectRuleList );
 
     /* список правил сессии */
-    str += "\r\n";
-    str += "session rule list:";
+    p_strResult += "\r\n";
+    p_strResult += "session rule list:";
     if ( 0 == vectRuleList.size() ) {
-      str += " <null>";
+      p_strResult += " <null>";
     } else {
       for ( std::vector<SDBAbonRule>::iterator iter = vectRuleList.begin(); iter != vectRuleList.end(); ++iter ) {
-        str += ' ';
-        str += iter->m_coRuleName.v;
-        str += ';';
+        p_strResult += ' ';
+        p_strResult += iter->m_coRuleName.v;
+        p_strResult += ';';
       }
     }
 
@@ -743,21 +740,19 @@ static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId 
     pcrf_session_cache_get_linked_child_session_list( p_strSessionId, listSessionIdList );
 
     /* список связанных сессий */
-    str += "\r\n";
-    str += "linked session list:";
+    p_strResult += "\r\n";
+    p_strResult += "linked session list:";
     if ( 0 == listSessionIdList.size() ) {
-      str += " <null>";
+      p_strResult += " <null>";
     } else {
       for ( std::list<std::string>::iterator iter = listSessionIdList.begin(); iter != listSessionIdList.end(); ++iter ) {
-        str += ' ';
-        str += *iter;
-        str += ';';
+        p_strResult += ' ';
+        p_strResult += *iter;
+        p_strResult += ';';
       }
     }
-
-    LOG_N( "data from chache: %s; ", str.c_str() );
   } else {
-    LOG_N( "%s: session-id %s not found in session cache", __FUNCTION__, p_strSessionId.c_str() );
+    p_strResult = "data not found";
   }
 
   __leave_function__:
@@ -778,6 +773,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   std::multimap<uint16_t, SPSReqAttrParsed> mmap;
   std::multimap<uint16_t, SPSReqAttrParsed>::iterator iter;
   std::string strSessionId;
+  std::string strAdmCmd;
+  std::string strE164;
+  uint32_t ui32ApplicationId = 0;
   uint8_t *pmucBuf = NULL;
   size_t stBufSize = 0;
   SPayloadHdr *psoPayload;
@@ -802,6 +800,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
       pmucBuf = reinterpret_cast<uint8_t*>( malloc( stBufSize ) );
     }
     switch ( iter->first ) {
+      case PS_ADMCMD: /* команда администратора */
+        strAdmCmd.insert(0, reinterpret_cast<char*>( iter->second.m_pvData ), static_cast<size_t>( iter->second.m_usDataLen ) );
+        break;
       case PS_SUBSCR: /* Subscriber-Id */
         psoCache->m_coSubscriberId.v.insert( 0, reinterpret_cast<char*>( iter->second.m_pvData ), static_cast<size_t>( iter->second.m_usDataLen ) );
         psoCache->m_coSubscriberId.set_non_null();
@@ -835,6 +836,13 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
               case 263: /* Session-Id */
                 strSessionId.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 break;  /* Session-Id */
+              case 258: /* Auth-Application-Id */
+                if ( sizeof( ui32ApplicationId ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
+                  ui32ApplicationId = *reinterpret_cast<int32_t*>( reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ) );
+                } else {
+                  /* invalid data size */
+                }
+                break;  /* Auth-Application-Id */
               case 264: /* Origin-Host */
                 psoCache->m_coOriginHost.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coOriginHost.set_non_null();
@@ -912,6 +920,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 psoCache->m_coEndUserIMSI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coEndUserIMSI.set_non_null();
                 break;              /* End-User-IMSI */
+              case PCRF_ATTR_E164:  /* End-User-IMSI */
+                strE164.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                break;              /* End-User-E164 */
               case PCRF_ATTR_PSES:  /* Parent-Session-Id */
                 pstrParentSessionId = new std::string;
                 pstrParentSessionId->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
@@ -965,7 +976,41 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
       pcrf_session_cache_ps_reply( p_iSock, p_psoAddr, PCRF_CMD_SESS_USAGE, uiPackNum, iFnRes);
       break;
     case PCRF_GET_INFO_FROM_CACHE:
-      pcrf_session_cache_get_info_from_cache( strSessionId );
+    {
+      std::string strResult;
+
+      pcrf_session_cache_get_info_from_cache( strSessionId, strResult );
+      pcrf_session_cache_ps_reply( p_iSock, p_psoAddr, PCRF_CMD_SESS_USAGE, uiPackNum, 0, strResult.c_str(), strResult.length() );
+    }
+      break;
+    case ADMIN_REQ:
+      if ( 0 == strAdmCmd.compare( "tracer.set" ) ) {
+        if ( 0 == psoCache->m_coEndUserIMSI.is_null() ) {
+          pcrf_tracer_set_condition( m_eIMSI, psoCache->m_coEndUserIMSI.v.c_str() );
+        }
+        if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
+          pcrf_tracer_set_condition( m_eAPN, psoCache->m_coEndUserIMSI.v.c_str() );
+        }
+        if ( 0 != strE164.length() ) {
+          pcrf_tracer_set_condition( m_eE164, strE164.c_str() );
+        }
+        if ( 0 != ui32ApplicationId ) {
+          pcrf_tracer_set_condition( m_eApplicationId, &ui32ApplicationId );
+        }
+      } else if ( 0 == strAdmCmd.compare( "tracer.reset" ) ) {
+        if ( 0 == psoCache->m_coEndUserIMSI.is_null() ) {
+          pcrf_tracer_reset_condition( m_eIMSI, psoCache->m_coEndUserIMSI.v.c_str() );
+        }
+        if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
+          pcrf_tracer_reset_condition( m_eAPN, psoCache->m_coEndUserIMSI.v.c_str() );
+        }
+        if ( 0 != strE164.length() ) {
+          pcrf_tracer_reset_condition( m_eE164, strE164.c_str() );
+        }
+        if ( 0 != ui32ApplicationId ) {
+          pcrf_tracer_reset_condition( m_eApplicationId, &ui32ApplicationId );
+        }
+      }
       break;
     default:
       UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", uiReqType );
