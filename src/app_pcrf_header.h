@@ -381,7 +381,7 @@ struct SSQLData : public SSQLQueueParam {
   void push_data( otl_stream &p_coStream ) { p_coStream << m_tParam; }
 };
 
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL );
+void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL, bool p_bRollbackOnFail = false );
 
 template <class T>
 void pcrf_sql_queue_add_param( std::list<SSQLQueueParam*> *p_plistParameters, T &p_tParam )

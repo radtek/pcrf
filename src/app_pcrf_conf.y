@@ -49,11 +49,12 @@
 %pure-parser
 
 %{
-#include "app_pcrf.h"
-#include "app_pcrf_conf.tab.h"	/* bison is not smart enough to define the YYLTYPE before including this code, so... */
-
 #include <string.h>
 #include <errno.h>
+
+#include "app_pcrf.h"
+#include "pcrf_tracer.h"
+#include "app_pcrf_conf.tab.h"	/* bison is not smart enough to define the YYLTYPE before including this code, so... */
 
 /* Forward declaration */
 int yyparse (char * conffile);
@@ -132,6 +133,11 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token 		CDR_DIR
 %token 		CDR_CMPL_DIR
 %token 		CDR_INTERVAL
+%token		TRACER
+%token 		END_USER_IMSI
+%token 		END_USER_E164
+%token 		APPLICATION_ID
+%token 		APN
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -162,6 +168,7 @@ conffile:		/* empty grammar is OK */
 			| conffile cdr_dir
 			| conffile cdr_completed_dir
 			| conffile cdr_interval
+			| conffile tracer
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -265,5 +272,36 @@ cdr_completed_dir:		CDR_CMPL_DIR '=' QSTRING ';'
 cdr_interval:		CDR_INTERVAL '=' INTEGER ';'
 			{
 				g_psoConf->m_iCDRInterval = $3;
+			}
+			;
+
+tracer:		/* empty */
+			TRACER '=' tracerinfo ';'
+			;
+
+tracerinfo:	/* empty */
+			'{' tracerparams '}'
+			;
+
+tracerparams: /* empty */
+			| tracerparams END_USER_IMSI '=' QSTRING ';'
+			{
+				pcrf_tracer_set_condition( m_eIMSI, $4 );
+				free( $4 );
+			}
+			| tracerparams END_USER_E164 '=' QSTRING ';'
+			{
+				pcrf_tracer_set_condition( m_eE164, $4 );
+				free( $4 );
+			}
+			| tracerparams APPLICATION_ID '=' INTEGER ';'
+			{
+				uint32_t ui32AppId = $4;
+				pcrf_tracer_set_condition( m_eApplicationId, &ui32AppId );
+			}
+			| tracerparams APN '=' QSTRING ';'
+			{
+				pcrf_tracer_set_condition( m_eAPN, $4 );
+				free( $4 );
 			}
 			;

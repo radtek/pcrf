@@ -15,6 +15,7 @@
 #include "pcrf_session_cache.h"
 #include "pcrf_session_cache_index.h"
 #include "utils/log/log.h"
+#include "pcrf_tracer.h"
 
 extern CLog *g_pcoLog;
 
@@ -57,14 +58,6 @@ static void * pcrf_session_cache_load_session_list( void * );
 
 /* отправка сообщение нодам */
 #define NODE_POLL_WAIT 1
-#pragma pack(push,1)
-struct SPayloadHdr {
-  uint16_t m_uiVendId;
-  uint16_t m_uiAVPId;
-  uint16_t m_uiPadding;
-  uint16_t m_uiPayloadLen;
-};
-#pragma pack(pop)
 
 static void sig_oper( void )
 {
@@ -639,6 +632,7 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
 
   pcrf_session_cache_remove_local (p_strSessionId);
   pcrf_session_rule_cache_remove_sess_local(p_strSessionId);
+  pcrf_tracer_remove_session( p_strSessionId.c_str() );
 
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
@@ -663,6 +657,110 @@ void pcrf_session_cache_ps_reply( int p_iSock, sockaddr_in *p_psoAddr, uint16_t 
       LOG_E( "%s: sendto: error: %d", __FUNCTION__, errno );
     }
   }
+
+  LOG_D( "leave: %s", __FUNCTION__ );
+}
+
+static void pcrf_format_data_from_cache( std::string &p_strOut, const char *p_pszElementName, const char *p_pszElementValue )
+{
+  p_strOut += ' ';
+  p_strOut += p_pszElementName;
+  p_strOut += ": ";
+  p_strOut += p_pszElementValue;
+  p_strOut += ';';
+}
+
+#define PCRF_FORMAT_DATA_FROM_CACHE(a,b,c) pcrf_format_data_from_cache(a,b,0 == (c).is_null() ? (c).v.c_str() : "<null>")
+
+static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId )
+{
+  LOG_D( "enter: %s", __FUNCTION__ );
+
+  int iDataFound = 0;
+  std::map<std::string, SSessionCache*>::iterator iterSessionList;
+  SSessionCache soSessionCache;
+
+  /* проверяем содержимое параметра */
+  if ( 0 != p_strSessionId.length() ) {
+  } else {
+    LOG_E( "%s; empty session-id", __FUNCTION__ );
+    goto __leave_function__;
+  }
+
+  /* блокируем кэш */
+  CHECK_FCT_DO( pcrf_session_cache_lock(), return );
+  /* запрашиваем данные в кэше */
+  iterSessionList = g_pmapSessionCache->find( p_strSessionId );
+  /* копируем данные в случае успеха */
+  if ( iterSessionList != g_pmapSessionCache->end() ) {
+    soSessionCache = * dynamic_cast< SSessionCache* >( iterSessionList->second );
+    iDataFound = 1;
+  } else {
+    iDataFound = 0;
+  }
+  /* снимаем блкировку */
+  pcrf_session_cache_unlock();
+
+  if ( 0 != iDataFound ) {
+    std::string str;
+
+    str = "session info:";
+    pcrf_format_data_from_cache( str, "Session-Id", p_strSessionId.c_str() );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "Subscriber-Id", soSessionCache.m_coSubscriberId );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "Framed-IP-Address", soSessionCache.m_coFramedIPAddr );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "Called-Station-Id", soSessionCache.m_coCalledStationId );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "IP-CAN-Type", soSessionCache.m_coIPCANType );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "SGSN-MCC-MNC", soSessionCache.m_coSGSNMCCMNC );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "SGSN-IP-Address", soSessionCache.m_coSGSNIPAddr );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "RAT-Type", soSessionCache.m_coRATType );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "Origin-Host", soSessionCache.m_coOriginHost );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "Origin-Realm", soSessionCache.m_coOriginRealm );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "CGI", soSessionCache.m_coCGI );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "ECGI", soSessionCache.m_coECGI );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "TAI", soSessionCache.m_coTAI );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "IMEI-SV", soSessionCache.m_coIMEISV );
+    PCRF_FORMAT_DATA_FROM_CACHE( str, "End-User-IMSI", soSessionCache.m_coEndUserIMSI );
+
+    std::vector<SDBAbonRule> vectRuleList;
+
+    pcrf_session_rule_cache_get( p_strSessionId, vectRuleList );
+
+    /* список правил сессии */
+    str += "\r\n";
+    str += "session rule list:";
+    if ( 0 == vectRuleList.size() ) {
+      str += " <null>";
+    } else {
+      for ( std::vector<SDBAbonRule>::iterator iter = vectRuleList.begin(); iter != vectRuleList.end(); ++iter ) {
+        str += ' ';
+        str += iter->m_coRuleName.v;
+        str += ';';
+      }
+    }
+
+    std::list<std::string> listSessionIdList;
+
+    pcrf_session_cache_get_linked_child_session_list( p_strSessionId, listSessionIdList );
+
+    /* список связанных сессий */
+    str += "\r\n";
+    str += "linked session list:";
+    if ( 0 == listSessionIdList.size() ) {
+      str += " <null>";
+    } else {
+      for ( std::list<std::string>::iterator iter = listSessionIdList.begin(); iter != listSessionIdList.end(); ++iter ) {
+        str += ' ';
+        str += *iter;
+        str += ';';
+      }
+    }
+
+    LOG_N( "data from chache: %s; ", str.c_str() );
+  } else {
+    LOG_N( "%s: session-id %s not found in session cache", __FUNCTION__, p_strSessionId.c_str() );
+  }
+
+  __leave_function__:
 
   LOG_D( "leave: %s", __FUNCTION__ );
 }
@@ -865,6 +963,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
     case PCRF_CMD_SESS_USAGE:
       iFnRes = pcrf_send_umi_rar( psoCache->m_coSubscriberId, plistMonitKey );
       pcrf_session_cache_ps_reply( p_iSock, p_psoAddr, PCRF_CMD_SESS_USAGE, uiPackNum, iFnRes);
+      break;
+    case PCRF_GET_INFO_FROM_CACHE:
+      pcrf_session_cache_get_info_from_cache( strSessionId );
       break;
     default:
       UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", uiReqType );

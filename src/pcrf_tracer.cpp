@@ -1,14 +1,25 @@
+#include <vector>
+#include <stdio.h>
+#include <unordered_set>
+
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "utils/stat/stat.h"
-
-#include <vector>
-#include <stdio.h>
+#include "pcrf_tracer.h"
 
 extern CLog *g_pcoLog;
 
 static SStat *g_psoReqStat;
 static SStat *g_psoPeerStat;
+
+static std::unordered_set<std::string> g_usetSessionId;
+static std::unordered_set<uint32_t> g_usetApplicationId;
+static std::unordered_set<std::string> g_usetEndUserImsi;
+static std::unordered_set<std::string> g_usetEndUserE164;
+static std::unordered_set<std::string> g_usetAPN;
+
+static void pcrf_tracer_check_session_by_condition( std::string &p_strSessionId, std::string &p_strIMSI, std::string &p_strE164, std::string &p_strAPN );
+static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui32ApplicationId );
 
 static void pcrf_tracer (
 	fd_hook_type p_eHookType,
@@ -104,12 +115,16 @@ static void pcrf_tracer (
 
   /* добываем необходимые значения из запроса */
   uint32_t    ui32ApplicationId = 0;
+  int32_t     i32CCReqType = 0;
   std::string strSessionId;
   std::string strOriginHost;
   std::string strOriginReal;
   std::string strDestinHost;
   std::string strResultCode;
   std::string strDestinReal;
+  std::string strIMSI;
+  std::string strE164;
+  std::string strAPN;
   char mcEnumValue[ 256 ];
   avp_hdr *psoAVPHdr;
   avp *psoAVP = reinterpret_cast<avp*>(p_psoMsg);
@@ -127,19 +142,26 @@ static void pcrf_tracer (
       continue;
     }
     switch ( psoAVPHdr->avp_code ) {
+      case 30:  /* Called-Station-Id */
+        if ( NULL != psoAVPHdr->avp_value ) {
+          strAPN.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
+        }
+        break; /* Called-Station-Id */
       case 258: /* Auth-Application-Id */
-        ui32ApplicationId = psoAVPHdr->avp_value->u32;
+        if ( NULL != psoAVPHdr->avp_value ) {
+          ui32ApplicationId = psoAVPHdr->avp_value->u32;
+        }
         break;  /* Auth-Application-Id */
       case 263: /* Session-Id */
         if ( NULL != psoAVPHdr->avp_value ) {
-          strSessionId.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+          strSessionId.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
         } else {
           LOG_D( "Session-Id: %p", psoAVPHdr->avp_value );
         }
         break;
       case 264: /* Origin-Host */
         if ( NULL != psoAVPHdr->avp_value ) {
-          strOriginHost.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+          strOriginHost.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
         } else {
           LOG_D( "Origin-Host: %p", psoAVPHdr->avp_value );
         }
@@ -156,27 +178,28 @@ static void pcrf_tracer (
         break;
       case 283: /* Destination-Realm */
         if ( NULL != psoAVPHdr->avp_value ) {
-          strDestinReal.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+          strDestinReal.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
         } else {
           LOG_D( "Destination-Realm: %p", psoAVPHdr->avp_value );
         }
         break;
       case 293: /* Destination-Host */
         if ( NULL != psoAVPHdr->avp_value ) {
-          strDestinHost.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+          strDestinHost.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
         } else {
           LOG_D( "Destination-Host: %p", psoAVPHdr->avp_value );
         }
         break;
       case 296: /* Origin-Realm */
         if ( NULL != psoAVPHdr->avp_value ) {
-          strOriginReal.insert( 0, (const char*)psoAVPHdr->avp_value->os.data, psoAVPHdr->avp_value->os.len );
+          strOriginReal.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
         } else {
           LOG_D( "Origin-Realm: %p", psoAVPHdr->avp_value );
         }
         break;
       case 416: /* CC-Request-Type */
         if ( NULL != psoAVPHdr->avp_value ) {
+          i32CCReqType = psoAVPHdr->avp_value->i32;
           iFnRes = pcrf_extract_avp_enum_val( psoAVPHdr, mcEnumValue, sizeof( mcEnumValue ) );
           if ( 0 == iFnRes && psoMsgHdr->msg_code == 272 ) {
             strRequestType += '-';
@@ -185,15 +208,67 @@ static void pcrf_tracer (
         } else {
           LOG_D( "CC-Request-Type: %p", psoAVPHdr->avp_value );
         }
-        break;
+        break;  /* CC-Request-Type */
+      case 443: /* Subscription-Id */
+      {
+        avp *psoAVPNested = reinterpret_cast<avp*>( psoAVP );
+        msg_brw_dir eSearchDirection = MSG_BRW_FIRST_CHILD;
+        ETracerConditionType eCondType;
+        std::string strSubscriptionData;
+
+        while ( 0 == fd_msg_browse_internal( psoAVPNested, eSearchDirection, reinterpret_cast< msg_or_avp** >( &psoAVPNested ), NULL ) && NULL != psoAVPNested ) {
+          eSearchDirection = MSG_BRW_NEXT;
+          if ( 0 == fd_msg_avp_hdr( psoAVPNested, &psoAVPHdr ) ) {
+          } else {
+            continue;
+          }
+          if ( 0 == psoAVPHdr->avp_vendor ) {
+          } else {
+            continue;
+          }
+          switch ( psoAVPHdr->avp_code ) {
+            case 450: /* Subscription-Id-Type */
+              switch ( psoAVPHdr->avp_value->i32 ) {
+                case 0: /* END_USER_E164 */
+                  eCondType = m_eE164;
+                  break;
+                case 1: /* END_USER_IMSI */
+                  eCondType = m_eIMSI;
+                  break;
+                default:
+                  eCondType = m_eNotInterested;
+                  goto __not_interested_type__;
+              }
+              break;  /*Subscription-Id-Type */
+            case 444: /* Subscription-Id-Data */
+              strSubscriptionData.insert( 0, reinterpret_cast< const char* >( psoAVPHdr->avp_value->os.data ), psoAVPHdr->avp_value->os.len );
+              break;
+          }
+        }
+        switch ( eCondType ) {
+          case m_eIMSI:
+            strIMSI = strSubscriptionData;
+            break;
+          case m_eE164:
+            strE164 = strSubscriptionData;
+            break;
+        }
+      }
+        __not_interested_type__:
+        break;  /* Subscription-Id */
     }
+  }
+
+  if ( psoMsgHdr->msg_code != 272 || i32CCReqType == 0 ) {
+  } else {
+    pcrf_tracer_check_session_by_condition( strSessionId, strIMSI, strE164, strAPN );
   }
 
   /* статистика по запросам */
   stat_measure( g_psoReqStat, strRequestType.c_str(), NULL );
 
   /* если трассировка включена следуем дальше */
-  if ( 0 != g_psoConf->m_iTraceReq || ui32ApplicationId == 16777236 ) {
+  if ( 0 != g_psoConf->m_iTraceReq || 0 != pcrf_tracer_is_need_dump( strSessionId, ui32ApplicationId ) ) {
   } else {
     /* если нет необходимости трассировки */
     if ( NULL != pmcBuf ) {
@@ -240,7 +315,7 @@ static void pcrf_tracer (
 			coOriginHost = strPeerName;
 			break;
 		case HOOK_MESSAGE_SENT:
-			coOriginHost.v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      coOriginHost.v.insert( 0, reinterpret_cast< const char* >( fd_g_config->cnf_diamid ), fd_g_config->cnf_diamid_len );
       coOriginHost.set_non_null();
 			break;
 		default:
@@ -250,7 +325,7 @@ static void pcrf_tracer (
 	if (0 != coDestinHost.is_null()) {
 		switch (p_eHookType) {
 		case HOOK_MESSAGE_RECEIVED:
-			coDestinHost.v.insert (0, (const char*)fd_g_config->cnf_diamid, fd_g_config->cnf_diamid_len);
+      coDestinHost.v.insert( 0, reinterpret_cast< const char* >( fd_g_config->cnf_diamid ), fd_g_config->cnf_diamid_len );
       coDestinHost.set_non_null();
 			break;
 		case HOOK_MESSAGE_SENT:
@@ -268,7 +343,7 @@ static void pcrf_tracer (
         strOriginReal = strPeerRlm;
         break;
       case HOOK_MESSAGE_SENT:
-			strOriginReal.insert (0, (const char*)fd_g_config->cnf_diamrlm, fd_g_config->cnf_diamrlm_len);
+        strOriginReal.insert( 0, reinterpret_cast< const char* >( fd_g_config->cnf_diamrlm ), fd_g_config->cnf_diamrlm_len );
 			break;
 		default:
 			break;
@@ -277,7 +352,7 @@ static void pcrf_tracer (
 	if (0 == strDestinReal.length ()) {
 		switch (p_eHookType) {
 		case HOOK_MESSAGE_RECEIVED:
-			strDestinReal.insert (0, (const char*)fd_g_config->cnf_diamrlm, fd_g_config->cnf_diamrlm_len);
+      strDestinReal.insert( 0, reinterpret_cast< const char* >( fd_g_config->cnf_diamrlm ), fd_g_config->cnf_diamrlm_len );
 			break;
     case HOOK_MESSAGE_SENT:
       strDestinReal = strPeerRlm;
@@ -342,4 +417,86 @@ void pcrf_tracer_fini (void)
 	if (psoHookHandle) {
 		CHECK_FCT_DO (fd_hook_unregister (psoHookHandle), );
 	}
+}
+
+void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, void* p_pvValue )
+{
+  switch ( p_eTracerConditionType ) {
+    case m_eIMSI:
+      g_usetEndUserImsi.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+    case m_eE164:
+      g_usetEndUserE164.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+    case m_eApplicationId:
+      g_usetApplicationId.insert( * reinterpret_cast< uint32_t* >( p_pvValue ) );
+      break;
+    case m_eAPN:
+      g_usetAPN.insert( reinterpret_cast< const char* >( p_pvValue ) );
+      break;
+  }
+}
+
+void pcrf_tracer_remove_session( const char *p_pszSessionId )
+{
+  if ( NULL != p_pszSessionId ) {
+    std::string strSessionId = p_pszSessionId;
+    g_usetSessionId.erase( strSessionId );
+  }
+}
+
+static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId, std::string & p_strIMSI, std::string & p_strE164, std::string &p_strAPN )
+{
+  if ( 0 != p_strSessionId.length() ) {
+  } else {
+    return;
+  }
+
+  /* проверяем список IMSI */
+  if ( 0 != g_usetEndUserImsi.size() ) {
+    std::unordered_set<std::string>::iterator iter = g_usetEndUserImsi.find( p_strIMSI );
+    if ( iter != g_usetEndUserImsi.end() ) {
+      g_usetSessionId.insert( p_strSessionId );
+      return;
+    }
+  }
+
+  /* проверяем список E164 */
+  if ( 0 != g_usetEndUserE164.size() ) {
+    std::unordered_set<std::string>::iterator iter = g_usetEndUserE164.find( p_strE164);
+    if ( iter != g_usetEndUserE164.end() ) {
+      g_usetSessionId.insert( p_strSessionId );
+      return;
+    }
+  }
+
+  /* проверяем список APN */
+  if ( 0 != g_usetAPN.size() ) {
+    std::unordered_set<std::string>::iterator iter = g_usetAPN.find( p_strAPN );
+    if ( iter != g_usetAPN.end() ) {
+      g_usetSessionId.insert( p_strSessionId );
+      return;
+    }
+  }
+}
+
+static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui32ApplicationId )
+{
+  int iRetVal = 0;
+
+  /* проверяем список Application-Id */
+  if ( 0 != p_ui32ApplicationId && 0 != g_usetApplicationId.size() ) {
+    std::unordered_set<uint32_t>::iterator iter = g_usetApplicationId.find( p_ui32ApplicationId );
+    if ( iter != g_usetApplicationId.end() ) {
+      return 1;
+    }
+  }
+  if ( 0 != p_strSessionId.length() ) {
+    std::unordered_set<std::string>::iterator iter = g_usetSessionId.find( p_strSessionId );
+    if ( iter != g_usetSessionId.end() ) {
+      return 1;
+    }
+  }
+
+  return iRetVal;
 }

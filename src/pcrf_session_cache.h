@@ -7,6 +7,15 @@
 #include "app_pcrf_header.h"
 #include "pcrf_otl.h"
 
+#pragma pack(push,1)
+struct SPayloadHdr {
+  uint16_t m_uiVendId;
+  uint16_t m_uiAVPId;
+  uint16_t m_uiPadding;
+  uint16_t m_uiPayloadLen;
+};
+#pragma pack(pop)
+
 struct SSessionCache {
   otl_value<std::string>  m_coSubscriberId;
   otl_value<std::string>  m_coFramedIPAddr;
