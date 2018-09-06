@@ -337,7 +337,7 @@ void pcrf_db_close_session_rule_all ( otl_value<std::string> &p_coSessionId )
   pcrf_sql_queue_add_param( plistParam, p_coSessionId, m_eSQLParamType_StdString );
 
   pcrf_sql_queue_enqueue(
-    "update ps.sessionRule set time_end = :time_end/*timestamp*/ where session_id = :session_id /* char[255] */ and time_end is null",
+    "update /*+ index(sr IE1_SESSIONRULE_SESSION_ID)*/ ps.sessionRule sr set time_end = :time_end/*timestamp*/ where session_id = :session_id /* char[255] */ and time_end is null",
     plistParam,
     "close rule all",
     &( p_coSessionId.v ) );
@@ -368,8 +368,8 @@ void pcrf_db_close_session_rule (
   pcrf_sql_queue_add_param( plistParam, coRuleName,                 m_eSQLParamType_StdString );
 
   pcrf_sql_queue_enqueue(
-    "update "
-      "ps.sessionRule "
+    "update /*+ index(sr IE1_SESSIONRULE_SESSION_ID)*/ "
+      "ps.sessionRule sr "
     "set "
       "time_end = :time_end/*timestamp*/,"
       "rule_failure_code = :rule_failure_code /*char[64]*/ "
@@ -654,7 +654,7 @@ void pcrf_server_db_close_user_loc(otl_value<std::string> &p_strSessionId)
   pcrf_sql_queue_add_param( plistParam, coSessionId, m_eSQLParamType_StdString );
 
   pcrf_sql_queue_enqueue(
-    "update ps.sessionLocation set time_end = :time_end/*timestamp*/ where time_end is null and session_id = :session_id /*char[255]*/",
+    "update /*+ index(loc ie1_sessionlocation_session_id)*/ ps.sessionLocation loc set time_end = :time_end/*timestamp*/ where time_end is null and session_id = :session_id /*char[255]*/",
     plistParam,
     "close location",
     &( coSessionId.v ) );
