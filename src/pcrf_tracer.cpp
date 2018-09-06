@@ -24,15 +24,15 @@ static int pcrf_tracer_rwlock_init()
 {
   CHECK_FCT( pthread_rwlock_init( &g_rwlockTracer, NULL ) );
 }
-static int pcrf_tracer_read_lock()
+static int pcrf_tracer_rwlock_read_lock()
 {
   CHECK_FCT( pthread_rwlock_rdlock( &g_rwlockTracer ) );
 }
-static int pcrf_tracer_write_lock()
+static int pcrf_tracer_rwlock_write_lock()
 {
   CHECK_FCT( pthread_rwlock_wrlock( &g_rwlockTracer ) );
 }
-static int pcrf_tracer_unlock()
+static int pcrf_tracer_rwlock_unlock()
 {
   CHECK_FCT( pthread_rwlock_unlock( &g_rwlockTracer ) );
 }
@@ -446,7 +446,7 @@ void pcrf_tracer_fini (void)
 
 void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, const void* p_pvValue )
 {
-  CHECK_FCT_DO( pcrf_tracer_write_lock(), return );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
   switch ( p_eTracerConditionType ) {
     case m_eIMSI:
       g_usetEndUserImsi.insert( reinterpret_cast< const char* >( p_pvValue ) );
@@ -465,12 +465,12 @@ void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, con
       LOG_D( "%s: set tracer: APN: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
   }
-  CHECK_FCT_DO( pcrf_tracer_unlock(), /* continue */ );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
 void pcrf_tracer_reset_condition( enum ETracerConditionType p_eTracerConditionType, const void* p_pvValue )
 {
-  CHECK_FCT_DO( pcrf_tracer_write_lock(), return );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
   switch ( p_eTracerConditionType ) {
     case m_eIMSI:
       g_usetEndUserImsi.erase( reinterpret_cast< const char* >( p_pvValue ) );
@@ -489,22 +489,22 @@ void pcrf_tracer_reset_condition( enum ETracerConditionType p_eTracerConditionTy
       LOG_D( "%s: reset tracer: APN: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
   }
-  CHECK_FCT_DO( pcrf_tracer_unlock(), /* continue */ );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
 void pcrf_tracer_remove_session( const char *p_pszSessionId )
 {
-  CHECK_FCT_DO( pcrf_tracer_write_lock(), return );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
   if ( NULL != p_pszSessionId ) {
     std::string strSessionId = p_pszSessionId;
     g_usetSessionId.erase( strSessionId );
   }
-  CHECK_FCT_DO( pcrf_tracer_unlock(), /* continue */ );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
 static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId, std::string & p_strIMSI, std::string & p_strE164, std::string &p_strAPN )
 {
-  CHECK_FCT_DO( pcrf_tracer_read_lock(), return );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return );
   if ( 0 != p_strSessionId.length() ) {
   } else {
     return;
@@ -536,14 +536,14 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
       return;
     }
   }
-  CHECK_FCT_DO( pcrf_tracer_unlock(), /* continue */ );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
 static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui32ApplicationId )
 {
   int iRetVal = 0;
 
-  CHECK_FCT_DO( pcrf_tracer_read_lock(), return iRetVal );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return iRetVal );
   /* проверяем список Application-Id */
   if ( 0 != p_ui32ApplicationId && 0 != g_usetApplicationId.size() ) {
     std::unordered_set<uint32_t>::iterator iter = g_usetApplicationId.find( p_ui32ApplicationId );
@@ -561,7 +561,7 @@ static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui3
   }
 
   __unlock_and_exit__:
-  CHECK_FCT_DO( pcrf_tracer_unlock(), /* continue */ );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 
   return iRetVal;
 }
