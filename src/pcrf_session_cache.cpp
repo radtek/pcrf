@@ -787,9 +787,11 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   /* парсинг запроса */
   CHECK_FCT_DO( coPSPack.Parse( reinterpret_cast<const SPSRequest*>( p_pmucBuf ), static_cast<size_t>( p_stMsgLen ), uiPackNum, uiReqType, uiPackLen, mmap ), goto clean_and_exit );
 
+  LOG_D( "ps req type: %#06x", uiReqType );
+
   /* обходим все атрибуты запроса */
   for ( iter = mmap.begin(); iter != mmap.end(); ++iter ) {
-    LOG_D( "ps attr id: %#x; ps data len: %u", iter->first, iter->second.m_usDataLen );
+    LOG_D( "ps attr id: %#06x; ps data len: %u", iter->first, iter->second.m_usDataLen );
     /* проверяем размр буфера */
     if ( stBufSize < iter->second.m_usDataLen ) {
       /* выделяем дополнительную память с запасом на будущее */
@@ -820,8 +822,8 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         break;    /* Monitoring-Key */
       case PCRF_ATTR_AVP:
         psoPayload = reinterpret_cast<SPayloadHdr*>( pmucBuf );
-        LOG_D( "vendor id: %u; avp id: %u; attr len: %u", psoPayload->m_uiVendId, psoPayload->m_uiAVPId, psoPayload->m_uiPayloadLen );
         memcpy( psoPayload, iter->second.m_pvData, iter->second.m_usDataLen );
+        LOG_D( "vendor id: %u; avp id: %u; attr len: %u", psoPayload->m_uiVendId, psoPayload->m_uiAVPId, psoPayload->m_uiPayloadLen );
         switch ( psoPayload->m_uiVendId ) {
           case 0:     /* Dimeter */
             switch ( psoPayload->m_uiAVPId ) {
@@ -852,7 +854,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 psoCache->m_coOriginRealm.set_non_null();
                 break;  /* Origin-Realm */
               default:
-                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+                LOG_N( "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
             }
             break;    /* Diameter */
           case 10415: /* 3GPP */
@@ -891,7 +893,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 }
                 break;    /* Monitoring-Key */
               default:
-                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+                LOG_N( "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
             }
             break;    /* 3GPP */
           case 65535: /* Tenet */
@@ -940,11 +942,11 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 pstrRuleName->insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 break;                  /* Rule-Name */
               default:
-                UTL_LOG_N( *g_pcoLog, "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
+                LOG_N( "unsupported avp: vendor: '%u'; avp: '%u'", psoPayload->m_uiVendId, psoPayload->m_uiAVPId );
             }
             break;    /* Tenet */
           default:
-            UTL_LOG_N( *g_pcoLog, "unsupported vendor: '%u'", psoPayload->m_uiVendId );
+            LOG_N( "unsupported vendor: '%u'", psoPayload->m_uiVendId );
         }
         break;
     }
@@ -989,7 +991,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
           pcrf_tracer_set_condition( m_eIMSI, psoCache->m_coEndUserIMSI.v.c_str() );
         }
         if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
-          pcrf_tracer_set_condition( m_eAPN, psoCache->m_coEndUserIMSI.v.c_str() );
+          pcrf_tracer_set_condition( m_eAPN, psoCache->m_coCalledStationId.v.c_str() );
         }
         if ( 0 != strE164.length() ) {
           pcrf_tracer_set_condition( m_eE164, strE164.c_str() );
@@ -1002,7 +1004,7 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
           pcrf_tracer_reset_condition( m_eIMSI, psoCache->m_coEndUserIMSI.v.c_str() );
         }
         if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
-          pcrf_tracer_reset_condition( m_eAPN, psoCache->m_coEndUserIMSI.v.c_str() );
+          pcrf_tracer_reset_condition( m_eAPN, psoCache->m_coCalledStationId.v.c_str() );
         }
         if ( 0 != strE164.length() ) {
           pcrf_tracer_reset_condition( m_eE164, strE164.c_str() );
@@ -1010,10 +1012,12 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         if ( 0 != ui32ApplicationId ) {
           pcrf_tracer_reset_condition( m_eApplicationId, &ui32ApplicationId );
         }
+      } else {
+        LOG_N( "unsupported admin command: %s", strAdmCmd.c_str() );
       }
       break;
     default:
-      UTL_LOG_N( *g_pcoLog, "unsupported command: '%#x'", uiReqType );
+      LOG_N( "unsupported command: '%#x'", uiReqType );
   }
 
   clean_and_exit:
