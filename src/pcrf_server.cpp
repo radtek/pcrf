@@ -511,11 +511,12 @@ static int app_pcrf_ccr_cb(
       CHECK_FCT_DO( set_event_trigger( ans, 101 ), /* continue */ );
     }
 #if 1
-    /* Event-Trigger USER_LOCATION_CHANGE */
+    /* Event-Trigger USER_LOCATION_CHANGE && SGSN_CHANGE */
     switch ( soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
       case GX_HW_UGW:
       case GX_ERICSSN:
         CHECK_FCT_DO( set_event_trigger( ans, 13 ), /* continue */ );
+        CHECK_FCT_DO( set_event_trigger( ans, 0 ), /* continue */ );
         break;
     }
 #endif
@@ -2342,6 +2343,7 @@ static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequest
         uiRetVal |= ACTION_UPDATE_RULE;
         LOG_D( "session-id: %s; RAT_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
+      case 0:  /* SGSN_CHANGE */
       case 13: /* USER_LOCATION_CHANGE */
         uiRetVal |= ACTION_UPDATE_SESSIONCACHE;
         /* Event-Trigger USER_LOCATION_CHANGE */
@@ -2353,7 +2355,7 @@ static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequest
             }
             break;
         }
-        LOG_D( "session-id: %s; USER_LOCATION_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
+        LOG_D( "session-id: %s; USER_LOCATION_CHANGE or SGSN_CHANGE", p_soRequestInfo.m_psoSessInfo->m_coSessionId.v.c_str() );
         break;
       case 20: /* DEFAULT_EPS_BEARER_QOS_CHANGE */
         uiRetVal |= ACTION_COPY_DEFBEARER;

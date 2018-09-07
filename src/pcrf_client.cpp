@@ -535,11 +535,12 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
         break;
     }
 #if 1
-    /* USER_LOCATION_CHANGE */
+    /* USER_LOCATION_CHANGE && SGSN_CHANGE */
     switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
       case GX_HW_UGW:
       case GX_ERICSSN:
         listEventTrigger.push_back( 13 );
+        listEventTrigger.push_back( 0 );
         break;
     }
 #endif
