@@ -42,8 +42,10 @@ int pcrf_db_pool_init (void);
 void pcrf_db_pool_fin (void);
 
 /* инициализация трейсера */
+int pcrf_tracer_rwlock_init();
 int pcrf_tracer_init(void);
 /* деинициализация трейсера */
+void pcrf_tracer_rwlock_fini();
 void pcrf_tracer_fini(void);
 
 /* инициализация сервера */

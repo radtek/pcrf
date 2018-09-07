@@ -20,9 +20,13 @@ static std::unordered_set<std::string> g_usetAPN;
 
 static pthread_rwlock_t g_rwlockTracer;
 
-static int pcrf_tracer_rwlock_init()
+int pcrf_tracer_rwlock_init()
 {
   CHECK_FCT( pthread_rwlock_init( &g_rwlockTracer, NULL ) );
+}
+void pcrf_tracer_rwlock_fini()
+{
+  CHECK_FCT_DO( pthread_rwlock_destroy( &g_rwlockTracer ), /* continue */ );
 }
 static int pcrf_tracer_rwlock_read_lock()
 {
@@ -35,10 +39,6 @@ static int pcrf_tracer_rwlock_write_lock()
 static int pcrf_tracer_rwlock_unlock()
 {
   CHECK_FCT( pthread_rwlock_unlock( &g_rwlockTracer ) );
-}
-static void pcrf_tracer_rwlock_fini()
-{
-  CHECK_FCT_DO( pthread_rwlock_destroy( &g_rwlockTracer ), /* continue */ );
 }
 
 static void pcrf_tracer_check_session_by_condition( std::string &p_strSessionId, std::string &p_strIMSI, std::string &p_strE164, std::string &p_strAPN );
@@ -504,18 +504,18 @@ void pcrf_tracer_remove_session( const char *p_pszSessionId )
 
 static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId, std::string & p_strIMSI, std::string & p_strE164, std::string &p_strAPN )
 {
-  CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return );
   if ( 0 != p_strSessionId.length() ) {
   } else {
     return;
   }
 
+  CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return );
   /* проверяем список IMSI */
   if ( 0 != g_usetEndUserImsi.size() ) {
     std::unordered_set<std::string>::iterator iter = g_usetEndUserImsi.find( p_strIMSI );
     if ( iter != g_usetEndUserImsi.end() ) {
       g_usetSessionId.insert( p_strSessionId );
-      return;
+      goto __unlock_and_exit__;
     }
   }
 
@@ -524,7 +524,7 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
     std::unordered_set<std::string>::iterator iter = g_usetEndUserE164.find( p_strE164);
     if ( iter != g_usetEndUserE164.end() ) {
       g_usetSessionId.insert( p_strSessionId );
-      return;
+      goto __unlock_and_exit__;
     }
   }
 
@@ -533,9 +533,10 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
     std::unordered_set<std::string>::iterator iter = g_usetAPN.find( p_strAPN );
     if ( iter != g_usetAPN.end() ) {
       g_usetSessionId.insert( p_strSessionId );
-      return;
+      goto __unlock_and_exit__;
     }
   }
+  __unlock_and_exit__:
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 

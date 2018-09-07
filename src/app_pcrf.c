@@ -113,6 +113,7 @@ void fd_ext_fini(void)
   }
 	stat_fin();
 	pcrf_logger_fini();
+  pcrf_tracer_rwlock_fini();
 }
 
 EXTENSION_ENTRY ("app_pcrf", pcrf_entry);
