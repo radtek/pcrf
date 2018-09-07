@@ -20,22 +20,31 @@ static std::unordered_set<std::string> g_usetAPN;
 
 static pthread_rwlock_t g_rwlockTracer;
 
+/* инициализация объекта блокировки */
 int pcrf_tracer_rwlock_init()
 {
   CHECK_FCT( pthread_rwlock_init( &g_rwlockTracer, NULL ) );
 }
+
+/* деинициализация объекта блокировки */
 void pcrf_tracer_rwlock_fini()
 {
   CHECK_FCT_DO( pthread_rwlock_destroy( &g_rwlockTracer ), /* continue */ );
 }
+
+/* блокировка по чтению */
 static int pcrf_tracer_rwlock_read_lock()
 {
   CHECK_FCT( pthread_rwlock_rdlock( &g_rwlockTracer ) );
 }
+
+/* блокировка по записи */
 static int pcrf_tracer_rwlock_write_lock()
 {
   CHECK_FCT( pthread_rwlock_wrlock( &g_rwlockTracer ) );
 }
+
+/* разблокировка */
 static int pcrf_tracer_rwlock_unlock()
 {
   CHECK_FCT( pthread_rwlock_unlock( &g_rwlockTracer ) );
@@ -492,13 +501,31 @@ void pcrf_tracer_reset_condition( enum ETracerConditionType p_eTracerConditionTy
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
-void pcrf_tracer_remove_session( const char *p_pszSessionId )
+void pcrf_tracer_set_session_id( const char *p_pszSessionId )
 {
-  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
   if ( NULL != p_pszSessionId ) {
-    std::string strSessionId = p_pszSessionId;
-    g_usetSessionId.erase( strSessionId );
+  } else {
+    return;
   }
+
+  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
+  std::string strSessionId = p_pszSessionId;
+  g_usetSessionId.insert( strSessionId );
+  LOG_D( "%s: set tracer: Session-Id: %s", __FUNCTION__, p_pszSessionId );
+  CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
+}
+
+void pcrf_tracer_reset_session_id( const char *p_pszSessionId )
+{
+  if ( NULL != p_pszSessionId ) {
+  } else {
+    return;
+  }
+
+  CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
+  std::string strSessionId = p_pszSessionId;
+  g_usetSessionId.erase( strSessionId );
+  LOG_D( "%s: reset tracer: Session-Id: %s", __FUNCTION__, p_pszSessionId );
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 

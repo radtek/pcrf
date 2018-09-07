@@ -632,7 +632,7 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
 
   pcrf_session_cache_remove_local (p_strSessionId);
   pcrf_session_rule_cache_remove_sess_local(p_strSessionId);
-  pcrf_tracer_remove_session( p_strSessionId.c_str() );
+  pcrf_tracer_reset_session_id( p_strSessionId.c_str() );
 
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
@@ -999,6 +999,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         if ( 0 != ui32ApplicationId ) {
           pcrf_tracer_set_condition( m_eApplicationId, &ui32ApplicationId );
         }
+        if ( 0 != strSessionId.length() ) {
+          pcrf_tracer_set_session_id( strSessionId.c_str() );
+        }
       } else if ( 0 == strAdmCmd.compare( "tracer.reset" ) ) {
         if ( 0 == psoCache->m_coEndUserIMSI.is_null() ) {
           pcrf_tracer_reset_condition( m_eIMSI, psoCache->m_coEndUserIMSI.v.c_str() );
@@ -1011,6 +1014,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         }
         if ( 0 != ui32ApplicationId ) {
           pcrf_tracer_reset_condition( m_eApplicationId, &ui32ApplicationId );
+        }
+        if ( 0 != strSessionId.length() ) {
+          pcrf_tracer_reset_session_id( strSessionId.c_str() );
         }
       } else {
         LOG_N( "unsupported admin command: %s", strAdmCmd.c_str() );
