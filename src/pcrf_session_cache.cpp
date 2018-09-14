@@ -424,6 +424,17 @@ static int pcrf_session_cache_fill_pspack (
         return -1;
       }
     }
+    /* добавляем End-User-E164 */
+    pco_field = &p_psoSessionInfo->m_coEndUserE164;
+    if ( 0 == pco_field->is_null() ) {
+      uiVendId = 65535;
+      uiAVPId = PCRF_ATTR_E164;
+      CHECK_FCT( pcrf_session_cache_fill_payload( pso_payload_hdr, sizeof( mc_attr ), uiVendId, uiAVPId, pco_field->v.data(), pco_field->v.length() ) );
+      if ( 0 < ( iRetVal = ps_pack.AddAttr( reinterpret_cast<SPSRequest*>( p_pmcBuf ), p_stBufSize, PCRF_ATTR_AVP, pso_payload_hdr, pso_payload_hdr->m_uiPayloadLen ) ) ) {
+      } else {
+        return -1;
+      }
+    }
     /* добавляем Parent-Session-Id (по необходимости) */
     if (NULL != p_pstrOptionalParam) {
       uiVendId = 65535;
@@ -509,6 +520,7 @@ void pcrf_session_cache_insert ( std::string &p_strSessionId, SSessionInfo &p_so
   psoTmp->m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
   psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
+  psoTmp->m_coEndUserE164     = p_soSessionInfo.m_coEndUserE164;
   if ( NULL != p_psoRequestInfo ) {
     psoTmp->m_coIPCANType  = p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType;
     psoTmp->m_iIPCANType   = p_psoRequestInfo->m_soUserEnvironment.m_iIPCANType;
@@ -553,6 +565,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo *p_psoSess
       if ( p_psoSessionInfo->m_coOriginRealm.is_null() )                     p_psoSessionInfo->m_coOriginRealm                       = iter->second->m_coOriginRealm;
       if ( p_psoSessionInfo->m_coIMEI.is_null() )                            p_psoSessionInfo->m_coIMEI                              = iter->second->m_coIMEISV;
       if ( p_psoSessionInfo->m_coEndUserIMSI.is_null() )                     p_psoSessionInfo->m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
+      if ( p_psoSessionInfo->m_coEndUserE164.is_null() )                     p_psoSessionInfo->m_coEndUserE164                       = iter->second->m_coEndUserE164;
     }
     if ( NULL != p_psoRequestInfo ) {
       if ( p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType.is_null() )   p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType   = iter->second->m_coIPCANType;
@@ -717,6 +730,7 @@ static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId 
     PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "TAI", soSessionCache.m_coTAI );
     PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "IMEI-SV", soSessionCache.m_coIMEISV );
     PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "End-User-IMSI", soSessionCache.m_coEndUserIMSI );
+    PCRF_FORMAT_DATA_FROM_CACHE( p_strResult, "End-User-E164", soSessionCache.m_coEndUserE164 );
 
     std::vector<SDBAbonRule> vectRuleList;
 
@@ -774,7 +788,6 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
   std::multimap<uint16_t, SPSReqAttrParsed>::iterator iter;
   std::string strSessionId;
   std::string strAdmCmd;
-  std::string strE164;
   uint32_t ui32ApplicationId = 0;
   uint8_t *pmucBuf = NULL;
   size_t stBufSize = 0;
@@ -922,8 +935,9 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
                 psoCache->m_coEndUserIMSI.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coEndUserIMSI.set_non_null();
                 break;              /* End-User-IMSI */
-              case PCRF_ATTR_E164:  /* End-User-IMSI */
-                strE164.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+              case PCRF_ATTR_E164:  /* End-User-E164 */
+                psoCache->m_coEndUserE164.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coEndUserE164.set_non_null();
                 break;              /* End-User-E164 */
               case PCRF_ATTR_PSES:  /* Parent-Session-Id */
                 pstrParentSessionId = new std::string;
@@ -993,8 +1007,8 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
           pcrf_tracer_set_condition( m_eAPN, psoCache->m_coCalledStationId.v.c_str() );
         }
-        if ( 0 != strE164.length() ) {
-          pcrf_tracer_set_condition( m_eE164, strE164.c_str() );
+        if ( 0 == psoCache->m_coEndUserE164.is_null() ) {
+          pcrf_tracer_set_condition( m_eE164, psoCache->m_coEndUserE164.v.c_str() );
         }
         if ( 0 != ui32ApplicationId ) {
           pcrf_tracer_set_condition( m_eApplicationId, &ui32ApplicationId );
@@ -1009,8 +1023,8 @@ static inline int pcrf_session_cache_process_request( const char *p_pmucBuf, con
         if ( 0 == psoCache->m_coCalledStationId.is_null() ) {
           pcrf_tracer_reset_condition( m_eAPN, psoCache->m_coCalledStationId.v.c_str() );
         }
-        if ( 0 != strE164.length() ) {
-          pcrf_tracer_reset_condition( m_eE164, strE164.c_str() );
+        if ( 0 == psoCache->m_coEndUserE164.is_null() ) {
+          pcrf_tracer_reset_condition( m_eIMSI, psoCache->m_coEndUserE164.v.c_str() );
         }
         if ( 0 != ui32ApplicationId ) {
           pcrf_tracer_reset_condition( m_eApplicationId, &ui32ApplicationId );
@@ -1255,7 +1269,8 @@ static void * pcrf_session_cache_load_session_list( void * )
         "sloc.ecgi,"
         "sloc.tai,"
         "sl.IMEISV,"
-        "sl.end_user_imsi "
+        "sl.end_user_imsi,"
+        "sl.end_user_e164 "
       "from "
         "ps.sessionList sl "
         "inner join ps.peer p on sl.origin_host = p.host_name and sl.origin_realm = p.realm "
@@ -1286,7 +1301,8 @@ static void * pcrf_session_cache_load_session_list( void * )
           >> psoSessCache->m_coECGI
           >> psoSessCache->m_coTAI
           >> psoSessCache->m_coIMEISV
-          >> psoSessCache->m_coEndUserIMSI;
+          >> psoSessCache->m_coEndUserIMSI
+          >> psoSessCache->m_coEndUserE164;
         if ( 0 == psoSessCache->m_coIPCANType.is_null() ) {
           dict_object * enum_obj = NULL;
           dict_enumval_request req;

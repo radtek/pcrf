@@ -31,6 +31,7 @@ struct SSessionCache {
   otl_value<std::string>  m_coTAI;
   otl_value<std::string>  m_coIMEISV;
   otl_value<std::string>  m_coEndUserIMSI;
+  otl_value<std::string>  m_coEndUserE164;
   int32_t                 m_iIPCANType;
   int32_t                 m_iRATType;
   SSessionCache() : m_iIPCANType( 0 ), m_iRATType( 0 ) { }
