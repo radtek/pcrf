@@ -430,13 +430,6 @@ static int app_pcrf_ccr_cb(
         CHECK_FCT_DO( fd_msg_avp_setvalue( psoChildAVP, &soAVPVal ), break );
         CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), break );
       } while ( 0 );
-      /* Gx-Capability-List */
-      do {
-        CHECK_FCT_DO( fd_msg_avp_new( g_psoDictAVPGxCapabilityList, 0, &psoChildAVP ), break );
-        soAVPVal.u32 = 65537; /*  */
-        CHECK_FCT_DO( fd_msg_avp_setvalue( psoChildAVP, &soAVPVal ), break );
-        CHECK_FCT_DO( fd_msg_avp_add( ans, MSG_BRW_LAST_CHILD, psoChildAVP ), break );
-      } while ( 0 );
       break; /* INITIAL_REQUEST */
     case UPDATE_REQUEST: /* UPDATE_REQUEST */
       if ( uiActionSet & ACTION_COPY_DEFBEARER ) {
