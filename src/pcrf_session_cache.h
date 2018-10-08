@@ -44,7 +44,7 @@ int pcrf_session_cache_get( std::string &p_strSessionId, SSessionInfo *p_psoSess
 /* удаление данных из кеша */
 void pcrf_session_cache_remove( std::string &p_strSessionId );
 /* передача данных другим нодам */
-void pcrf_session_cache_cmd2remote( std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam );
+void pcrf_session_cache_cmd2remote( const std::string &p_strSessionId, const SSessionCache *p_psoSessionInfo, const uint16_t p_uiCmdType, const std::string *p_pstrOptionalParam );
 /* получение списка session-id по Framed-IP-Address */
 int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
 int pcrf_session_cache_lock();

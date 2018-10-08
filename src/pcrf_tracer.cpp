@@ -50,8 +50,8 @@ static int pcrf_tracer_rwlock_unlock()
   CHECK_FCT( pthread_rwlock_unlock( &g_rwlockTracer ) );
 }
 
-static void pcrf_tracer_check_session_by_condition( std::string &p_strSessionId, std::string &p_strIMSI, std::string &p_strE164, std::string &p_strAPN );
-static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui32ApplicationId );
+static void pcrf_tracer_check_session_by_condition( std::string &p_strSessionId, std::string &p_strIMSI, std::string &p_strE164, std::string &p_strAPN, uint32_t p_ui32ApplicationId );
+static int pcrf_tracer_is_need_dump( std::string &p_strSessionId );
 
 static void pcrf_tracer (
 	fd_hook_type p_eHookType,
@@ -291,16 +291,19 @@ static void pcrf_tracer (
     }
   }
 
-  if ( psoMsgHdr->msg_code != 272 || i32CCReqType == 0 ) {
-  } else {
-    pcrf_tracer_check_session_by_condition( strSessionId, strIMSI, strE164, strAPN );
-  }
+  pcrf_tracer_check_session_by_condition( strSessionId, strIMSI, strE164, strAPN, ui32ApplicationId );
 
   /* статистика по запросам */
   stat_measure( g_psoReqStat, strRequestType.c_str(), NULL );
 
   /* если трассировка включена следуем дальше */
-  if ( 0 != g_psoConf->m_iTraceReq || 0 != pcrf_tracer_is_need_dump( strSessionId, ui32ApplicationId ) ) {
+  if ( 0 != g_psoConf->m_iTraceReq || 0 != pcrf_tracer_is_need_dump( strSessionId ) ) {
+    if ( strRequestType == "CCA-T" || strRequestType == "STA" ) {
+      /* TODO remove sesson-id from set */
+      if ( 0 != strSessionId.length() ) {
+        pcrf_tracer_reset_session_id( strSessionId.c_str() );
+      }
+    }
   } else {
     /* если нет необходимости трассировки */
     if ( NULL != pmcBuf ) {
@@ -456,6 +459,7 @@ void pcrf_tracer_fini (void)
 void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, const void* p_pvValue )
 {
   CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
+
   switch ( p_eTracerConditionType ) {
     case m_eIMSI:
       g_usetEndUserImsi.insert( reinterpret_cast< const char* >( p_pvValue ) );
@@ -474,6 +478,7 @@ void pcrf_tracer_set_condition( ETracerConditionType p_eTracerConditionType, con
       LOG_D( "%s: set tracer: APN: %s", __FUNCTION__, reinterpret_cast< const char* >( p_pvValue ) );
       break;
   }
+
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
@@ -509,9 +514,11 @@ void pcrf_tracer_set_session_id( const char *p_pszSessionId )
   }
 
   CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
+
   std::string strSessionId = p_pszSessionId;
   g_usetSessionId.insert( strSessionId );
   LOG_D( "%s: set tracer: Session-Id: %s", __FUNCTION__, p_pszSessionId );
+
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
@@ -523,13 +530,15 @@ void pcrf_tracer_reset_session_id( const char *p_pszSessionId )
   }
 
   CHECK_FCT_DO( pcrf_tracer_rwlock_write_lock(), return );
+
   std::string strSessionId = p_pszSessionId;
   g_usetSessionId.erase( strSessionId );
   LOG_D( "%s: reset tracer: Session-Id: %s", __FUNCTION__, p_pszSessionId );
+
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
-static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId, std::string & p_strIMSI, std::string & p_strE164, std::string &p_strAPN )
+static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId, std::string & p_strIMSI, std::string & p_strE164, std::string &p_strAPN, uint32_t p_ui32ApplicationId )
 {
   if ( 0 != p_strSessionId.length() ) {
   } else {
@@ -537,10 +546,10 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
   }
 
   CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return );
+
   /* проверяем список IMSI */
   if ( 0 != g_usetEndUserImsi.size() ) {
-    std::unordered_set<std::string>::iterator iter = g_usetEndUserImsi.find( p_strIMSI );
-    if ( iter != g_usetEndUserImsi.end() ) {
+    if ( 0 != g_usetEndUserImsi.count( p_strIMSI ) ) {
       g_usetSessionId.insert( p_strSessionId );
       goto __unlock_and_exit__;
     }
@@ -548,8 +557,7 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
 
   /* проверяем список E164 */
   if ( 0 != g_usetEndUserE164.size() ) {
-    std::unordered_set<std::string>::iterator iter = g_usetEndUserE164.find( p_strE164);
-    if ( iter != g_usetEndUserE164.end() ) {
+    if ( 0 != g_usetEndUserE164.count( p_strE164 ) ) {
       g_usetSessionId.insert( p_strSessionId );
       goto __unlock_and_exit__;
     }
@@ -557,32 +565,32 @@ static void pcrf_tracer_check_session_by_condition( std::string & p_strSessionId
 
   /* проверяем список APN */
   if ( 0 != g_usetAPN.size() ) {
-    std::unordered_set<std::string>::iterator iter = g_usetAPN.find( p_strAPN );
-    if ( iter != g_usetAPN.end() ) {
+    if ( 0 != g_usetAPN.count( p_strAPN ) ) {
       g_usetSessionId.insert( p_strSessionId );
       goto __unlock_and_exit__;
     }
   }
+
+  /* проверяем список Application-Id */
+  if ( 0 != p_ui32ApplicationId ) {
+    if ( 0 != g_usetApplicationId.count( p_ui32ApplicationId ) ) {
+      g_usetSessionId.insert( p_strSessionId );
+      goto __unlock_and_exit__;
+    }
+  }
+
   __unlock_and_exit__:
   CHECK_FCT_DO( pcrf_tracer_rwlock_unlock(), /* continue */ );
 }
 
-static int pcrf_tracer_is_need_dump( std::string &p_strSessionId, uint32_t p_ui32ApplicationId )
+static int pcrf_tracer_is_need_dump( std::string &p_strSessionId )
 {
   int iRetVal = 0;
 
   CHECK_FCT_DO( pcrf_tracer_rwlock_read_lock(), return iRetVal );
-  /* проверяем список Application-Id */
-  if ( 0 != p_ui32ApplicationId && 0 != g_usetApplicationId.size() ) {
-    std::unordered_set<uint32_t>::iterator iter = g_usetApplicationId.find( p_ui32ApplicationId );
-    if ( iter != g_usetApplicationId.end() ) {
-      iRetVal = 1;
-      goto __unlock_and_exit__;
-    }
-  }
+
   if ( 0 != p_strSessionId.length() ) {
-    std::unordered_set<std::string>::iterator iter = g_usetSessionId.find( p_strSessionId );
-    if ( iter != g_usetSessionId.end() ) {
+    if ( 0 != g_usetSessionId.count( p_strSessionId ) ) {
       iRetVal = 1;
       goto __unlock_and_exit__;
     }

@@ -10,6 +10,7 @@
 #include "pcrf_session_cache.h"
 
 extern CLog *g_pcoLog;
+extern uint32_t g_ui32OriginStateId;
 
 static SStat *g_psoGxClientStat;
 
@@ -132,13 +133,13 @@ static void pcrf_client_gx_raa (void *p_pvData, struct msg **p_ppMsg)
 
 /* отправка Re-Auth сообщения */
 int pcrf_client_gx_rar (
-  SSessionInfo *p_psoSessInfo,
-  SRequestInfo *p_psoReqInfo,
-	std::vector<SDBAbonRule> *p_pvectActiveRules,
-	std::vector<SDBAbonRule> *p_pvectAbonRules,
-  std::list<int32_t> *p_plistTrigger,
+  const SSessionInfo *p_psoSessInfo,
+  const SRequestInfo *p_psoReqInfo,
+	const std::vector<SDBAbonRule> *p_pvectActiveRules,
+	const std::list<SDBAbonRule> *p_plistAbonRules,
+  const std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec )
+  const uint32_t p_uiUsec )
 {
   if ( NULL != p_psoSessInfo ) {
   } else {
@@ -177,7 +178,7 @@ int pcrf_client_gx_rar (
 	/* Now set all AVPs values */
 
 	/* Set Origin-Host & Origin-Realm */
-	CHECK_FCT_DO (iRetVal = fd_msg_add_origin (psoReq, 0), goto out);
+  CHECK_FCT_DO( iRetVal = fd_msg_add_origin( psoReq, g_ui32OriginStateId ), goto out );
 
 	/* Set the Destination-Host AVP */
 	{
@@ -227,7 +228,7 @@ int pcrf_client_gx_rar (
 
 	/* Event-Trigger */
   if ( NULL != p_plistTrigger ) {
-    for ( std::list<int32_t>::iterator iter = p_plistTrigger->begin(); iter != p_plistTrigger->end(); ++iter ) {
+    for ( std::list<int32_t>::const_iterator iter = p_plistTrigger->begin(); iter != p_plistTrigger->end(); ++iter ) {
       CHECK_FCT_DO( set_event_trigger( psoReq, *iter ), /* continue */ );
     }
   }
@@ -246,10 +247,10 @@ int pcrf_client_gx_rar (
   CHECK_POSIX_DO( pcrf_make_UMI( psoReq, *( p_psoSessInfo ) ), /* continue */ );
 
   /* Charging-Rule-Install */
-  if ( NULL != p_pvectAbonRules ) {
+  if ( NULL != p_plistAbonRules ) {
     avp *psoAVP;
 
-    psoAVP = pcrf_make_CRI( p_psoSessInfo, p_psoReqInfo, *p_pvectAbonRules, psoReq );
+    psoAVP = pcrf_make_CRI( p_psoSessInfo, p_psoReqInfo, *p_plistAbonRules, psoReq );
     if ( psoAVP ) {
       /* put 'Charging-Rule-Install' into request */
       CHECK_FCT_DO( ( iRetVal = fd_msg_avp_add( psoReq, MSG_BRW_LAST_CHILD, psoAVP ) ), /* continue */ );
@@ -326,7 +327,7 @@ int pcrf_client_gx_rar_w_SRCause (SSessionInfo &p_soSessInfo)
 	}
 
 	/* Set Origin-Host & Origin-Realm */
-	CHECK_FCT_DO (fd_msg_add_origin (psoReq, 0), goto out);
+  CHECK_FCT_DO( fd_msg_add_origin( psoReq, g_ui32OriginStateId ), goto out );
 
 	/* Set the Destination-Host AVP */
 	{
@@ -386,7 +387,7 @@ out:
 }
 
 /* проверка наличия изменений в политиках */
-int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vector<SDBAbonRule> &p_vectAbonRules)
+int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::list<SDBAbonRule> &p_listAbonRules)
 {
 	int iRetVal = 0;
 
@@ -402,7 +403,7 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::vect
 		return iRetVal;
 
 	/* проверяем наличие актуальных неактивных правил */
-	for (std::vector<SDBAbonRule>::iterator iter = p_vectAbonRules.begin(); iter != p_vectAbonRules.end(); ++iter) {
+	for (std::list<SDBAbonRule>::iterator iter = p_listAbonRules.begin(); iter != p_listAbonRules.end(); ++iter) {
 		if (!iter->m_bIsActive && iter->m_bIsRelevant) {
 			iRetVal = 1;
 			break;
@@ -420,7 +421,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
   std::list<int32_t> listEventTrigger;
 
   bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
-  std::vector<SDBAbonRule>::iterator iterAbonRule;
+  std::list<SDBAbonRule>::iterator iterAbonRule;
 
   /* загружаем из БД список сессий абонента */
   CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
@@ -431,7 +432,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* сведения о сессии */
     SMsgDataForDB soSessInfo;
     /* список правил профиля абонента */
-    std::vector<SDBAbonRule> vectAbonRules;
+    std::list<SDBAbonRule> listAbonRules;
     /* список активных правил абонента */
     std::vector<SDBAbonRule> vectActive;
 
@@ -469,28 +470,28 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       goto clear_and_continue;
     }
     /* загружаем из БД правила абонента */
-    CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( p_pcoDBConn, soSessInfo, vectAbonRules ), );
+    CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( p_pcoDBConn, soSessInfo, listAbonRules ), );
     /* если у абонента нет активных политик завершаем его сессию */
-    if ( 0 == vectAbonRules.size() ) {
+    if ( 0 == listAbonRules.size() ) {
       CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
       goto clear_and_continue;
     }
     /* загружаем список активных правил */
     CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, vectActive ), /* continue */ );
     /* формируем список неактуальных правил */
-    pcrf_server_select_notrelevant_active( vectAbonRules, vectActive );
+    pcrf_server_select_notrelevant_active( listAbonRules, vectActive );
     /* формируем список ключей мониторинга */
-    pcrf_make_mk_list( vectAbonRules, soSessInfo.m_psoSessInfo );
+    pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo );
     /* загружаем информацию о мониторинге */
     CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
     /* проверяем наличие изменений в политиках */
-    if ( !pcrf_client_is_any_changes( vectActive, vectAbonRules ) ) {
+    if ( !pcrf_client_is_any_changes( vectActive, listAbonRules ) ) {
       UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_strSessionId.c_str() );
       goto clear_and_continue;
     }
 
     /* обходим все правила */
-    for ( iterAbonRule = vectAbonRules.begin(); iterAbonRule != vectAbonRules.end(); ++iterAbonRule ) {
+    for ( iterAbonRule = listAbonRules.begin(); iterAbonRule != listAbonRules.end(); ++iterAbonRule ) {
       /* проверяем наличие ключей мониторинга */
       if ( ! bMKInstalled && 0 != iterAbonRule->m_vectMonitKey.size() ) {
         bMKInstalled = true;
@@ -537,7 +538,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     }
 
     /* посылаем RAR-запрос */
-    CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, &vectActive, &vectAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, &vectActive, &listAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
 
     /* освобождаем ресуры*/
     clear_and_continue:

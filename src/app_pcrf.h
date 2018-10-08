@@ -132,11 +132,12 @@ extern struct dict_object *g_psoDictChargingRuleName;
 extern struct dict_object *g_psoDictRatingGroup;
 extern struct dict_object *g_psoDictServiceIdentifier;
 extern struct dict_object *g_psoDictAVPFlowStatus;
+extern struct dict_object *g_psoDictAVPBearerControlMode;
 extern struct dict_object *g_psoDictFlowDescription;
 extern struct dict_object *g_psoDictAVPFlowDirection;
 extern struct dict_object *g_psoDictSessionReleaseCause;
 extern struct dict_object *g_psoDictFlowInformation;
-extern struct dict_object *g_psoDictQoSInformation;
+extern struct dict_object *g_psoDicAVPtQoSInformation;
 extern struct dict_object *g_psoDictQoSClassIdentifier;
 extern struct dict_object *g_psoDictMaxRequestedBandwidthUL;
 extern struct dict_object *g_psoDictMaxRequestedBandwidthDL;
@@ -184,9 +185,9 @@ extern struct dict_object *g_psoDictSubscriptionIdData;
 extern struct dict_object *g_psoDictIPCANType;
 extern struct dict_object *g_psoDictRATType;
 
-extern struct dict_object *g_psoDictAPNAggregateMaxBitrateUL;
-extern struct dict_object *g_psoDictAPNAggregateMaxBitrateDL;
-
+extern struct dict_object *g_psoDictAVPAPNAggregateMaxBitrateDL;
+extern struct dict_object *g_psoDicAVPtAPNAggregateMaxBitrateUL;
+extern struct dict_object *g_psoDictAVPGxCapabilityList;
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

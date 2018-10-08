@@ -7,6 +7,8 @@
 struct SAppPCRFConf *g_psoConf = NULL;
 static struct SAppPCRFConf soConf;
 
+uint32_t g_ui32OriginStateId;
+
 /* initialyze instance */
 static int app_pcrf_conf_init ()
 {
@@ -24,6 +26,9 @@ static int pcrf_entry (char * conffile)
   pthread_t tSessRuleLstInitializer;
   void *pvThreadResult;
   int iRetVal;
+
+  /* запоминаем значение Origin-State-Id */
+  g_ui32OriginStateId = ( uint32_t )time( NULL );
 
   /* Initialize configuration */
 	CHECK_FCT (app_pcrf_conf_init ());

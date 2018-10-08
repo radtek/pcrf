@@ -82,15 +82,15 @@ void pcrf_server_policy_db_store( SMsgDataForDB *p_psoMsgInfo )
 	switch (p_psoMsgInfo->m_psoReqInfo->m_iCCRequestType) {
 	case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
 		/* сначала фиксируем информацию, полученную в запросе */
-		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
+		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoReqInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoReqInfo->m_vectCRR.end (); ++ iter) {
+      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCodeEnum.v ) );
     }
 		/* потом закрываем оставшиеся правила */
     pcrf_db_close_session_rule_all( p_psoMsgInfo->m_psoSessInfo->m_strSessionId );
 		break;
 	case UPDATE_REQUEST: /* UPDATE_REQUEST */
-		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoSessInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoSessInfo->m_vectCRR.end (); ++ iter) {
-      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCode.v ) );
+		for (std::vector<SSessionPolicyInfo>::iterator iter = p_psoMsgInfo->m_psoReqInfo->m_vectCRR.begin (); iter != p_psoMsgInfo->m_psoReqInfo->m_vectCRR.end (); ++ iter) {
+      pcrf_db_close_session_rule( p_psoMsgInfo->m_psoSessInfo, iter->m_coChargingRuleName.v, &( iter->m_coRuleFailureCodeEnum.v ) );
     }
 		break;
 	case EVENT_REQUEST: /* EVENT_REQUEST */
@@ -301,11 +301,11 @@ int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo,
 }
 
 void pcrf_db_insert_rule (
-	SSessionInfo &p_soSessInfo,
-	SDBAbonRule &p_soRule)
+	const SSessionInfo &p_soSessInfo,
+	const SDBAbonRule &p_soRule)
 {
-  if ( 0 == p_soRule.m_coRuleName.is_null() && 0 < p_soRule.m_coRuleName.v.length() ) {
-    pcrf_session_rule_cache_insert( p_soSessInfo.m_strSessionId, p_soRule.m_coRuleName.v );
+  if ( 0 < p_soRule.m_strRuleName.length() ) {
+    pcrf_session_rule_cache_insert( p_soSessInfo.m_strSessionId, p_soRule.m_strRuleName );
   }
 
   std::list<SSQLQueueParam*> *plistParameters = new std::list<SSQLQueueParam*>;
@@ -315,7 +315,7 @@ void pcrf_db_insert_rule (
 
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_strSessionId );
   pcrf_sql_queue_add_param( plistParameters, coDateTime );
-  pcrf_sql_queue_add_param( plistParameters, p_soRule.m_coRuleName );
+  pcrf_sql_queue_add_param( plistParameters, p_soRule.m_strRuleName );
 
   pcrf_sql_queue_enqueue(
     "insert into ps.sessionRule "
@@ -344,9 +344,9 @@ void pcrf_db_close_session_rule_all ( std::string &p_strSessionId )
 }
 
 void pcrf_db_close_session_rule (
-	SSessionInfo *p_psoSessInfo,
-	std::string &p_strRuleName,
-  std::string *p_pstrRuleFailureCode)
+	const SSessionInfo *p_psoSessInfo,
+	const std::string &p_strRuleName,
+  const std::string *p_pstrRuleFailureCode)
 {
   if ( NULL != p_psoSessInfo ) {
   } else {
@@ -910,9 +910,9 @@ int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, std::string &p
 			<< p_strSessionId;
     while (! coStream.eof()) {
       coStream
-        >> soRule.m_coRuleName;
+        >> soRule.m_strRuleName;
       p_vectRuleList.push_back(soRule);
-      UTL_LOG_D(*g_pcoLog, "rule name: '%s'; session-id: '%s'", soRule.m_coRuleName.v.c_str(), p_strSessionId.c_str());
+      UTL_LOG_D(*g_pcoLog, "rule name: '%s'; session-id: '%s'", soRule.m_strRuleName.c_str(), p_strSessionId.c_str());
     }
 		coStream.close();
 	} catch (otl_exception &coExcept) {

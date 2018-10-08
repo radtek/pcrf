@@ -222,11 +222,11 @@ static inline int pcrf_session_cache_fill_payload( SPayloadHdr *p_psoPayload, si
 
 static int pcrf_session_cache_fill_pspack (
   char *p_pmcBuf,
-  size_t p_stBufSize,
-  std::string &p_strSessionId,
-  SSessionCache *p_psoSessionInfo,
-  uint16_t p_uiReqType,
-  std::string *p_pstrOptionalParam)
+  const size_t p_stBufSize,
+  const std::string &p_strSessionId,
+  const SSessionCache *p_psoSessionInfo,
+  const uint16_t p_uiReqType,
+  const std::string *p_pstrOptionalParam)
 {
   int iRetVal = 0;
   CPSPacket ps_pack;
@@ -253,7 +253,7 @@ static int pcrf_session_cache_fill_pspack (
     } else {
       return -1;
     }
-    otl_value<std::string> *pco_field;
+    const otl_value<std::string> *pco_field;
     /* добавляем Subscriber-Id */
     pco_field = &p_psoSessionInfo->m_coSubscriberId;
     if (0 == pco_field->is_null()) {
@@ -469,7 +469,7 @@ static int pcrf_session_cache_fill_pspack (
   return iRetVal;
 }
 
-void pcrf_session_cache_cmd2remote (std::string &p_strSessionId, SSessionCache *p_psoSessionInfo, uint16_t p_uiCmdType, std::string *p_pstrOptionalParam)
+void pcrf_session_cache_cmd2remote (const std::string &p_strSessionId, const SSessionCache *p_psoSessionInfo, const uint16_t p_uiCmdType, const std::string *p_pstrOptionalParam)
 {
   char mc_buf[4096];
   int iPayloadLen;
@@ -645,7 +645,6 @@ void pcrf_session_cache_remove (std::string &p_strSessionId)
 
   pcrf_session_cache_remove_local (p_strSessionId);
   pcrf_session_rule_cache_remove_sess_local(p_strSessionId);
-  pcrf_tracer_reset_session_id( p_strSessionId.c_str() );
 
   pcrf_session_cache_cmd2remote (p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSION), NULL);
 }
@@ -744,7 +743,7 @@ static void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId 
     } else {
       for ( std::vector<SDBAbonRule>::iterator iter = vectRuleList.begin(); iter != vectRuleList.end(); ++iter ) {
         p_strResult += ' ';
-        p_strResult += iter->m_coRuleName.v;
+        p_strResult += iter->m_strRuleName;
         p_strResult += ';';
       }
     }

@@ -47,7 +47,7 @@ void pcrf_session_rule_list_fini()
   pthread_mutex_destroy( &g_mutexSessRuleLst );
 }
 
-int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive)
+int pcrf_session_rule_cache_get( const std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive )
 {
   CTimeMeasurer coTM;
   int iRetVal = 0;
@@ -63,7 +63,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   if (iter != g_mapSessRuleLst.end() && 0 < iter->second.size()) {
     /* обходим все активные правила */
     for (std::list<std::string>::iterator iterLst = iter->second.begin(); iterLst != iter->second.end(); ++iterLst) {
-      soRule.m_coRuleName = *iterLst;
+      soRule.m_strRuleName = *iterLst;
       /* сохраняем правилов в списке */
       p_vectActive.push_back(soRule);
     }
@@ -87,7 +87,7 @@ int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbon
   return iRetVal;
 }
 
-void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName )
+void pcrf_session_rule_cache_insert_local( const std::string &p_strSessionId, const std::string &p_strRuleName )
 {
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
@@ -115,7 +115,7 @@ cleanup_and_exit:
   return;
 }
 
-void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
+void pcrf_session_rule_cache_remove_sess_local( const std::string &p_strSessionId )
 {
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
@@ -138,7 +138,7 @@ void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId)
   return;
 }
 
-void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName)
+void pcrf_session_rule_cache_remove_rule_local( const std::string &p_strSessionId, const std::string &p_strRuleName )
 {
   CTimeMeasurer coTM;
   std::map<std::string, std::list<std::string> >::iterator iter;
@@ -229,7 +229,7 @@ clean_and_exit:
   pthread_exit( piRetVal );
 }
 
-void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_strRuleName )
+void pcrf_session_rule_cache_insert( const std::string &p_strSessionId, const std::string &p_strRuleName )
 {
   /* проверяем параметры */
   if ( 0 < p_strSessionId.length() && 0 < p_strRuleName.length() ) {
@@ -242,7 +242,7 @@ void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p
   pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_strRuleName );
 }
 
-void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName)
+void pcrf_session_rule_cache_remove_rule( const std::string &p_strSessionId, const std::string &p_strRuleName )
 {
   /* проверяем параметры */
   if ( 0 < p_strSessionId.length() && 0 < p_strRuleName.length() ) {

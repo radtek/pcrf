@@ -191,8 +191,8 @@ void pcrf_session_cache_remove_link( std::string &p_strSessionId )
       /* удаляем связку родительской сессии */
       pcrf_session_cache_rm_parent2child_link( p_strSessionId, iterChild->second );
       /* удаляем связку с родетельской сессией */
-      g_mapChild.erase( iterChild );
       LOG_D( "session link: child to parent link removed: session-id: %s; parent session-id: %s", iterChild->first.c_str(), iterChild->second.c_str() );
+      g_mapChild.erase( iterChild );
     }
   }
 }

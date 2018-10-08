@@ -15,7 +15,7 @@ struct SSQLRequestInfo
   std::list<SSQLQueueParam*> *m_plistParamList;
   const char *m_pszReqName;
   bool m_bRollbackOnFail;
-  SSQLRequestInfo( const char *p_pszSQLReq, std::list<SSQLQueueParam*> *p_plistParam, const char *p_pszReqName, bool p_bRollBackOnFail )
+  SSQLRequestInfo( const char *p_pszSQLReq, std::list<SSQLQueueParam*> *p_plistParam, const char *p_pszReqName, const bool p_bRollBackOnFail )
     : m_pszRequest( p_pszSQLReq ), m_plistParamList( p_plistParam ), m_pszReqName( p_pszReqName ), m_bRollbackOnFail( p_bRollBackOnFail )
   { }
 };
@@ -137,7 +137,7 @@ static int pcrf_sql_queue_oper_single( otl_connect *p_pcoDBConn, SSQLRequestInfo
   return iRetVal;
 }
 
-void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
+static void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
@@ -248,7 +248,7 @@ static void * pcrf_sql_queue_oper(void *p_pvArg )
           }
         }
         /* освобождаем занятые ресурсы */
-        pcrf_sql_queue_clean_single( &*iter );
+        pcrf_sql_queue_clean_single( &( *iter ) );
         /* удаляем элемент из списка */
         pthread_mutex_lock( &( psoSQLQueue->m_mutexSQLQueue ) );
         iter = psoSQLQueue->m_listSQLQueue.erase( iter );
@@ -277,7 +277,12 @@ clean_and_exit:
   pthread_exit(NULL);
 }
 
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId, bool p_bRollbackOnFail )
+void pcrf_sql_queue_enqueue(
+  const char *p_pszSQLRequest,
+  std::list<SSQLQueueParam*> *p_plistParameters,
+  const char *p_pszReqName,
+  const std::string *p_pstrSessionId,
+  const bool p_bRollbackOnFail )
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 

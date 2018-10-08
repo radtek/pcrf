@@ -32,8 +32,10 @@ extern "C" {
 /* кешированные данные из запроса */
 struct SSessionPolicyInfo {
 	otl_value<std::string> m_coChargingRuleName;
-	otl_value<std::string> m_coPCCRuleStatus;
-	otl_value<std::string> m_coRuleFailureCode;
+  otl_value<int32_t>     m_coPCCRuleStatus;
+  otl_value<std::string> m_coPCCRuleStatusEnum;
+  otl_value<int32_t>     m_coRuleFailureCode;
+  otl_value<std::string> m_coRuleFailureCodeEnum;
 };
 /* структура для получения информации о мониторинге */
 struct SDBMonitoringInfo {
@@ -62,7 +64,6 @@ struct SSessionInfo {
 	otl_value<otl_datetime> m_coTimeEnd;
 	otl_value<std::string> m_coTermCause;
   std::list<SSF>         m_listSF; /* Supported-Features */
-	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
 	otl_value<std::string> m_coCalledStationId; /* Called-Station-Id */
 	std::map<std::string,SDBMonitoringInfo> m_mapMonitInfo;
   SSessionInfo()
@@ -106,6 +107,10 @@ struct SDefaultEPSBearerQoS {
 	otl_value<int32_t> m_coQoSClassIdentifier;
 	otl_value<SAllocationRetentionPriority> m_soARP;
 };
+struct SQoSInformation {
+  otl_value<uint32_t> m_coAPNAggregateMaxBitrateDL;
+  otl_value<uint32_t> m_coAPNAggregateMaxBitrateUL;
+};
 struct SRequestInfo {
 	int32_t m_iCCRequestType;
 	otl_value<std::string> m_coCCRequestType;
@@ -116,8 +121,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coQoSUpgrade;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
-	otl_value<uint32_t> m_coAPNAggregateMaxBitrateUL;
-	otl_value<uint32_t> m_coAPNAggregateMaxBitrateDL;
+  otl_value<SQoSInformation> m_coQoSInformation;
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
 	otl_value<std::string> m_coQoSNegotiation;
@@ -128,6 +132,7 @@ struct SRequestInfo {
   otl_value<uint32_t> m_coTetheringFlag;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
+  std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
   SRequestInfo() { m_iCCRequestType = 0; }
 };
 struct SMsgDataForDB {
@@ -150,7 +155,7 @@ struct SFlowInformation {
 struct SDBAbonRule {
 	bool m_bIsActive;
 	bool m_bIsRelevant;
-	otl_value<std::string> m_coRuleName;
+  std::string        m_strRuleName;
 	otl_value<int32_t> m_coDynamicRuleFlag;
 	otl_value<int32_t> m_coRuleGroupFlag;
 	otl_value<int32_t> m_coPrecedenceLevel;
@@ -194,15 +199,15 @@ void pcrf_server_policy_db_store( SMsgDataForDB *p_psoMsgInfo );
 void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
 /* закрываем запись в таблице выданных политик */
 void pcrf_db_close_session_rule (
-	SSessionInfo *p_psoSessInfo,
-	std::string &p_strRuleName,
-  std::string *p_pstrRuleFailureCode = NULL);
+	const SSessionInfo *p_psoSessInfo,
+	const std::string &p_strRuleName,
+  const std::string *p_pstrRuleFailureCode = NULL);
 /* закрывает все записи сессии в таблице выданных политик */
 void pcrf_db_close_session_rule_all( std::string &p_strSessionId );
 /* закрывает все открыте записи сессии в таблице локаций пользователя */
 void pcrf_server_db_close_user_loc( std::string &p_strSessionId );
 /* добавление записи в таблицу выданых политик */
-void pcrf_db_insert_rule( SSessionInfo &p_soSessInfo, SDBAbonRule &p_soRule );
+void pcrf_db_insert_rule( const SSessionInfo &p_soSessInfo, const SDBAbonRule &p_soRule );
 
 /* запись информации о потребленном трафике в БД  */
 int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo, int &p_iUpdateRule );
@@ -216,7 +221,7 @@ struct SRefQueue {
 };
 
 /* формирование полного списка правил */
-int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<SDBAbonRule> &p_vectAbonRules );
+int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::list<SDBAbonRule> &p_listAbonRules );
 
 /* операции клиента с БД */
 /* формирование очереди изменения политик */
@@ -270,17 +275,17 @@ int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessIn
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo );
 
 /* функция формирования списка неактуальных правил */
-void pcrf_server_select_notrelevant_active(std::vector<SDBAbonRule> &p_vectAbonRules, std::vector<SDBAbonRule> &p_vectActive);
+void pcrf_server_select_notrelevant_active(std::list<SDBAbonRule> &p_listAbonRules, std::vector<SDBAbonRule> &p_vectActive);
 
 /* функция формирования списка ключей мониторинга */
-void pcrf_make_mk_list( std::vector<SDBAbonRule> &p_vectAbonRules, SSessionInfo *p_psoSessInfo );
+void pcrf_make_mk_list( std::list<SDBAbonRule> &p_listAbonRules, SSessionInfo *p_psoSessInfo );
 
 /* функция заполнения avp Charging-Rule-Remove */
-struct avp * pcrf_make_CRR( SSessionInfo *p_psoSessInfo, std::vector<SDBAbonRule> &p_vectActive );
+struct avp * pcrf_make_CRR( const SSessionInfo *p_psoSessInfo, const std::vector<SDBAbonRule> &p_vectActive );
 /* функция заполнения avp Charging-Rule-Install */
-struct avp * pcrf_make_CRI( SSessionInfo *p_psoSessInfo, SRequestInfo *p_psoReqInfo, std::vector<SDBAbonRule> &p_vectAbonRules, msg *p_soAns );
+struct avp * pcrf_make_CRI( const SSessionInfo *p_psoSessInfo, const SRequestInfo *p_psoReqInfo, const std::list<SDBAbonRule> &p_listAbonRules, msg *p_soAns );
 /* функция заполнения avp Usage-Monitoring-Information */
-int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, SSessionInfo &p_soSessInfo, bool p_bIsNeedUMR = false );
+int pcrf_make_UMI( msg_or_avp *p_psoMsgOrAVP, const SSessionInfo &p_soSessInfo, const bool p_bIsNeedUMR = false );
 /* запись TETHERING_REPORT в БД */
 void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo );
 /* задает значение Event-Trigger */
@@ -328,13 +333,13 @@ struct SRARResult {
 
 /* функция для посылки RAR */
 int pcrf_client_gx_rar(
-  SSessionInfo *p_psoSessInfo,
-  SRequestInfo *p_psoReqInfo,
-  std::vector<SDBAbonRule> *p_pvectActiveRules,
-  std::vector<SDBAbonRule> *p_pvectAbonRules,
-  std::list<int32_t> *p_plistTrigger,
+  const SSessionInfo *p_psoSessInfo,
+  const SRequestInfo *p_psoReqInfo,
+  const std::vector<SDBAbonRule> *p_pvectActiveRules,
+  const std::list<SDBAbonRule> *p_plistAbonRules,
+  const std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
-  uint32_t p_uiUsec );
+  const uint32_t p_uiUsec );
 
 /* функция для Procera - формирование значения правила о локации пользователя */
 int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
@@ -358,12 +363,12 @@ int pcrf_make_timespec_timeout(timespec &p_soTimeSpec, uint32_t p_uiSec, uint32_
 void pcrf_ip_addr_to_string(uint8_t *p_puiIPAddress, size_t p_stLen, otl_value<std::string> &p_coIPAddress);
 
 /* кэш правил сессии */
-int pcrf_session_rule_cache_get(std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
-void pcrf_session_rule_cache_insert( std::string &p_strSessionId, std::string &p_strRuleName );
-void pcrf_session_rule_cache_insert_local( std::string &p_strSessionId, std::string &p_strRuleName );
-void pcrf_session_rule_cache_remove_rule(std::string &p_strSessionId, std::string &p_strRuleName);
-void pcrf_session_rule_cache_remove_rule_local(std::string &p_strSessionId, std::string &p_strRuleName);
-void pcrf_session_rule_cache_remove_sess_local(std::string &p_strSessionId);
+int pcrf_session_rule_cache_get(const std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectActive);
+void pcrf_session_rule_cache_insert( const std::string &p_strSessionId, const std::string &p_strRuleName );
+void pcrf_session_rule_cache_insert_local( const std::string &p_strSessionId, const std::string &p_strRuleName );
+void pcrf_session_rule_cache_remove_rule( const std::string &p_strSessionId, const std::string &p_strRuleName);
+void pcrf_session_rule_cache_remove_rule_local( const std::string &p_strSessionId, const std::string &p_strRuleName);
+void pcrf_session_rule_cache_remove_sess_local( const std::string &p_strSessionId);
 
 #ifdef __cplusplus
 }
@@ -381,7 +386,12 @@ struct SSQLData : public SSQLQueueParam {
   void push_data( otl_stream &p_coStream ) { p_coStream << m_tParam; }
 };
 
-void pcrf_sql_queue_enqueue( const char *p_pszSQLRequest, std::list<SSQLQueueParam*> *p_plistParameters, const char *p_pszReqName, std::string *p_pstrSessionId = NULL, bool p_bRollbackOnFail = false );
+void pcrf_sql_queue_enqueue(
+  const char *p_pszSQLRequest,
+  std::list<SSQLQueueParam*> *p_plistParameters,
+  const char *p_pszReqName,
+  const std::string *p_pstrSessionId = NULL,
+  const bool p_bRollbackOnFail = false );
 
 template <class T>
 void pcrf_sql_queue_add_param( std::list<SSQLQueueParam*> *p_plistParameters, T &p_tParam )
