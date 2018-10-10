@@ -96,6 +96,7 @@ void pcrf_session_cache_update_child( std::string &p_strSessionId, SSessionCache
   if ( iterParent != g_mapParent.end() ) {
     for ( iterList = iterParent->second.begin(); iterList != iterParent->second.end(); ++iterList ) {
       pcrf_session_cache_update_some_values( *iterList, p_psoSessionInfo );
+      LOG_D( "%s: parent session-id: %s; linked session-id: %s", __FUNCTION__, p_strSessionId.c_str(), iterList->c_str() );
     }
   }
 }
@@ -208,7 +209,9 @@ int pcrf_session_cache_get_linked_child_session_list( std::string &p_strSessionI
   if ( iter != g_mapParent.end() ) {
     /* копируем список */
     p_listSessionId = iter->second;
+    LOG_D( "%s: in cache: %u; in parameter: %u", __FUNCTION__, iter->second.size(), p_listSessionId.size() );
   } else {
+    LOG_D( "%s: no data found: session-id: %u", __FUNCTION__, p_strSessionId.size() );
     iRetVal = ENODATA;
   }
 

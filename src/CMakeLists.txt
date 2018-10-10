@@ -40,6 +40,7 @@ SET( PCRF_APP_SRC
 	pcrf_cdr.cpp
 	pcrf_session_cache_index.cpp
 	pcrf_linked_session.cpp
+	pcrf_crc.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
 	~/project/utils/src/utils/stat/stat.cpp

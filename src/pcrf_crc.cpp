@@ -20,8 +20,8 @@ static unsigned char auchCRCHi[ ] = {
   0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
   0x40
 };
-/* Table of CRC values for low–order byte */
-static char auchCRCLo[ ] = {
+/* Table of CRC values for lowвЂ“order byte */
+static unsigned char auchCRCLo[ ] = {
   0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4,
   0x04, 0xCC, 0x0C, 0x0D, 0xCD, 0x0F, 0xCF, 0xCE, 0x0E, 0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09,
   0x08, 0xC8, 0xD8, 0x18, 0x19, 0xD9, 0x1B, 0xDB, 0xDA, 0x1A, 0x1E, 0xDE, 0xDF, 0x1F, 0xDD,
@@ -42,15 +42,14 @@ static char auchCRCLo[ ] = {
   0x40
 };
 
-uint16_t pcrf_calc_crc16( unsigned char *p_pmucData, size_t p_stDataSize )
-
+uint16_t pcrf_calc_crc16( const unsigned char *p_pmucData, size_t p_stDataSize )
 {
-  unsigned char uchCRCHi = 0xFF;             /* Инициализация последнего байта CRC  */
-  unsigned char uchCRCLo = 0xFF;             /* Инициализация первого байта CRC   */
+  unsigned char uchCRCHi = 0xFF;             /* РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїРѕСЃР»РµРґРЅРµРіРѕ Р±Р°Р№С‚Р° CRC  */
+  unsigned char uchCRCLo = 0xFF;             /* РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїРµСЂРІРѕРіРѕ Р±Р°Р№С‚Р° CRC   */
   unsigned uIndex;                           /* will index into CRC lookup table  */
   while ( p_stDataSize-- )                         /* pass through message buffer  */
   {
-    uIndex = uchCRCHi ^ *p_pmucData++;            /* Расчёт CRC */
+    uIndex = uchCRCHi ^ *p_pmucData++;            /* Р Р°СЃС‡С‘С‚ CRC */
     uchCRCLo = uchCRCLo ^ auchCRCHi[ uIndex ];
     uchCRCHi = auchCRCLo[ uIndex ];
   }
