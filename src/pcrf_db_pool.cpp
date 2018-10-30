@@ -1,6 +1,3 @@
-#include "app_pcrf.h"
-#include "app_pcrf_header.h"
-
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <semaphore.h>
@@ -9,6 +6,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/types.h>
+
+#include "app_pcrf.h"
+#include "app_pcrf_header.h"
 
 extern CLog *g_pcoLog;
 
@@ -267,28 +267,26 @@ int pcrf_db_pool_connect( otl_connect *p_pcoDBConn )
   }
 
 	int iRetVal = 0;
+  char *pszConnString = NULL;
 
 	try {
-		char mcConnString[0x1000];
-		int iStrLen;
-
-		iStrLen = snprintf (mcConnString, sizeof (mcConnString) - 1, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer);
-		if (0 < iStrLen) {
-      if (sizeof (mcConnString) > static_cast<size_t>(iStrLen)) {
-      } else {
-        return -20;
-      }
+    if ( 0 < asprintf( &pszConnString, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer ) ) {
     } else {
-			return -30;
-		}
-		mcConnString[iStrLen] = '\0';
-    p_pcoDBConn->rlogon (mcConnString, 0, NULL, NULL);
+      iRetVal -30;
+      goto __cleanup_and_exit__;
+    }
+    p_pcoDBConn->rlogon (pszConnString, 0, NULL, NULL);
     p_pcoDBConn->auto_commit_off();
     UTL_LOG_N( *g_pcoLog, "DB connection '%p' is established successfully", p_pcoDBConn );
 	} catch (otl_exception &coExcept) {
     UTL_LOG_F( *g_pcoLog, "DB connection: '%p': error code: '%d'; message: '%s'", p_pcoDBConn, coExcept.code, coExcept.msg );
 		iRetVal = coExcept.code;
 	}
+
+  __cleanup_and_exit__:
+  if ( NULL != pszConnString ) {
+    free( pszConnString );
+  }
 
 	return iRetVal;
 }

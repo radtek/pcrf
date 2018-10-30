@@ -290,3 +290,28 @@ void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubscriberId
     }
   }
 }
+
+void pcrf_session_cache_index_provide_stat_cb( char **p_ppszStat )
+{
+  std::string strStat;
+  char mcStat[ 256 ];
+  int iFnRes;
+
+  CHECK_FCT_DO( pcrf_session_cache_lock(), return );
+  iFnRes = snprintf( mcStat, sizeof( mcStat ), "index by Framed-IP-Address has %u members", g_mapFramedIPIndex.size() );
+  if ( 0 < iFnRes && sizeof( mcStat ) > iFnRes ) {
+    strStat += mcStat;
+  }
+  iFnRes = snprintf( mcStat, sizeof( mcStat ), "index by Subscriber-Id has %u members", g_mapSubscriberId.size() );
+  if ( 0 < iFnRes && sizeof( mcStat ) > iFnRes ) {
+    strStat += "\r\n";
+    strStat += mcStat;
+  }
+  pcrf_session_cache_unlock();
+
+  iFnRes = asprintf( p_ppszStat, "%s", strStat.c_str() );
+  if ( 0 < iFnRes ) {
+  } else {
+    *p_ppszStat = NULL;
+  }
+}

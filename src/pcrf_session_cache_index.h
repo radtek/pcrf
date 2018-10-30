@@ -22,4 +22,6 @@ void pcrf_session_cache_update_child( std::string &p_strSessionId, SSessionCache
 int  pcrf_session_cache_get_linked_child_session_list( std::string &p_strSessionId, std::list<std::string> &p_listSessionId );
 int  pcrf_session_cache_get_linked_parent_session( std::string &p_strSessionId, std::string &p_strParentSessionId );
 
+void pcrf_session_cache_index_provide_stat_cb( char **p_ppszStat );
+
 #endif /* __PCRF_SESSION_CACHE_INDEX_H__ */

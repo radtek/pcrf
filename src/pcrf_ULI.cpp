@@ -95,7 +95,6 @@ int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserL
 	STAI_ECGI soTAI_ECGI;
 
 	SMCCMNC *psoMCCMNC = NULL;
-	char mcMCCMNC[8];
 
 	switch (p_psoAVPValue->os.data[0]) {
 	case eCGI:
@@ -171,22 +170,17 @@ int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserL
 		return -2;
 	}
 
+  char *pszMCCMNC = NULL;
+
 	/* формируем MCCMNC */
-	iFnRes = snprintf(
-		mcMCCMNC, sizeof(mcMCCMNC),
-		"%u%u%u-%u%u",
-		psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
-		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
-	if (0 < iFnRes) {
-    if (sizeof(mcMCCMNC) > static_cast<size_t>(iFnRes)) {
-    } else {
-      mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
-    }
+  if ( 0 < asprintf(
+    &pszMCCMNC,
+    "%u%u%u-%u%u",
+    psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
+    psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2 ) ) {
   } else {
-		iRetVal = -1;
-		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", errno);
-		mcMCCMNC[0] = '\0';
-	}
+    goto __cleanup_and_exit__;
+  }
 
 	/* что-то полезное уже имеем, ставим метку, что данные получены */
   if ( NULL != p_pbLoaded ) {
@@ -196,27 +190,32 @@ int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserL
 	/* формируем опциональные данные */
 	switch (p_psoAVPValue->os.data[0]) {
 	case eCGI:
-		format_CGI(soCGI, mcMCCMNC, p_soUserLocationInfo.m_coCGI);
+		format_CGI(soCGI, pszMCCMNC, p_soUserLocationInfo.m_coCGI);
 		break;
 	case eSAI:
 		break;
 	case eRAI:
-		format_RAI(soRAI, mcMCCMNC, p_soUserLocationInfo.m_coRAI);
+		format_RAI(soRAI, pszMCCMNC, p_soUserLocationInfo.m_coRAI);
 		break;
 	case eTAI:
-		format_TAI(soTAI, mcMCCMNC, p_soUserLocationInfo.m_coTAI);
+		format_TAI(soTAI, pszMCCMNC, p_soUserLocationInfo.m_coTAI);
 		break;
 	case eECGI:
-		format_ECGI(soECGI, mcMCCMNC, p_soUserLocationInfo.m_coECGI);
+		format_ECGI(soECGI, pszMCCMNC, p_soUserLocationInfo.m_coECGI);
 		break;
 	case eTAI_ECGI:
-		format_TAI(soTAI_ECGI.m_soTAI, mcMCCMNC, p_soUserLocationInfo.m_coTAI);
-		format_ECGI(soTAI_ECGI.m_soECGI, mcMCCMNC, p_soUserLocationInfo.m_coECGI);
+		format_TAI(soTAI_ECGI.m_soTAI, pszMCCMNC, p_soUserLocationInfo.m_coTAI);
+		format_ECGI(soTAI_ECGI.m_soECGI, pszMCCMNC, p_soUserLocationInfo.m_coECGI);
 		break;
 	default:
 		iFnRes = 0;
 		break;
 	}
+
+  __cleanup_and_exit__:
+  if ( NULL != pszMCCMNC ) {
+    free( pszMCCMNC );
+  }
 
 	return iRetVal;
 }

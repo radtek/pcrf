@@ -29,6 +29,8 @@ struct SSQLQueue {
 static unsigned  g_uiQueueCount;     /* количество очередей */
 static SSQLQueue *g_pmsoSQLQueue;    /* указатель на массив очередей */
 
+static void pcrf_sql_queue_stat_provide_cb( char **p_ppszStat );
+
 int pcrf_sql_queue_init()
 {
   LOG_D( "enter: %s", __FUNCTION__ );
@@ -52,6 +54,8 @@ int pcrf_sql_queue_init()
     CHECK_FCT( pthread_mutex_init( &( g_pmsoSQLQueue[ i ].m_mutexSQLQueue ), NULL ) );
     CHECK_FCT( pthread_create( &( g_pmsoSQLQueue[ i ].m_threadSQLQueue ), NULL, pcrf_sql_queue_oper, &g_pmsoSQLQueue[ i ] ) );
   }
+
+  stat_register_cb( pcrf_sql_queue_stat_provide_cb );
 
   LOG_D( "leave: %s", __FUNCTION__ );
 
@@ -148,7 +152,7 @@ static void pcrf_sql_queue_clean_single( SSQLRequestInfo *p_psoSQLReqInfo )
 
   std::list<SSQLQueueParam*>::iterator iter = p_psoSQLReqInfo->m_plistParamList->begin();
   for ( ; iter != p_psoSQLReqInfo->m_plistParamList->end(); ++iter ) {
-    delete dynamic_cast< SSQLQueueParam* >( *iter );
+    delete &( **iter );
   }
 
   delete p_psoSQLReqInfo->m_plistParamList;
@@ -320,4 +324,31 @@ void pcrf_sql_queue_enqueue(
   stat_measure( g_psoSQLQueueStat, "enqueued", &coTM );
 
   LOG_D( "leave: %s", __FUNCTION__ );
+}
+
+static void pcrf_sql_queue_stat_provide_cb( char **p_ppszStat )
+{
+  std::string strStat;
+  char mcStat[ 256 ];
+  int iFnRes;
+
+  for ( int i = 0; i < g_uiQueueCount; ++i ) {
+    pthread_mutex_lock( &( g_pmsoSQLQueue[ i ].m_mutexSQLQueue ) );
+    iFnRes = snprintf( mcStat, sizeof( mcStat ), "sql queue #%u has %u members", i, g_pmsoSQLQueue[ i ].m_listSQLQueue.size() );
+    pthread_mutex_unlock( &( g_pmsoSQLQueue[ i ].m_mutexSQLQueue ) );
+    if ( iFnRes > 0 && iFnRes < sizeof( mcStat ) ) {
+    } else {
+      continue;
+    }
+    if ( 0 < i ) {
+      strStat += "\r\n";
+    }
+    strStat += mcStat;
+  }
+
+  iFnRes = asprintf( p_ppszStat, "%s", strStat.c_str() );
+  if ( 0 < iFnRes ) {
+  } else {
+    *p_ppszStat = NULL;
+  }
 }

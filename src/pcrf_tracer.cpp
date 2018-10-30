@@ -108,14 +108,12 @@ static void pcrf_tracer (
     break;
   default:
   {
-    char mcCode[256];
-    iFnRes = snprintf(mcCode, sizeof(mcCode), "%u", psoMsgHdr->msg_code);
-    if (0 < iFnRes) {
-      if (sizeof(mcCode) > static_cast<size_t>(iFnRes)) {
-      } else {
-        mcCode[sizeof(mcCode) - 1] = '\0';
+    char *pszCode = NULL;
+    if ( 0 < asprintf( &pszCode, "%u", psoMsgHdr->msg_code ) ) {
+      strRequestType = pszCode;
+      if ( NULL != pszCode ) {
+        free( pszCode );
       }
-      strRequestType = mcCode;
     }
   }
   break;

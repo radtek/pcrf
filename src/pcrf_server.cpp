@@ -98,7 +98,7 @@ static int app_pcrf_ccr_cb(
   unsigned int uiActionSet;
 
   unsigned int uiResultCode = 2001; /* DIAMETER_SUCCESS */
-  std::string *pstrUgwSessionId = NULL;
+  std::string *pstrIPCANSessionId = NULL;
 
   /* инициализация структуры хранения данных сообщения */
   CHECK_POSIX_DO( pcrf_server_DBstruct_init( &soMsgInfoCache ), /*continue*/ );
@@ -205,26 +205,26 @@ static int app_pcrf_ccr_cb(
         case GX_CISCO_SCE:
           /* загружаем идентификтор абонента из профиля абонента */
           pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache );
-          pstrUgwSessionId = new std::string;
-          if ( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId ) ) {
+          pstrIPCANSessionId = new std::string;
+          if ( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
             /* ищем сведения о сессии в кеше */
-            pcrf_session_cache_get( *pstrUgwSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
+            pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
           } else {
-            delete pstrUgwSessionId;
-            pstrUgwSessionId = NULL;
+            delete pstrIPCANSessionId;
+            pstrIPCANSessionId = NULL;
           }
           break;
         case GX_PROCERA:
         {
           SSessionInfo soSessInfo;
           /* загрузка данных сессии UGW для обслуживания запроса Procera */
-          pstrUgwSessionId = new std::string;
+          pstrIPCANSessionId = new std::string;
           if ( 0 == pcrf_server_find_core_sess_byframedip( soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) ) {
-            *pstrUgwSessionId = soSessInfo.m_strSessionId;
-            pcrf_session_cache_get( *pstrUgwSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
+            *pstrIPCANSessionId = soSessInfo.m_strSessionId;
+            pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
           } else {
-            delete pstrUgwSessionId;
-            pstrUgwSessionId = NULL;
+            delete pstrIPCANSessionId;
+            pstrIPCANSessionId = NULL;
             uiResultCode = 5030; /* USER_UNKNOWN */
             goto answer;
           }
@@ -234,7 +234,7 @@ static int app_pcrf_ccr_cb(
           UTL_LOG_E( *g_pcoLog, "unsupported peer dialect: '%u'", soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect );
           break;
       }
-      pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_strSessionId, *soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
+      pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_strSessionId, *soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, pstrIPCANSessionId );
       break;/* INITIAL_REQUEST */
     case TERMINATION_REQUEST: /* TERMINATION_REQUEST */
       pcrf_fill_otl_datetime( soMsgInfoCache.m_psoSessInfo->m_coTimeEnd, NULL );
@@ -272,14 +272,14 @@ static int app_pcrf_ccr_cb(
           break;
         case GX_CISCO_SCE:
         {
-          pstrUgwSessionId = new std::string;
+          pstrIPCANSessionId = new std::string;
           /* ищем базовую сессию ugw */
-          if ( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrUgwSessionId ) ) {
+          if ( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
             /* ищем информацию о базовой сессии в кеше */
-            pcrf_session_cache_get( *pstrUgwSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
+            pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
           } else {
-            delete pstrUgwSessionId;
-            pstrUgwSessionId = NULL;
+            delete pstrIPCANSessionId;
+            pstrIPCANSessionId = NULL;
             uiResultCode = 5030; /* USER_UNKNOWN */
             goto answer;
           }
@@ -288,13 +288,13 @@ static int app_pcrf_ccr_cb(
         case GX_PROCERA:
         {
           SSessionInfo soSessInfo;
-          pstrUgwSessionId = new std::string;
+          pstrIPCANSessionId = new std::string;
           if ( 0 == pcrf_server_find_core_sess_byframedip( soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, soSessInfo ) ) {
-            *pstrUgwSessionId = soSessInfo.m_strSessionId;
-            pcrf_session_cache_get( *pstrUgwSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
+            *pstrIPCANSessionId = soSessInfo.m_strSessionId;
+            pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
           } else {
-            delete pstrUgwSessionId;
-            pstrUgwSessionId = NULL;
+            delete pstrIPCANSessionId;
+            pstrIPCANSessionId = NULL;
           }
         }
         break;
@@ -440,7 +440,7 @@ static int app_pcrf_ccr_cb(
         pcrf_make_QoSInformation( ans, *soMsgInfoCache.m_psoReqInfo );
       }
       if ( uiActionSet & ACTION_UPDATE_SESSIONCACHE ) {
-        pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_strSessionId, *soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, pstrUgwSessionId );
+        pcrf_session_cache_insert( soMsgInfoCache.m_psoSessInfo->m_strSessionId, *soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, pstrIPCANSessionId );
         LOG_D( "Session-Id: %s: session cache is updated", soMsgInfoCache.m_psoSessInfo->m_strSessionId.c_str() );
       }
       if ( uiActionSet & ACTION_PROCERA_CHANGE_ULI ) {
@@ -549,9 +549,9 @@ static int app_pcrf_ccr_cb(
   }
 
   cleanup_and_exit:
-  if ( pstrUgwSessionId ) {
-    delete pstrUgwSessionId;
-    pstrUgwSessionId = NULL;
+  if ( pstrIPCANSessionId ) {
+    delete pstrIPCANSessionId;
+    pstrIPCANSessionId = NULL;
   }
   /* фиксируем статистику */
 

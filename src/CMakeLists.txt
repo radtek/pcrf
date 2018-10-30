@@ -1,7 +1,7 @@
 # The app_pcrf extension
 PROJECT("PCRF Diameter Application" C)
 
-SET(CMAKE_BUILD_TYPE MaxPerformance)
+#SET(CMAKE_BUILD_TYPE DebugValgrind)
 SET(CMAKE_CXX_FLAGS "--std=c++0x")
 
 # Parser files
@@ -41,6 +41,7 @@ SET( PCRF_APP_SRC
 	pcrf_session_cache_index.cpp
 	pcrf_linked_session.cpp
 	pcrf_crc.cpp
+	pcrf_ipc.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
 	~/project/utils/src/utils/stat/stat.cpp

@@ -4,6 +4,7 @@
 #include "app_pcrf_header.h"
 #include "utils/ps_common.h"
 #include "pcrf_session_cache.h"
+#include "pcrf_ipc.h"
 
 extern CLog *g_pcoLog;
 
@@ -20,6 +21,8 @@ static void * pcrf_session_rule_load_list( void * );
 /* указатель на объект статистики кэша правил сессий */
 static SStat *g_psoSessionRuleCacheStat;
 
+static void pcrf_session_rule_cache_provide_stat_cb( char **p_ppszStat );
+
 int pcrf_session_rule_list_init( pthread_t *p_ptThread )
 {
   /* запрашиваем адрес объекта статистики кэша правил сессий */
@@ -30,6 +33,10 @@ int pcrf_session_rule_list_init( pthread_t *p_ptThread )
 
   /* инициализация мьютексов доступа к хранилищу кэша правил сессий */
   CHECK_FCT( pthread_mutex_init( &g_mutexSessRuleLst, NULL ) );
+
+  stat_register_cb( pcrf_session_rule_cache_provide_stat_cb );
+
+  stat_register_cb( pcrf_session_rule_cache_provide_stat_cb );
 
   UTL_LOG_N( *g_pcoLog,
     "session rule cache is initialized successfully!\n"
@@ -239,7 +246,7 @@ void pcrf_session_rule_cache_insert( const std::string &p_strSessionId, const st
   }
 
   pcrf_session_rule_cache_insert_local( p_strSessionId, p_strRuleName );
-  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_strRuleName );
+  pcrf_ipc_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_INSERT_SESSRUL), &p_strRuleName );
 }
 
 void pcrf_session_rule_cache_remove_rule( const std::string &p_strSessionId, const std::string &p_strRuleName )
@@ -252,5 +259,18 @@ void pcrf_session_rule_cache_remove_rule( const std::string &p_strSessionId, con
   }
 
   pcrf_session_rule_cache_remove_rule_local(p_strSessionId, p_strRuleName);
-  pcrf_session_cache_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSRUL), &p_strRuleName);
+  pcrf_ipc_cmd2remote(p_strSessionId, NULL, static_cast<uint16_t>(PCRF_CMD_REMOVE_SESSRUL), &p_strRuleName);
+}
+
+static void pcrf_session_rule_cache_provide_stat_cb( char **p_ppszStat )
+{
+  int iFnRes;
+
+  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessRuleLst ), return );
+  iFnRes = asprintf( p_ppszStat, "session rule cache has %u members", g_mapSessRuleLst.size() );
+  if ( 0 < iFnRes ) {
+  } else {
+    *p_ppszStat = NULL;
+  }
+  pthread_mutex_unlock( &g_mutexSessRuleLst );
 }

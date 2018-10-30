@@ -183,6 +183,7 @@ struct SDBAbonRule {
 	/* конструктор структуры */
 	SDBAbonRule() : m_bIsActive(false), m_bIsRelevant(false) { }
   SDBAbonRule( bool p_bIsActive, bool p_bIsRelevant ) : m_bIsActive( p_bIsActive ), m_bIsRelevant( p_bIsRelevant ) { }
+  ~SDBAbonRule() { m_vectFlowDescr.clear(); m_vectMonitKey.clear(); }
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
@@ -384,6 +385,7 @@ struct SSQLData : public SSQLQueueParam {
   T m_tParam;
   SSQLData( T &p_tParam ) : m_tParam( p_tParam ) { }
   void push_data( otl_stream &p_coStream ) { p_coStream << m_tParam; }
+  ~SSQLData() { };
 };
 
 void pcrf_sql_queue_enqueue(

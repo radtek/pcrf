@@ -2,7 +2,6 @@
 #include "utils/stat/stat.h"
 
 #include <freeDiameter/libfdproto.h>
-
 /* static objects */
 struct SAppPCRFConf *g_psoConf = NULL;
 static struct SAppPCRFConf soConf;
@@ -64,6 +63,8 @@ static int pcrf_entry (char * conffile)
 	/* инициализация трейсера */
 	CHECK_FCT (pcrf_tracer_init ());
 
+  CHECK_FCT( pcrf_ipc_init() );
+
   /* инициализация кеша сессий */
   CHECK_FCT( pcrf_session_cache_init( &tSessionListInitializer ) );
 
@@ -99,25 +100,26 @@ static int pcrf_entry (char * conffile)
 	/* инициализация клиента (client) */
 	CHECK_FCT (pcrf_cli_init ());
 
-	return 0;
+  return 0;
 }
 
 /* Unload */
 void fd_ext_fini(void)
 {
-	app_pcrf_serv_fini ();
-	pcrf_cli_fini ();
+  app_pcrf_serv_fini ();
+  pcrf_cli_fini ();
   pcrf_session_rule_list_fini();
   pcrf_rule_cache_fini();
   pcrf_session_cache_fini ();
+  pcrf_ipc_fini();
   pcrf_tracer_fini ();
   pcrf_sql_queue_fini();
-	pcrf_db_pool_fin ();
+  pcrf_db_pool_fin ();
   if ( 0 != g_psoConf->m_iGenerateCDR ) {
     pcrf_cdr_fini();
   }
-	stat_fin();
-	pcrf_logger_fini();
+  stat_fin();
+  pcrf_logger_fini();
   pcrf_tracer_rwlock_fini();
 }
 
