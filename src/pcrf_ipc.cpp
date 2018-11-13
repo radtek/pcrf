@@ -267,13 +267,13 @@ static int pcrf_ipc_process_request( const uint8_t *p_pmui8Buf, const ssize_t p_
             break;    /* Diameter */
           case 10415: /* 3GPP */
             switch ( psoPayload->m_uiAVPId ) {
-              case 18:     /* SGSN-MCC-MNC */
-                psoCache->m_coSGSNMCCMNC.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
-                psoCache->m_coSGSNMCCMNC.set_non_null();
-                break;    /* SGSN-IP-Address */
               case 6:     /* SGSN-IP-Address */
                 psoCache->m_coSGSNIPAddr.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
                 psoCache->m_coSGSNIPAddr.set_non_null();
+                break;    /* SGSN-IP-Address */
+              case 18:     /* SGSN-MCC-MNC */
+                psoCache->m_coSGSNMCCMNC.v.insert( 0, reinterpret_cast<char*>( psoPayload ) + sizeof( *psoPayload ), psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) );
+                psoCache->m_coSGSNMCCMNC.set_non_null();
                 break;    /* SGSN-IP-Address */
               case 1027:  /* IP-CAN-Type */
                 if ( sizeof( psoCache->m_iIPCANType ) == psoPayload->m_uiPayloadLen - sizeof( *psoPayload ) ) {
@@ -369,11 +369,7 @@ static int pcrf_ipc_process_request( const uint8_t *p_pmui8Buf, const ssize_t p_
       psoCache = NULL;
       break;
     case PCRF_CMD_REMOVE_SESSION:
-      if ( 0 == pcrf_session_cache_remove_local( strSessionId ) ) {
-      } else {
-        usleep( 100 );
-        pcrf_session_cache_remove_local( strSessionId );
-      }
+      pcrf_session_cache_remove_local( strSessionId );
       pcrf_session_rule_cache_remove_sess_local( strSessionId );
       break;
     case PCRF_CMD_INSERT_SESSRUL:

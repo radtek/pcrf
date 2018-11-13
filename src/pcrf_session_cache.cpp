@@ -271,9 +271,11 @@ int pcrf_session_cache_remove_local (std::string &p_strSessionId)
       LOG_D( "pcrf_session_cache_remove_local: iter->second: empty pointer" );
     }
     g_umapSessionCache.erase (iter);
-    stat_measure( g_psoSessionCacheStat, "removed", &coTM );
+    stat_measure( g_psoSessionCacheStat, "delete.hit", &coTM );
   } else {
     iRetVal = ENODATA;
+    stat_measure( g_psoSessionCacheStat, "delete.miss", &coTM );
+    LOG_N( "session cache: delete: session not found: %s", p_strSessionId.c_str() );
   }
 
   /* освобождаем мьютекс */
