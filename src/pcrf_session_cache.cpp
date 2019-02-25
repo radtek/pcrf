@@ -27,7 +27,7 @@ static volatile bool g_bSessionListWork = true;
 static pthread_mutex_t g_mutexSessionCache;
 
 /* загрузка списка сессий из БД */
-static void * pcrf_session_cache_load_session_list( void * );
+static void * pcrf_session_cache_load_list( void * );
 
 static void pcrf_session_cache_provide_stat_cb( char **p_ppszStat );
 
@@ -41,10 +41,10 @@ int pcrf_session_cache_init( pthread_t *p_ptThread )
 
   /* инициализация ветки статистики */
   g_psoSessionCacheStat = stat_get_branch ("session cache");
-  /* загружаем список сессий из БД */
-  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_cache_load_session_list, NULL ) );
   /* создаем мьютекс */
   CHECK_FCT( pthread_mutex_init( &g_mutexSessionCache, NULL ) );
+  /* загружаем список сессий из БД */
+  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_cache_load_list, NULL ) );
 
   UTL_LOG_N( *g_pcoLog,
     "session cache is initialized successfully!\n"
@@ -98,7 +98,7 @@ void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache
   int iPrio;
 
   /* дожидаемся завершения всех операций */
-  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit);
+  CHECK_FCT_DO( pcrf_session_cache_lock(), goto clean_and_exit );
 
   insertResult = g_umapSessionCache.insert (std::pair<std::string,SSessionCache*> (p_strSessionId, p_psoSessionInfo));
   if (! insertResult.second) {
@@ -137,7 +137,7 @@ void pcrf_session_cache_insert_local (std::string &p_strSessionId, SSessionCache
   }
 
   clean_and_exit:
-  pthread_mutex_unlock( &g_mutexSessionCache );
+  pcrf_session_cache_unlock();
 
   return;
 }
@@ -188,7 +188,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo *p_psoSess
   int iRetVal = 0;
   std::unordered_map<std::string,SSessionCache*>::iterator iter;
 
-  CHECK_FCT_DO( pthread_mutex_lock( &g_mutexSessionCache ), goto clean_and_exit );
+  CHECK_FCT_DO( pcrf_session_cache_lock(), goto clean_and_exit );
 
   /* запрашиваем информацию о сессии из кеша */
   iter = g_umapSessionCache.find (p_strSessionId);
@@ -238,7 +238,7 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo *p_psoSess
 
 clean_and_exit:
   /* освобождаем мьютекс */
-  pthread_mutex_unlock( &g_mutexSessionCache );
+  pcrf_session_cache_unlock();
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
@@ -252,7 +252,7 @@ int pcrf_session_cache_remove_local (std::string &p_strSessionId)
   std::unordered_map<std::string,SSessionCache*>::iterator iter;
 
   /* дожадаемся освобождения мьютекса */
-  CHECK_FCT( pthread_mutex_lock( &g_mutexSessionCache ) );
+  CHECK_FCT( pcrf_session_cache_lock() );
 
   pcrf_session_cache_remove_link (p_strSessionId);
 
@@ -279,7 +279,7 @@ int pcrf_session_cache_remove_local (std::string &p_strSessionId)
   }
 
   /* освобождаем мьютекс */
-  pthread_mutex_unlock( &g_mutexSessionCache );
+  pcrf_session_cache_unlock();
 
   return iRetVal;
 }
@@ -395,8 +395,10 @@ void pcrf_session_cache_get_info_from_cache( std::string &p_strSessionId , std::
   LOG_D( "leave: %s", __FUNCTION__ );
 }
 
-static void * pcrf_session_cache_load_session_list( void * )
+static void * pcrf_session_cache_load_list( void * )
 {
+  pthread_exit( 0 );
+
   int iRetVal = 0;
   CTimeMeasurer coTM;
   otl_connect *pcoDBConn = NULL;

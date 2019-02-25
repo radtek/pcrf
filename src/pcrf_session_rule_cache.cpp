@@ -16,7 +16,7 @@ static std::map<std::string, std::list<std::string> > g_mapSessRuleLst;
 static pthread_mutex_t g_mutexSessRuleLst;
 
 /* функция потока загрузки наального списка правил сессиий */
-static void * pcrf_session_rule_load_list( void * );
+static void * pcrf_session_rule_cache_load_list( void * );
 
 /* указатель на объект статистики кэша правил сессий */
 static SStat *g_psoSessionRuleCacheStat;
@@ -28,11 +28,11 @@ int pcrf_session_rule_list_init( pthread_t *p_ptThread )
   /* запрашиваем адрес объекта статистики кэша правил сессий */
   g_psoSessionRuleCacheStat = stat_get_branch("session rule cache");
 
-  /* загружаем первичный список правил сессий */
-  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_rule_load_list, NULL ) );
-
   /* инициализация мьютексов доступа к хранилищу кэша правил сессий */
   CHECK_FCT( pthread_mutex_init( &g_mutexSessRuleLst, NULL ) );
+
+  /* загружаем первичный список правил сессий */
+  CHECK_FCT( pthread_create( p_ptThread, NULL, pcrf_session_rule_cache_load_list, NULL ) );
 
   stat_register_cb( pcrf_session_rule_cache_provide_stat_cb );
 
@@ -179,8 +179,10 @@ void pcrf_session_rule_cache_remove_rule_local( const std::string &p_strSessionI
   return;
 }
 
-static void * pcrf_session_rule_load_list( void * )
+static void * pcrf_session_rule_cache_load_list( void * )
 {
+  pthread_exit( 0 );
+
   int iRetVal = 0;
   CTimeMeasurer coTM;
   int iRepeat = 1;

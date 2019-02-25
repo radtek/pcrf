@@ -66,9 +66,6 @@ void pcrf_logger_fini(void);
 /* инициализация списока клиентов и регистрация функции-валидатора клиента */
 int app_pcrf_load_peer (void);
 
-int pcrf_ipc_init();
-void pcrf_ipc_fini();
-
 /* инициализация кеша сессий */
 int pcrf_session_cache_init( pthread_t *p_ptThread );
 /* деинициализация кеша сессий */

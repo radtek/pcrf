@@ -29,14 +29,15 @@ struct SSessionCache {
   ~SSessionCache() { }
 };
 
-/* добавление данных о сессии в кеш */
+/* РґРѕР±Р°РІР»РµРЅРёРµ РґР°РЅРЅС‹С… Рѕ СЃРµСЃСЃРёРё РІ РєРµС€ */
 void pcrf_session_cache_insert( std::string &p_strSessionId, SSessionInfo &p_soSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId );
-/* загрузка данных о сессии из кеша */
+/* Р·Р°РіСЂСѓР·РєР° РґР°РЅРЅС‹С… Рѕ СЃРµСЃСЃРёРё РёР· РєРµС€Р° */
 int pcrf_session_cache_get( std::string &p_strSessionId, SSessionInfo *p_psoSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId );
-/* удаление данных из кеша */
+/* СѓРґР°Р»РµРЅРёРµ РґР°РЅРЅС‹С… РёР· РєРµС€Р° */
 void pcrf_session_cache_remove( std::string &p_strSessionId );
-/* получение списка session-id по Framed-IP-Address */
+/* РїРѕР»СѓС‡РµРЅРёРµ СЃРїРёСЃРєР° session-id РїРѕ Framed-IP-Address */
 int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
+/* С„СѓРЅРєС†РёРё Р±Р»РѕРёРєСЂРѕРІРєРё/СЂР°Р·Р±Р»РѕРєРёСЂРѕРІРєРё РєРµС€Р° СЃРµСЃСЃРёР№ */
 int pcrf_session_cache_lock();
 void pcrf_session_cache_unlock();
 

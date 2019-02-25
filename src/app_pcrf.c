@@ -63,35 +63,39 @@ static int pcrf_entry (char * conffile)
 	/* инициализация трейсера */
 	CHECK_FCT (pcrf_tracer_init ());
 
-  CHECK_FCT( pcrf_ipc_init() );
+  /* инициализация кеша правил */
+  CHECK_FCT(pcrf_rule_cache_init());
 
   /* инициализация кеша сессий */
   CHECK_FCT( pcrf_session_cache_init( &tSessionListInitializer ) );
 
-  /* инициализация кеша правил */
-  CHECK_FCT(pcrf_rule_cache_init());
-
   /* инициализация кеша правил сессий */
   CHECK_FCT( pcrf_session_rule_list_init( &tSessRuleLstInitializer ) );
 
+  CHECK_FCT( pcrf_ipc_init() );
+
   /* ждем окончания инициализации кеша сессий и кеша правил сессий */
   CHECK_FCT( pthread_join( tSessionListInitializer, &pvThreadResult ) );
-  iRetVal = *( ( int* )( pvThreadResult ) );
-  free( pvThreadResult );
-  if ( 0 == iRetVal ) {
-    LOG_N( "session list loaded successfully" );
-  } else {
-    LOG_F( "an error occurred while session list loading: code: %d", iRetVal );
-    return iRetVal;
+  if ( NULL != pvThreadResult ) {
+    iRetVal = *( ( int* )( pvThreadResult ) );
+    free( pvThreadResult );
+    if ( 0 == iRetVal ) {
+      LOG_N( "session list loaded successfully" );
+    } else {
+      LOG_F( "an error occurred while session list loading: code: %d", iRetVal );
+      return iRetVal;
+    }
   }
   CHECK_FCT( pthread_join( tSessRuleLstInitializer, &pvThreadResult ) );
-  iRetVal = *( ( int* )( pvThreadResult ) );
-  free( pvThreadResult );
-  if ( 0 == iRetVal ) {
-    LOG_N( "session rule list loaded successfully" );
-  } else {
-    LOG_F( "an error occurred while session rule list loading: code: %d", iRetVal );
-    return iRetVal;
+  if ( NULL != pvThreadResult ) {
+    iRetVal = *( ( int* )( pvThreadResult ) );
+    free( pvThreadResult );
+    if ( 0 == iRetVal ) {
+      LOG_N( "session rule list loaded successfully" );
+    } else {
+      LOG_F( "an error occurred while session rule list loading: code: %d", iRetVal );
+      return iRetVal;
+    }
   }
 
   /* Install the handlers for incoming messages */
@@ -108,10 +112,10 @@ void fd_ext_fini(void)
 {
   app_pcrf_serv_fini ();
   pcrf_cli_fini ();
-  pcrf_session_rule_list_fini();
-  pcrf_rule_cache_fini();
-  pcrf_session_cache_fini ();
   pcrf_ipc_fini();
+  pcrf_session_rule_list_fini();
+  pcrf_session_cache_fini ();
+  pcrf_rule_cache_fini();
   pcrf_tracer_fini ();
   pcrf_sql_queue_fini();
   pcrf_db_pool_fin ();
