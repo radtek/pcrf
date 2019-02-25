@@ -96,7 +96,7 @@ struct SUserEnvironment {
   otl_value<std::string> m_coIPCANType;
   int32_t m_iIPCANType;
   SUserLocation          m_soUsrLoc;
-  SUserEnvironment() : m_bLoaded(false), m_iRATType (0), m_iIPCANType( 0 ) { }
+  SUserEnvironment() : m_bLoaded( false ), m_iRATType( 0 ), m_iIPCANType( 0 ) {}
 };
 struct SAllocationRetentionPriority {
 	otl_value<uint32_t> m_coPriorityLevel;
@@ -138,14 +138,14 @@ struct SRequestInfo {
 struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
 	struct SRequestInfo *m_psoReqInfo;
-  SMsgDataForDB() : m_psoSessInfo(NULL), m_psoReqInfo(NULL) {}
+	SMsgDataForDB() : m_psoSessInfo( NULL ), m_psoReqInfo( NULL ) {}
 };
 struct SPeerInfo {
 	otl_value<std::string> m_coHostName;
 	otl_value<std::string> m_coHostReal;
 	unsigned int m_uiPeerDialect;
 	int m_iIsConnected;
-	SPeerInfo () { m_iIsConnected = 0; m_uiPeerDialect = GX_UNDEF; }
+	SPeerInfo() { m_iIsConnected = 0; m_uiPeerDialect = GX_UNDEF; }
 };
 struct SFlowInformation {
   otl_value<std::string> m_coFlowDescription;
@@ -186,7 +186,7 @@ struct SDBAbonRule {
   ~SDBAbonRule() { m_vectFlowDescr.clear(); m_vectMonitKey.clear(); }
 };
 /* выборка данных из пакета */
-int pcrf_extract_req_data (msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo);
+int pcrf_extract_req_data( msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo );
 
 /* включение Supported-Features в запрос */
 void pcrf_make_SF( msg_or_avp *p_psoAns, std::list<SSF> &p_listSupportedFeatures );
@@ -197,12 +197,12 @@ void pcrf_fill_otl_datetime( otl_value<otl_datetime> &p_coOtlDateTime, tm *p_pso
 int pcrf_server_DBstruct_init(struct SMsgDataForDB *p_psoMsgToDB);
 int pcrf_server_req_db_store( struct SMsgDataForDB *p_psoMsgInfo );
 void pcrf_server_policy_db_store( SMsgDataForDB *p_psoMsgInfo );
-void pcrf_server_DBStruct_cleanup (struct SMsgDataForDB *p_psoMsgInfo);
+void pcrf_server_DBStruct_cleanup( struct SMsgDataForDB *p_psoMsgInfo );
 /* закрываем запись в таблице выданных политик */
-void pcrf_db_close_session_rule (
+void pcrf_db_close_session_rule(
 	const SSessionInfo *p_psoSessInfo,
 	const std::string &p_strRuleName,
-  const std::string *p_pstrRuleFailureCode = NULL);
+	const std::string *p_pstrRuleFailureCode = NULL );
 /* закрывает все записи сессии в таблице выданных политик */
 void pcrf_db_close_session_rule_all( std::string &p_strSessionId );
 /* закрывает все открыте записи сессии в таблице локаций пользователя */
@@ -252,10 +252,10 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn );
 
 /* функции работы с AVP */
 /* функция получения значения перечислимого типа */
-int pcrf_extract_avp_enum_val (struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize);
+int pcrf_extract_avp_enum_val( struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize );
 
 /* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_subscriber_id(otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo);
+int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo );
 /* проверка зависших сессий */
 int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
 /* загрузка описания правила */
@@ -308,21 +308,21 @@ int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
 /* функция определяет диалект пира, результат передается через возвращаемое значение, в случае неудачи возвращает GX_UNDEF [0] */
 int pcrf_peer_dialect_ret( std::string &p_strHostName, std::string &p_strRealm );
 /* определяет подключен ли пер */
-int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo);
+int pcrf_peer_is_connected( SSessionInfo &p_soSessInfo );
 /* определяет есть ли подключенные пиры заданного диалекта */
-int pcrf_peer_is_dialect_used (unsigned int p_uiPeerDialect);
+int pcrf_peer_is_dialect_used( unsigned int p_uiPeerDialect );
 
 struct SRARResult {
   pthread_mutex_t m_mutexWait;
   int32_t m_iResultCode;
-  int Init ()
+  int Init()
   {
-    /* инициализируем мьютекс */
-    CHECK_FCT( pthread_mutex_init( &m_mutexWait, NULL ) );
-    /* блокируем его, т.к. он создается разблокированным */
-    CHECK_FCT( pthread_mutex_lock( &m_mutexWait ) );
+	/* инициализируем мьютекс */
+	  CHECK_FCT( pthread_mutex_init( &m_mutexWait, NULL ) );
+	  /* блокируем его, т.к. он создается разблокированным */
+	  CHECK_FCT( pthread_mutex_lock( &m_mutexWait ) );
 
-    return 0;
+	  return 0;
   }
   void Fini()
   {
@@ -343,13 +343,13 @@ int pcrf_client_gx_rar(
   const uint32_t p_uiUsec );
 
 /* функция для Procera - формирование значения правила о локации пользователя */
-int pcrf_procera_make_uli_rule (otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule);
+int pcrf_procera_make_uli_rule( otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule );
 
 /* загрузка активных сессий Procera по ip-адресу */
 int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
 
 /* функция для закрытия всех правил локации сессии Procera */
-int pcrf_procera_db_load_location_rule (otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList);
+int pcrf_procera_db_load_location_rule( otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList );
 
 /* функция для добавления элемента в локальную очередь обновления политик */
 void pcrf_local_refresh_queue_add( std::string &p_strSessionId );
