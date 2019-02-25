@@ -1,4 +1,6 @@
 #include "app_pcrf_header.h"
+#include "pcrf_session_cache.h"
+#include "pcrf_session_cache_index.h"
 
 int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::string> *p_plistMonitKey )
 {
@@ -15,7 +17,6 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
   LOG_D( "session count: %u", vectSessionList.size() );
 
   SMsgDataForDB soInfo;
-  std::vector<SDBAbonRule> vectAbonRules;
 
   pcrf_server_DBstruct_init( &soInfo );
 
@@ -23,14 +24,14 @@ int pcrf_send_umi_rar( otl_value<std::string> &p_coSubscriberId, std::list<std::
   for ( int i = 0; i < vectSessionList.size(); ++i ) {
     soInfo.m_psoReqInfo->m_vectUsageInfo.clear();
     LOG_D( "session-id: %s", vectSessionList[ i ].c_str() );
-    pcrf_session_cache_get( vectSessionList[ i ], *soInfo.m_psoSessInfo, *soInfo.m_psoReqInfo );
-    soInfo.m_psoSessInfo->m_coSessionId = vectSessionList[ i ];
+    pcrf_session_cache_get( vectSessionList[ i ], soInfo.m_psoSessInfo, soInfo.m_psoReqInfo, NULL );
+    soInfo.m_psoSessInfo->m_strSessionId = vectSessionList[ i ];
     CHECK_POSIX_DO( ( iRetVal = pcrf_peer_dialect( *soInfo.m_psoSessInfo ) ), goto clean_and_exit );
     for ( std::list<std::string>::iterator iter = p_plistMonitKey->begin(); iter != p_plistMonitKey->end(); ++ iter ) {
       SDBMonitoringInfo soMonitInfo;
       soInfo.m_psoSessInfo->m_mapMonitInfo.insert( std::pair<std::string, SDBMonitoringInfo>( *iter, soMonitInfo ) );
     }
-    CHECK_FCT_DO( ( iRetVal = pcrf_client_rar( soInfo, NULL, vectAbonRules, NULL, NULL, 0 ) ), /* continue */ );
+    CHECK_FCT_DO( ( iRetVal = pcrf_client_gx_rar( soInfo.m_psoSessInfo, soInfo.m_psoReqInfo, NULL, NULL, NULL, NULL, 0 ) ), /* continue */ );
   }
 
 

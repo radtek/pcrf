@@ -43,3 +43,10 @@ Temporary Items
 .apdisk
 src/app_pcrf
 src/app_rx
+
+# VS files 
+src/.vs
+src/*.sln
+src/*.vcxproj
+src/*.vcxproj.filters
+src/*.vcxproj.user

@@ -1,10 +1,12 @@
+#include <stdio.h>
+
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
-#include <stdio.h>
+#include "pcrf_session_cache_index.h"
 
 extern CLog *g_pcoLog;
 
-int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue )
+int pcrf_client_db_load_refqueue_data( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {
@@ -28,7 +30,7 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
     /* создаем объект класса потока ДБ */
     coStream.open(
       1000,
-      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf' and refresh_date < sysdate",
+      "select rowid, identifier, identifier_type, action from ps.refreshQueue where module = 'pcrf2' and refresh_date < sysdate",
       *p_pcoDBConn );
     /* делаем выборку из БД */
     while ( ! coStream.eof() ) {
@@ -52,7 +54,7 @@ int pcrf_client_db_refqueue( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p
   return iRetVal;
 }
 
-void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
+void pcrf_client_db_fix_staled_sess ( std::string &p_strSessionId )
 {
 	/* закрываем зависшую сессию */
   otl_value<otl_datetime> coSysdate;
@@ -61,11 +63,11 @@ void pcrf_client_db_fix_staled_sess ( otl_value<std::string> &p_coSessionId )
 
   pcrf_fill_otl_datetime( coSysdate, NULL );
 
-  pcrf_db_update_session( p_coSessionId , coSysdate, coNULLDate, coTermCause);
+  pcrf_db_update_session( p_strSessionId , coSysdate, coNULLDate, coTermCause);
 	/* фиксируем правила зависшей сессиии */
-  pcrf_db_close_session_rule_all( p_coSessionId );
+  pcrf_db_close_session_rule_all( p_strSessionId );
 	/* фиксируем локации зависшей сессиии */
-  pcrf_server_db_close_user_loc( p_coSessionId );
+  pcrf_server_db_close_user_loc( p_strSessionId );
 }
 
 int pcrf_client_db_load_session_list( otl_connect *p_pcoDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList )

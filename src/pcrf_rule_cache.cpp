@@ -13,7 +13,7 @@ static std::map<std::string, SDBAbonRule> *g_pmapRule;
 /* объект синхронизации доступа к хранилищу */
 static pthread_mutex_t g_mutexRuleCache;
 /* объект сбора статистики */
-static SStat *g_psoRuleCahceStat;
+static SStat *g_psoRuleCacheStat;
 /* флаг продолжения работы */
 static volatile int g_iRuleCacheWork;
 /* мьютекс, используемый в качестве таймера обновления локального хранилища */
@@ -26,13 +26,13 @@ static void *pcrf_rule_cache_update(void *p_pvParam);
 /* загрузка правил из БД */
 static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_pmapRule);
 /* загрузка Flow-Description правила */
-static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectRuleFlows);
+static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<SFlowInformation> &p_vectRuleInformation);
 /* загрузка ключей мониторинга sce */
 static int load_sce_rule_mk(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectMonitKey);
 
 int pcrf_rule_cache_init()
 {
-  g_psoRuleCahceStat = stat_get_branch("rule cache");
+  g_psoRuleCacheStat = stat_get_branch("rule cache");
   g_pmapRule = new std::map<std::string, SDBAbonRule>;
   g_iRuleCacheWork = 1;
   CHECK_FCT( pthread_mutex_init( &g_mutexRuleCache, NULL ) );
@@ -122,7 +122,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
       {
         SDBAbonRule soAbonRule( false, true );
         coStream
-          >> soAbonRule.m_coRuleName
+          >> soAbonRule.m_strRuleName
           >> uiRuleId
           >> soAbonRule.m_coDynamicRuleFlag
           >> soAbonRule.m_coRuleGroupFlag
@@ -147,8 +147,7 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         /* загружаем Flow-Description правила */
         CHECK_FCT_DO( load_rule_flows( pcoDBConn, uiRuleId, soAbonRule.m_vectFlowDescr ), /* continue */ );
         /* сохраняем правило в локальном хранилище */
-        p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_coRuleName.v, soAbonRule ) );
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
+        p_pmapRule->insert( std::pair<std::string, SDBAbonRule>( soAbonRule.m_strRuleName, soAbonRule ) );
       }
     }
     coStream.close();
@@ -169,12 +168,11 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
         coStream
           >> uiRuleId
           >> soAbonRule.m_coPrecedenceLevel
-          >> soAbonRule.m_coRuleName
+          >> soAbonRule.m_strRuleName
           >> soAbonRule.m_coSCE_PackageId
           >> soAbonRule.m_coSCE_RealTimeMonitor;
         CHECK_FCT_DO(load_sce_rule_mk(pcoDBConn, uiRuleId, soAbonRule.m_vectMonitKey), /* continue */);
-        p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_coRuleName.v, soAbonRule));
-        UTL_LOG_D( *g_pcoLog, "%s: %s", __FUNCTION__, soAbonRule.m_coRuleName.v.c_str() );
+        p_pmapRule->insert(std::pair<std::string, SDBAbonRule>(soAbonRule.m_strRuleName, soAbonRule));
       }
     }
     coStream.close();
@@ -193,12 +191,12 @@ static int pcrf_rule_cache_load_rule_list(std::map<std::string,SDBAbonRule> *p_p
     pcoDBConn = NULL;
   }
 
-  stat_measure(g_psoRuleCahceStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoRuleCacheStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }
 
-static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<std::string> &p_vectRuleFlows)
+static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, std::vector<SFlowInformation> &p_vectRuleInfo)
 {
   if (NULL != p_pcoDBConn) {
   } else {
@@ -209,11 +207,11 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
   int iRepeat = 1;
 
   sql_repeat:
-  p_vectRuleFlows.clear();
+  p_vectRuleInfo.clear();
 
   otl_nocommit_stream coStream;
   try {
-    std::string strFlowDescr;
+    SFlowInformation soFlowInfo;
     coStream.open(
       25,
       "select "
@@ -226,8 +224,8 @@ static int load_rule_flows(otl_connect *p_pcoDBConn, unsigned int p_uiRuleId, st
     coStream
       << p_uiRuleId;
     while (0 == coStream.eof()) {
-      coStream >> strFlowDescr;
-      p_vectRuleFlows.push_back(strFlowDescr);
+      coStream >> soFlowInfo.m_coFlowDescription;
+      p_vectRuleInfo.push_back( soFlowInfo );
     }
     coStream.close();
   } catch (otl_exception &coExcept) {
@@ -303,11 +301,11 @@ int pcrf_rule_cache_get_rule_info(
   if (iter != g_pmapRule->end()) {
     p_soRule = iter->second;
   } else {
-    iRetVal = 1403;
+    iRetVal = ENODATA;
   }
   CHECK_FCT(pthread_mutex_unlock(&g_mutexRuleCache));
 
-  stat_measure(g_psoRuleCahceStat, __FUNCTION__, &coTM);
+  stat_measure(g_psoRuleCacheStat, __FUNCTION__, &coTM);
 
   return iRetVal;
 }

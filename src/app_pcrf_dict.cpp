@@ -35,10 +35,13 @@ dict_object *g_psoDictChargingRuleBaseName = NULL;
 dict_object *g_psoDictChargingRuleName = NULL;
 dict_object *g_psoDictRatingGroup = NULL;
 dict_object *g_psoDictServiceIdentifier = NULL;
+dict_object *g_psoDictAVPFlowStatus = NULL;
+dict_object *g_psoDictAVPBearerControlMode = NULL;
 dict_object *g_psoDictFlowDescription = NULL;
+dict_object *g_psoDictAVPFlowDirection = NULL;
 dict_object *g_psoDictSessionReleaseCause = NULL;
 dict_object *g_psoDictFlowInformation = NULL;
-dict_object *g_psoDictQoSInformation = NULL;
+dict_object *g_psoDicAVPtQoSInformation = NULL;
 dict_object *g_psoDictQoSClassIdentifier = NULL;
 dict_object *g_psoDictMaxRequestedBandwidthUL = NULL;
 dict_object *g_psoDictMaxRequestedBandwidthDL = NULL;
@@ -49,6 +52,7 @@ dict_object *g_psoDictPriorityLevel = NULL;
 dict_object *g_psoDictDefaultEPSBearerQoS = NULL;
 dict_object *g_psoDictPreemptionCapability = NULL;
 dict_object *g_psoDictPreemptionVulnerability = NULL;
+dict_object *g_psoDictAVPReportingLevel = NULL;
 dict_object *g_psoDictOnline = NULL;
 dict_object *g_psoDictOffline = NULL;
 dict_object *g_psoDictMeteringMethod = NULL;
@@ -89,8 +93,10 @@ dict_object *g_psoDictSubscriptionId = NULL;
 dict_object *g_psoDictSubscriptionIdType = NULL;
 dict_object *g_psoDictSubscriptionIdData = NULL;
 
-dict_object *g_psoDictAPNAggregateMaxBitrateUL = NULL;
-dict_object *g_psoDictAPNAggregateMaxBitrateDL = NULL;
+dict_object *g_psoDictAVPAPNAggregateMaxBitrateDL = NULL;
+dict_object *g_psoDicAVPtAPNAggregateMaxBitrateUL = NULL;
+
+dict_object *g_psoDictAVPGxCapabilityList = NULL;
 
 struct local_rules_definition {
     dict_avp_request avp_codes;
@@ -274,10 +280,28 @@ int app_pcrf_dict_init (void)
 	/* Service-Identifier */
 	CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Service-Identifier", &g_psoDictServiceIdentifier, ENOENT));
 
+  /* Flow-Status */
+  {
+    dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 511, NULL } };
+    CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPFlowStatus, ENOENT ) );
+  }
+
+  /* Bearer-Control-Mode */
+  {
+    dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1023, NULL } };
+    CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPBearerControlMode, ENOENT ) );
+  }
+
 	/* Flow-Description */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 507, NULL }};
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictFlowDescription, ENOENT));
+	}
+
+	/* Flow-Direction */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1080, NULL }};
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPFlowDirection, ENOENT));
 	}
 
 	/* Session-Release-Cause */
@@ -295,7 +319,7 @@ int app_pcrf_dict_init (void)
 	/* QoS-Information */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1016, NULL }};
-		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictQoSInformation, ENOENT));
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDicAVPtQoSInformation, ENOENT));
 	}
 
 	/* QoS-Class-Identifier */
@@ -356,6 +380,12 @@ int app_pcrf_dict_init (void)
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1048, NULL }};
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictPreemptionVulnerability, ENOENT));
+	}
+
+	/* Reporting-Level */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1011, NULL }};
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPReportingLevel, ENOENT));
 	}
 
 	/* Online */
@@ -442,19 +472,29 @@ int app_pcrf_dict_init (void)
 	/* Subscription-Id-Data */
 	CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, "Subscription-Id-Data", &g_psoDictSubscriptionIdData, ENOENT));
 
-	/* APN-Aggregate-Max-Bitrate-UL */
-	{
-		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1041, NULL }};
-		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAPNAggregateMaxBitrateUL, ENOENT));
-	}
-
 	/* APN-Aggregate-Max-Bitrate-DL */
 	{
 		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1040, NULL }};
-		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAPNAggregateMaxBitrateDL, ENOENT));
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPAPNAggregateMaxBitrateDL, ENOENT));
+	}
+
+	/* APN-Aggregate-Max-Bitrate-UL */
+	{
+		dict_avp_request_ex soCrit = { { 0, 10415, NULL }, { 1041, NULL }};
+		CHECK_FCT(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDicAVPtAPNAggregateMaxBitrateUL, ENOENT));
 	}
 
 	/* дополняем словарь перечислимыми значениями */
+	/* Reporting-Level */
+	{
+		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictAVPReportingLevel, &psoDictType, ENOENT));
+		dict_enumval_data        t_1 = { (char *) "SERVICE_IDENTIFIER_LEVEL",     { (uint8_t *) 0, 0 }};
+		dict_enumval_data        t_2 = { (char *) "RATING_GROUP_LEVEL",           { (uint8_t *) 1, 0 }};
+		dict_enumval_data        t_3 = { (char *) "SPONSORED_CONNECTIVITY_LEVEL", { (uint8_t *) 2, 0 }};
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3, psoDictType, NULL ) );
+  }
 	/* Online */
 	{
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, g_psoDictOnline, &psoDictType, ENOENT));
@@ -492,18 +532,20 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		dict_enumval_data        t_1 = { (char *) "3GPP-GPRS", { (uint8_t *) 0, 0 }};
-		dict_enumval_data        t_2 = { (char *) "DOCSIS",    { (uint8_t *) 1, 0 }};
-		dict_enumval_data        t_3 = { (char *) "xDSL",      { (uint8_t *) 2, 0 }};
-		dict_enumval_data        t_4 = { (char *) "WiMAX",     { (uint8_t *) 3, 0 }};
-		dict_enumval_data        t_5 = { (char *) "3GPP2",     { (uint8_t *) 4, 0 }};
-		dict_enumval_data        t_6 = { (char *) "3GPP-EPS",  { (uint8_t *) 5, 0 }};
+		dict_enumval_data        t_1 = { (char *) "3GPP-GPRS",    { (uint8_t *) 0, 0 }};
+		dict_enumval_data        t_2 = { (char *) "DOCSIS",       { (uint8_t *) 1, 0 }};
+		dict_enumval_data        t_3 = { (char *) "xDSL",         { (uint8_t *) 2, 0 }};
+		dict_enumval_data        t_4 = { (char *) "WiMAX",        { (uint8_t *) 3, 0 }};
+		dict_enumval_data        t_5 = { (char *) "3GPP2",        { (uint8_t *) 4, 0 }};
+		dict_enumval_data        t_6 = { (char *) "3GPP-EPS",     { (uint8_t *) 5, 0 }};
+		dict_enumval_data        t_7 = { (char *) "Non-3GPP-EPS", { (uint8_t *) 6, 0 }};
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_4 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_5 , psoDictType, NULL));
 		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_6 , psoDictType, NULL));
+		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_7 , psoDictType, NULL));
 	}
 	/* RAT-Type */
 	{
@@ -596,45 +638,43 @@ int app_pcrf_dict_init (void)
 		soAVPIdent.avp_vendor.vendor_id = 10415;
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soAVPIdent, ppsoDictObj, ENOENT));
 		CHECK_FCT (fd_dict_search (fd_g_config->cnf_dict, DICT_TYPE, TYPE_OF_AVP, *ppsoDictObj, &psoDictType, ENOENT));
-		dict_enumval_data        t_1 = { (char *) "UNKNOWN_RULE_NAME",            { (uint8_t *) 1, 0 }};
-		dict_enumval_data        t_2 = { (char *) "RATING_GROUP_ERROR",           { (uint8_t *) 2, 0 }};
-		dict_enumval_data        t_3 = { (char *) "SERVICE_IDENTIFIER_ERROR",     { (uint8_t *) 3, 0 }};
-		dict_enumval_data        t_4 = { (char *) "GW/PCEF_MALFUNCTION",          { (uint8_t *) 4, 0 }};
-		dict_enumval_data        t_5 = { (char *) "RESOURCES_LIMITATION",         { (uint8_t *) 5, 0 }};
-		dict_enumval_data        t_6 = { (char *) "MAX_NR_BEARERS_REACHED",       { (uint8_t *) 6, 0 }};
-		dict_enumval_data        t_7 = { (char *) "UNKNOWN_BEARER_ID",            { (uint8_t *) 7, 0 }};
-		dict_enumval_data        t_8 = { (char *) "MISSING_BEARER_ID",            { (uint8_t *) 8, 0 }};
-		dict_enumval_data        t_9 = { (char *) "MISSING_FLOW_DESCRIPTION",     { (uint8_t *) 9, 0 }};
-/*		dict_enumval_data        t_10 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *) 9, 0 }}; дублирование числового значения */
-		dict_enumval_data        t_11 = { (char *) "RESOURCE_ALLOCATION_FAILURE", { (uint8_t *) 10, 0 }};
-		dict_enumval_data        t_12 = { (char *) "UNSUCCESSFUL_QOS_VALIDATION", { (uint8_t *) 11, 0 }};
-		dict_enumval_data        t_13 = { (char *) "INCORRECT_FLOW_INFORMATION",  { (uint8_t *) 12, 0 }};
-		dict_enumval_data        t_14 = { (char *) "NO_BEARER_BOUND",             { (uint8_t *) 15, 0 }};
+		dict_enumval_data        t_01 = { (char *) "UNKNOWN_RULE_NAME",           { (uint8_t *)  1, 0 }};
+		dict_enumval_data        t_02 = { (char *) "RATING_GROUP_ERROR",          { (uint8_t *)  2, 0 }};
+		dict_enumval_data        t_03 = { (char *) "SERVICE_IDENTIFIER_ERROR",    { (uint8_t *)  3, 0 }};
+		dict_enumval_data        t_04 = { (char *) "GW/PCEF_MALFUNCTION",         { (uint8_t *)  4, 0 }};
+		dict_enumval_data        t_05 = { (char *) "RESOURCES_LIMITATION",        { (uint8_t *)  5, 0 }};
+		dict_enumval_data        t_06 = { (char *) "MAX_NR_BEARERS_REACHED",      { (uint8_t *)  6, 0 }};
+		dict_enumval_data        t_07 = { (char *) "UNKNOWN_BEARER_ID",           { (uint8_t *)  7, 0 }};
+		dict_enumval_data        t_08 = { (char *) "MISSING_BEARER_ID",           { (uint8_t *)  8, 0 }};
+		dict_enumval_data        t_09 = { (char *) "MISSING_FLOW_INFORMATION",    { (uint8_t *)  9, 0 }};
+		dict_enumval_data        t_10 = { (char *) "RESOURCE_ALLOCATION_FAILURE", { (uint8_t *) 10, 0 }};
+		dict_enumval_data        t_11 = { (char *) "UNSUCCESSFUL_QOS_VALIDATION", { (uint8_t *) 11, 0 }};
+		dict_enumval_data        t_12 = { (char *) "INCORRECT_FLOW_INFORMATION",  { (uint8_t *) 12, 0 }};
+    dict_enumval_data        t_13 = { (char *) "PS_TO_CS_HANDOVER",           { (uint8_t *) 13, 0 }};
+    dict_enumval_data        t_14 = { (char *) "NO_BEARER_BOUND",             { (uint8_t *) 15, 0 }};
 		dict_enumval_data        t_15 = { (char *) "DUPLICATE_RULE_NAME ",        { (uint8_t *) 1001, 0 }};
 		dict_enumval_data        t_16 = { (char *) "FILTER_RESTRICTIONS",         { (uint8_t *) 1002, 0 }};
 		dict_enumval_data        t_17 = { (char *) "TIME_CONTROL_ERROR",          { (uint8_t *) 1004, 0 }};
 		dict_enumval_data        t_18 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1005, 0 }};
-/*		dict_enumval_data        t_19 = { (char *) "L7_CONTENT_ERROR",            { (uint8_t *) 1004, 0 }}; дублирование числового значения */
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_1 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_2 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_3 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_4 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_5 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_6 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_7 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_8 , psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_9 , psoDictType, NULL));
-/*		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_10, psoDictType, NULL)); */
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_11, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_12, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_13, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_14, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_15, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_16, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_17, psoDictType, NULL));
-		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_18, psoDictType, NULL));
-/*		CHECK_FCT (fd_dict_new (fd_g_config->cnf_dict, DICT_ENUMVAL, &t_19, psoDictType, NULL)); */
-	}
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_01, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_02, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_03, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_04, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_05, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_06, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_07, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_08, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_09, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_10, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_11, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_12, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_13, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_14, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_15, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_16, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_17, psoDictType, NULL ) );
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_ENUMVAL, &t_18, psoDictType, NULL ) );
+  }
 
 	/* Huawai */
 	{
@@ -888,5 +928,27 @@ int app_pcrf_dict_init (void)
     CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_VENDOR, &vendor_data, NULL, NULL ) );
   }
 
-	return 0;
+  /* Gx-Capability-List */
+  {
+    /*
+    Unsigned32.
+    */
+    dict_avp_data data = {
+      1060,									                /* Code */
+      193,								                  /* Vendor */
+      ( char * ) "Gx-Capability-List",     /* Name */
+      AVP_FLAG_VENDOR | AVP_FLAG_MANDATORY, /* Fixed flags */
+      AVP_FLAG_VENDOR,						          /* Fixed flag values */
+      AVP_TYPE_UNSIGNED32						        /* base type of data */
+    };
+    CHECK_FCT( fd_dict_new( fd_g_config->cnf_dict, DICT_AVP, &data, NULL, NULL ) );
+  }
+
+  /* Gx-Capability-List */
+  {
+    dict_avp_request_ex soCrit = { { 0, 193, NULL }, { 1060, NULL } };
+    CHECK_FCT( fd_dict_search( fd_g_config->cnf_dict, DICT_AVP, AVP_BY_STRUCT, &soCrit, &g_psoDictAVPGxCapabilityList, ENOENT ) );
+  }
+
+  return 0;
 }

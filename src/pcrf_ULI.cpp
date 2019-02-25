@@ -82,7 +82,7 @@ void format_RAI(SRAI &p_soRAI, const char *p_pszMCCMNC, otl_value<std::string> &
 void format_TAI(STAI &p_soTAI, const char *p_pszMCCMNC, otl_value<std::string> &p_coValue);
 void format_ECGI(SECGI &p_soECGI, const char *p_pszMCCMNC, otl_value<std::string> &p_coValue);
 
-int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUserLocationInfo)
+int pcrf_parse_user_location( avp_value *p_psoAVPValue, SUserLocation &p_soUserLocationInfo, bool *p_pbLoaded )
 {
 	int iRetVal = 0;
 	int iFnRes;
@@ -95,67 +95,66 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 	STAI_ECGI soTAI_ECGI;
 
 	SMCCMNC *psoMCCMNC = NULL;
-	char mcMCCMNC[8];
 
-	switch (p_soAVPValue.os.data[0]) {
+	switch (p_psoAVPValue->os.data[0]) {
 	case eCGI:
-		if (p_soAVPValue.os.len >= sizeof(soCGI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soCGI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SCGI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soCGI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soCGI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soCGI.m_soMCCMNC);
 		break;
 	case eSAI:
-		if (p_soAVPValue.os.len >= sizeof(soSAI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soSAI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SSAI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soSAI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soSAI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soSAI.m_soMCCMNC);
 		break;
 	case eRAI:
-		if (p_soAVPValue.os.len >= sizeof(soRAI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soRAI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SRAI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soRAI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soRAI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soRAI.m_soMCCMNC);
 		break;
 	case eTAI:
-		if (p_soAVPValue.os.len >= sizeof(soTAI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soTAI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of STAI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soTAI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soTAI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soTAI.m_soMCCMNC);
 		break;
 	case eECGI:
-		if (p_soAVPValue.os.len >= sizeof(soECGI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soECGI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of SECGI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soECGI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soECGI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soECGI.m_soMCCMNC);
 		break;
 	case eTAI_ECGI:
-		if (p_soAVPValue.os.len >= sizeof(soTAI_ECGI)) {
+		if (p_psoAVPValue->os.len >= sizeof(soTAI_ECGI)) {
     } else {
 			UTL_LOG_E(*g_pcoLog, "value length less than size of soTAI_ECGI struct");
 			iRetVal = -1;
 			break;
 		}
-		memcpy(&soTAI_ECGI, &(p_soAVPValue.os.data[1]), p_soAVPValue.os.len - 1);
+		memcpy(&soTAI_ECGI, &(p_psoAVPValue->os.data[1]), p_psoAVPValue->os.len - 1);
 		psoMCCMNC = &(soTAI_ECGI.m_soTAI.m_soMCCMNC);
 		break;
 	}
@@ -171,50 +170,52 @@ int pcrf_parse_user_location(avp_value &p_soAVPValue, SUserLocationInfo &p_soUse
 		return -2;
 	}
 
+  char *pszMCCMNC = NULL;
+
 	/* формируем MCCMNC */
-	iFnRes = snprintf(
-		mcMCCMNC, sizeof(mcMCCMNC),
-		"%u%u%u-%u%u",
-		psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
-		psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2);
-	if (0 < iFnRes) {
-    if (sizeof(mcMCCMNC) > static_cast<size_t>(iFnRes)) {
-    } else {
-      mcMCCMNC[sizeof(mcMCCMNC) - 1] = '\0';
-    }
+  if ( 0 < asprintf(
+    &pszMCCMNC,
+    "%u%u%u-%u%u",
+    psoMCCMNC->m_uiMCC1, psoMCCMNC->m_uiMCC2, psoMCCMNC->m_uiMCC3,
+    psoMCCMNC->m_uiMNC1, psoMCCMNC->m_uiMNC2 ) ) {
   } else {
-		iRetVal = -1;
-		UTL_LOG_E(*g_pcoLog, "snprintf error code: '%d'", errno);
-		mcMCCMNC[0] = '\0';
-	}
+    goto __cleanup_and_exit__;
+  }
 
 	/* что-то полезное уже имеем, ставим метку, что данные получены */
-	p_soUserLocationInfo.m_bLoaded = true;
+  if ( NULL != p_pbLoaded ) {
+    *p_pbLoaded = true;
+  }
 
 	/* формируем опциональные данные */
-	switch (p_soAVPValue.os.data[0]) {
+	switch (p_psoAVPValue->os.data[0]) {
 	case eCGI:
-		format_CGI(soCGI, mcMCCMNC, p_soUserLocationInfo.m_coCGI);
+		format_CGI(soCGI, pszMCCMNC, p_soUserLocationInfo.m_coCGI);
 		break;
 	case eSAI:
 		break;
 	case eRAI:
-		format_RAI(soRAI, mcMCCMNC, p_soUserLocationInfo.m_coRAI);
+		format_RAI(soRAI, pszMCCMNC, p_soUserLocationInfo.m_coRAI);
 		break;
 	case eTAI:
-		format_TAI(soTAI, mcMCCMNC, p_soUserLocationInfo.m_coTAI);
+		format_TAI(soTAI, pszMCCMNC, p_soUserLocationInfo.m_coTAI);
 		break;
 	case eECGI:
-		format_ECGI(soECGI, mcMCCMNC, p_soUserLocationInfo.m_coECGI);
+		format_ECGI(soECGI, pszMCCMNC, p_soUserLocationInfo.m_coECGI);
 		break;
 	case eTAI_ECGI:
-		format_TAI(soTAI_ECGI.m_soTAI, mcMCCMNC, p_soUserLocationInfo.m_coTAI);
-		format_ECGI(soTAI_ECGI.m_soECGI, mcMCCMNC, p_soUserLocationInfo.m_coECGI);
+		format_TAI(soTAI_ECGI.m_soTAI, pszMCCMNC, p_soUserLocationInfo.m_coTAI);
+		format_ECGI(soTAI_ECGI.m_soECGI, pszMCCMNC, p_soUserLocationInfo.m_coECGI);
 		break;
 	default:
 		iFnRes = 0;
 		break;
 	}
+
+  __cleanup_and_exit__:
+  if ( NULL != pszMCCMNC ) {
+    free( pszMCCMNC );
+  }
 
 	return iRetVal;
 }

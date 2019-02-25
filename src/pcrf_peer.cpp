@@ -170,7 +170,7 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 {
   LOG_D( "enter: %s", __FUNCTION__ );
 
-	int iRetVal = 1403;
+	int iRetVal = ENODATA;
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 
@@ -187,9 +187,29 @@ int pcrf_peer_dialect (SSessionInfo &p_soSessInfo)
 	return iRetVal;
 }
 
+int pcrf_peer_dialect_ret( std::string &p_strHostName, std::string &p_strRealm )
+{
+  LOG_D( "enter: %s", __FUNCTION__ );
+
+  int iRetVal = GX_UNDEF;
+
+  std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin();
+
+  for ( ; iterPeerList != g_vectPeerList.end(); ++iterPeerList ) {
+    if ( iterPeerList->m_coHostName.v == p_strHostName && iterPeerList->m_coHostReal.v == p_strRealm ) {
+      iRetVal = iterPeerList->m_uiPeerDialect;
+      break;
+    }
+  }
+
+  LOG_D( "leave: %s; result code: %d;", __FUNCTION__, iRetVal );
+
+  return iRetVal;
+}
+
 int pcrf_peer_is_connected (SSessionInfo &p_soSessInfo)
 {
-	int iRetVal = 1403;
+	int iRetVal = ENODATA;
 
 	std::vector<SPeerInfo>::iterator iterPeerList = g_vectPeerList.begin ();
 
