@@ -50,3 +50,4 @@ src/*.sln
 src/*.vcxproj
 src/*.vcxproj.filters
 src/*.vcxproj.user
+.vs

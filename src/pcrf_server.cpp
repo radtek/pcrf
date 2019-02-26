@@ -129,20 +129,21 @@ static int app_pcrf_ccr_cb(
 
 	if( GX_CISCO_SCE != soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
 	} else {	/* Gx Cisco SCE */
-	  /* исправляем косяки циски */
-	  /* переносим значение E164 на IMSI */
-		if( soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.is_null() && !soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.is_null() ) {
-			soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI = soMsgInfoCache.m_psoSessInfo->m_coEndUserE164;
-			soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.v.clear();
-			soMsgInfoCache.m_psoSessInfo->m_coEndUserE164.set_null();
+		SSubscriptionIdData &psoSubscrData = soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData;
+		/* исправляем косяки циски */
+		/* переносим значение E164 на IMSI */
+		if( psoSubscrData.m_coEndUserIMSI.is_null() && ! psoSubscrData.m_coEndUserE164.is_null() ) {
+			psoSubscrData.m_coEndUserIMSI = psoSubscrData.m_coEndUserE164;
+			psoSubscrData.m_coEndUserE164.v.clear();
+			psoSubscrData.m_coEndUserE164.set_null();
 		}
 		/* отсекаем суффикс от IMSI */
-		if( !soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
-			if( soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.length() > 15 ) {
+		if( ! psoSubscrData.m_coEndUserIMSI.is_null() ) {
+			if( psoSubscrData.m_coEndUserIMSI.v.length() > 15 ) {
 				size_t stPos;
-				stPos = soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.find( "_" );
+				stPos = psoSubscrData.m_coEndUserIMSI.v.find( "_" );
 				if( stPos != std::string::npos )
-					soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI.v.resize( stPos );
+					psoSubscrData.m_coEndUserIMSI.v.resize( stPos );
 			}
 		}
 	}
@@ -199,11 +200,11 @@ static int app_pcrf_ccr_cb(
 				case GX_HW_UGW:
 				case GX_ERICSSN:
 				  /* загружаем идентификтор абонента из профиля абонента */
-					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache );
+					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
 					break;
 				case GX_CISCO_SCE:
 				  /* загружаем идентификтор абонента из профиля абонента */
-					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache );
+					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
 					pstrIPCANSessionId = new std::string;
 					if( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
 					  /* ищем сведения о сессии в кеше */
@@ -402,7 +403,7 @@ answer:
 			/* Subscription-Id */
 			if( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
 				CHECK_FCT_DO( set_event_trigger( ans, 777 ), /* continue */ );
-				CHECK_FCT_DO( pcrf_procera_make_subscription_id( ans, soMsgInfoCache.m_psoSessInfo->m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_coEndUserE164 ), /* continue */ );
+				CHECK_FCT_DO( pcrf_procera_make_subscription_id( ans, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData.m_coEndUserE164 ), /* continue */ );
 			}
 			/* Default-EPS-Bearer-QoS */
 			pcrf_make_DefaultEPSBearerQoS( ans, *soMsgInfoCache.m_psoReqInfo );
@@ -1121,7 +1122,7 @@ int pcrf_make_SI( msg *p_psoMsg, SMsgDataForDB &p_soReqInfo )
 	avp_value soAVPVal;
 
 	/* END_USER_E164 */
-	if( !p_soReqInfo.m_psoSessInfo->m_coEndUserE164.is_null() ) {
+	if( !p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserE164.is_null() ) {
 		/* Subscription-Id */
 		CHECK_FCT_DO( fd_msg_avp_new( g_psoDictSubscriptionId, 0, &psoSI ), return 0 );
 		/* Subscription-Id-Type */
@@ -1133,8 +1134,8 @@ int pcrf_make_SI( msg *p_psoMsg, SMsgDataForDB &p_soReqInfo )
 		/* Subscription-Id-Data */
 		memset( &soAVPVal, 0, sizeof( soAVPVal ) );
 		CHECK_FCT_DO( fd_msg_avp_new( g_psoDictSubscriptionIdData, 0, &psoSIData ), return 0 );
-		soAVPVal.os.data = ( uint8_t* ) p_soReqInfo.m_psoSessInfo->m_coEndUserE164.v.data();
-		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_coEndUserE164.v.length();
+		soAVPVal.os.data = ( uint8_t* ) p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserE164.v.data();
+		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserE164.v.length();
 		CHECK_FCT_DO( fd_msg_avp_setvalue( psoSIData, &soAVPVal ), return 0 );
 		CHECK_FCT_DO( fd_msg_avp_add( psoSI, MSG_BRW_LAST_CHILD, psoSIData ), return 0 );
 		/**/
@@ -1142,7 +1143,7 @@ int pcrf_make_SI( msg *p_psoMsg, SMsgDataForDB &p_soReqInfo )
 	}
 
 	/* END_USER_IMSI */
-	if( !p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
+	if( !p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI.is_null() ) {
 		/* Subscription-Id */
 		CHECK_FCT_DO( fd_msg_avp_new( g_psoDictSubscriptionId, 0, &psoSI ), return 0 );
 		/* Subscription-Id-Type */
@@ -1154,8 +1155,8 @@ int pcrf_make_SI( msg *p_psoMsg, SMsgDataForDB &p_soReqInfo )
 		/* Subscription-Id-Data */
 		memset( &soAVPVal, 0, sizeof( soAVPVal ) );
 		CHECK_FCT_DO( fd_msg_avp_new( g_psoDictSubscriptionIdData, 0, &psoSIData ), return 0 );
-		soAVPVal.os.data = ( uint8_t* ) p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.v.data();
-		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_coEndUserIMSI.v.length();
+		soAVPVal.os.data = ( uint8_t* ) p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI.v.data();
+		soAVPVal.os.len = p_soReqInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI.v.length();
 		CHECK_FCT_DO( fd_msg_avp_setvalue( psoSIData, &soAVPVal ), return 0 );
 		CHECK_FCT_DO( fd_msg_avp_add( psoSI, MSG_BRW_LAST_CHILD, psoSIData ), return 0 );
 		/**/
@@ -1709,19 +1710,19 @@ int pcrf_extract_SubscriptionId (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 	if (strSubscriptionIdData.length()) {
 		switch (iSubscriptionIdType) {
 		case 0: /* END_USER_E164 */
-			p_soSessInfo.m_coEndUserE164 = strSubscriptionIdData;
+			p_soSessInfo.m_soSubscriptionData.m_coEndUserE164 = strSubscriptionIdData;
 			break;
 		case 1: /* END_USER_IMSI */
-			p_soSessInfo.m_coEndUserIMSI = strSubscriptionIdData;
+			p_soSessInfo.m_soSubscriptionData.m_coEndUserIMSI = strSubscriptionIdData;
 			break;
 		case 2: /* END_USER_SIP_URI */
-			p_soSessInfo.m_coEndUserSIPURI = strSubscriptionIdData;
+			p_soSessInfo.m_soSubscriptionData.m_coEndUserSIPURI = strSubscriptionIdData;
 			break;
 		case 3: /* END_USER_NAI */
-			p_soSessInfo.m_coEndUserNAI = strSubscriptionIdData;
+			p_soSessInfo.m_soSubscriptionData.m_coEndUserNAI = strSubscriptionIdData;
 			break;
 		case 4: /* END_USER_PRIVATE */
-			p_soSessInfo.m_coEndUserPrivate = strSubscriptionIdData;
+			p_soSessInfo.m_soSubscriptionData.m_coEndUserPrivate = strSubscriptionIdData;
 			break;
 		}
 	}

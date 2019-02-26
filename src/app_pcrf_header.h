@@ -46,6 +46,15 @@ struct SDBMonitoringInfo {
 	otl_value<uint64_t> m_coDosageInputOctets;
 	SDBMonitoringInfo() { m_bIsReported = false; }
 };
+/* структура для хранения данных subscriber-а */
+struct SSubscriptionIdData {
+	otl_value<std::string> m_coEndUserE164;
+	otl_value<std::string> m_coEndUserIMSI;
+	otl_value<std::string> m_coEndUserSIPURI;
+	otl_value<std::string> m_coEndUserNAI;
+	otl_value<std::string> m_coEndUserPrivate;
+};
+/* структура для хранения информации о сессии */
 struct SSessionInfo {
 	unsigned int m_uiPeerDialect;
 	std::string  m_strSessionId;
@@ -53,11 +62,7 @@ struct SSessionInfo {
 	otl_value<std::string> m_coOriginHost;
 	otl_value<std::string> m_coOriginRealm;
 	otl_value<uint32_t> m_coOriginStateId;
-	otl_value<std::string> m_coEndUserE164;
-	otl_value<std::string> m_coEndUserIMSI;
-	otl_value<std::string> m_coEndUserSIPURI;
-	otl_value<std::string> m_coEndUserNAI;
-	otl_value<std::string> m_coEndUserPrivate;
+	SSubscriptionIdData m_soSubscriptionData;
 	otl_value<std::string> m_coIMEI;
 	otl_value<std::string> m_coFramedIPAddress;
 	uint32_t               m_ui32FramedIPAddress;
@@ -255,7 +260,7 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn );
 int pcrf_extract_avp_enum_val( struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize );
 
 /* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo );
+int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, const SSubscriptionIdData &p_soSubscrData, std::string &p_strSubscriberId );
 /* проверка зависших сессий */
 int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
 /* загрузка описания правила */
