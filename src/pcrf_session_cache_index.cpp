@@ -88,6 +88,26 @@ int pcrf_session_cache_index_frameIPAddress_remove_session( std::string &p_strFr
   return iRetVal;
 }
 
+int pcrf_server_find_core_session( std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strIPCANSessionId )
+{
+	int iRetVal = 0;
+	SSessionInfo soSessInfo;
+
+	if( 0 == pcrf_server_find_core_sess_byframedip( p_strFramedIPAddress, soSessInfo ) ) {
+	} else {
+		return ENODATA;
+	}
+
+	if( 0 == p_strSubscriberId.compare( soSessInfo.m_strSubscriberId ) ) {
+		p_strIPCANSessionId.assign( soSessInfo.m_strSessionId );
+	} else {
+		p_strIPCANSessionId.clear();
+		iRetVal = ENODATA;
+	}
+
+	return iRetVal;
+}
+
 void pcrf_session_cache_update_child( std::string &p_strSessionId, SSessionCache *p_psoSessionInfo )
 {
   std::map<std::string, std::list<std::string> >::iterator iterParent = g_mapParent.find( p_strSessionId );

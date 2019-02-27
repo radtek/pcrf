@@ -3,10 +3,11 @@
 
 #include "cache/pcrf_rule_cache.h"
 #include "cache/pcrf_subscriber_cache.h"
-#include "app_pcrf.h"
-#include "app_pcrf_header.h"
 #include "pcrf_linked_session.h"
 #include "pcrf_session_cache.h"
+#include "pcrf_session_cache_index.h"
+#include "app_pcrf.h"
+#include "app_pcrf_header.h"
 
 CLog *g_pcoLog = NULL;
 
@@ -208,7 +209,7 @@ static int app_pcrf_ccr_cb(
 				  /* загружаем идентификтор абонента из профиля абонента */
 					pcrf_subscriber_cache_get_subscriber_id( soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
 					pstrIPCANSessionId = new std::string;
-					if( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
+					if( 0 == pcrf_server_find_core_session( soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
 					  /* ищем сведения о сессии в кеше */
 						pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
 					} else {
@@ -276,7 +277,7 @@ static int app_pcrf_ccr_cb(
 				{
 					pstrIPCANSessionId = new std::string;
 					/* ищем базовую сессию ugw */
-					if( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
+					if( 0 == pcrf_server_find_core_session( soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
 					  /* ищем информацию о базовой сессии в кеше */
 						pcrf_session_cache_get( *pstrIPCANSessionId, soMsgInfoCache.m_psoSessInfo, soMsgInfoCache.m_psoReqInfo, NULL );
 					} else {
@@ -2202,7 +2203,7 @@ int pcrf_procera_make_uli_rule( otl_value<std::string> &p_coULI, SDBAbonRule &p_
 	return iRetVal;
 }
 
-int pcrf_procera_terminate_session( std::string &p_strUGWSessionId )
+int pcrf_procera_terminate_session( std::string &p_strIPCANSessionId )
 {
 	if( 0 != pcrf_peer_is_dialect_used( GX_PROCERA ) ) {
 	} else {
@@ -2212,7 +2213,7 @@ int pcrf_procera_terminate_session( std::string &p_strUGWSessionId )
 	int iRetVal = 0;
 	std::vector<SSessionInfo> vectSessList;
 
-	pcrf_procera_db_load_sess_list( p_strUGWSessionId, vectSessList );
+	pcrf_procera_db_load_sess_list( p_strIPCANSessionId, vectSessList );
 	for( std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter ) {
 		pcrf_local_refresh_queue_add( iter->m_strSessionId );
 	}

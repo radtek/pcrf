@@ -6,16 +6,22 @@
 
 #include "pcrf_session_cache.h"
 
-/* функции для работы с индесами по Framed-IP-Address */
+/* С„СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ РёРЅРґРµСЃР°РјРё РїРѕ Framed-IP-Address */
 int pcrf_session_cache_index_frameIPAddress_insert_session( std::string &p_strFramedIPAddress, std::string &p_strSessionId );
 int pcrf_session_cache_index_frameIPAddress_remove_session( std::string &p_strFramedIPAddress, std::string &p_strSessionId );
 
-/* функции для работы с индексами по subscriber-id */
+/* РїРѕР»СѓС‡РµРЅРёРµ СЃРїРёСЃРєР° session-id РїРѕ Framed-IP-Address */
+int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
+
+/* РїРѕРёСЃРє IPCAN-СЃРµСЃСЃРёРё РґР»СЏ Р·Р°РіСЂСѓР·РєРё РґР°РЅРЅС‹С… РґР»СЏ SCE */
+int pcrf_server_find_core_session( std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strIPCANSessionId );
+
+/* С„СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ РёРЅРґРµРєСЃР°РјРё РїРѕ subscriber-id */
 void pcrf_session_cache_index_subscriberId_insert_session( std::string &p_strSubscriberId, std::string &p_strSessionId );
 int pcrf_session_cache_get_subscriber_session_id( std::string &p_strSubscriberId, std::vector<std::string> &p_vectSessionId );
 void pcrf_session_cache_rm_subscriber_session_id( std::string &p_strSubscriberId, std::string &p_strSessionId );
 
-/* функции для работы с индексами по IP-CAN Session-Id */
+/* С„СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ РёРЅРґРµРєСЃР°РјРё РїРѕ IP-CAN Session-Id */
 void pcrf_session_cache_mk_link2parent( std::string &p_strSessionId, std::string *p_pstrParentSessionId );
 void pcrf_session_cache_remove_link( std::string &p_strSessionId );
 void pcrf_session_cache_update_child( std::string &p_strSessionId, SSessionCache *p_psoSessionInfo );

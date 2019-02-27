@@ -526,63 +526,6 @@ int pcrf_load_abon_rule_list(
   return iRetVal;
 }
 
-int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId )
-{
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
-
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
-
-  sql_repeat:
-
-  try {
-    otl_nocommit_stream coStream;
-
-    coStream.open(
-      1,
-      "select "
-        "session_id "
-      "from "
-        "ps.sessionList sl "
-        "inner join ps.peer p on sl.origin_host = p.host_name "
-      "where "
-        "subscriber_id = :subscriber_id /*char[64]*/ "
-        "and framed_ip_address = :framed_ip_address /*char[16]*/ "
-        "and p.protocol_id in(1, 4) /* GX_HW_UGW, GX_ERICSSN */",
-      *p_pcoDBConn );
-    coStream
-      << p_strSubscriberId
-      << p_strFramedIPAddress;
-    if ( !coStream.eof() ) {
-      coStream
-        >> p_strUGWSessionId;
-    } else {
-      UTL_LOG_E(
-        *g_pcoLog,
-        "subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
-        p_strSubscriberId.c_str(),
-        p_strFramedIPAddress.c_str() );
-      iRetVal = 1403;
-    }
-    coStream.close();
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
-  return iRetVal;
-}
-
 void pcrf_server_db_close_user_loc(std::string &p_strSessionId)
 {
   std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
@@ -754,7 +697,7 @@ void pcrf_server_db_insert_refqueue (
     "insert refresh record" );
 }
 
-int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
+int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vector<SSessionInfo> &p_vectSessList )
 {
   otl_connect *pcoDBConn;
 
@@ -792,7 +735,7 @@ int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<
         "and sl.time_end is null",
       *pcoDBConn );
     coStream
-      << p_strUGWSessionId
+      << p_strIPCANSessionId
       << GX_PROCERA;
     while ( ! coStream.eof() ) {
       coStream

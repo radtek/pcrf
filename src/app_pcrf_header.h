@@ -261,8 +261,6 @@ int pcrf_extract_avp_enum_val( struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int 
 
 /* проверка зависших сессий */
 int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
-/* поиск сессии в ядре для загрузки данных для SCE */
-int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
 /* поиск сессии в ядре для загрузки данных для Procera */
 int pcrf_server_find_core_sess_byframedip( std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
 /* поиск IP-CAN сессии */
@@ -345,7 +343,7 @@ int pcrf_client_gx_rar(
 int pcrf_procera_make_uli_rule( otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule );
 
 /* загрузка активных сессий Procera по ip-адресу */
-int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
+int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vector<SSessionInfo> &p_vectSessList );
 
 /* функция для закрытия всех правил локации сессии Procera */
 int pcrf_procera_db_load_location_rule( otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList );
