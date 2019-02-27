@@ -387,69 +387,6 @@ void pcrf_db_close_session_rule (
     &p_psoSessInfo->m_strSessionId );
 }
 
-/* загружает идентификатор абонента (subscriber_id) из БД */
-int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, const SSubscriptionIdData &p_soSubscrData, std::string &p_strSubscriberId )
-{
-	if( NULL != p_pcoDBConn ) {
-	} else {
-		return EINVAL;
-	}
-
-	int iRetVal = 0;
-	int iRepeat = 1;
-	CTimeMeasurer coTM;
-
-sql_repeat:
-
-	try {
-		otl_nocommit_stream coStream;
-
-		/* выполняем запрос к БД */
-		coStream.open(
-			1,
-/* тестирование быстродействия СУБД ----------------------------------------------------------------------------*/
-			"select Subscriber_id from ps.Subscription_Data where end_user_imsi = :end_user_imsi /* char[100] */",
-			//"select "
-			//  "Subscriber_id "
-			//"from "
-			//  "ps.Subscription_Data "
-			//"where "
-			//  "(end_user_e164 is null or end_user_e164 = :end_user_e164 /* char[64] */) "
-			//  "and (end_user_imsi is null or end_user_imsi = :end_user_imsi /* char[100] */) "
-			//  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
-			//  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
-			//  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
-			*p_pcoDBConn );
-		coStream
-			/*			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164 */
-			<< p_soSubscrData.m_coEndUserIMSI
-			/*			<< p_soMsgInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserSIPURI
-						<< p_soMsgInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserNAI
-						<< p_soMsgInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserPrivate*/;
-/*--------------------------------------------------------------------------------------------------------------*/
-		if( 0 == coStream.eof() ) {
-			coStream
-				>> p_strSubscriberId;
-		} else {
-			UTL_LOG_E( *g_pcoLog, "subscriber not found: imsi: '%s';", 0 == p_soSubscrData.m_coEndUserIMSI.is_null() ? p_soSubscrData.m_coEndUserIMSI.v.c_str() : "<null>" );
-			p_strSubscriberId.clear();
-			iRetVal = 1403;
-		}
-		coStream.close();
-	} catch( otl_exception &coExcept ) {
-		UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-		if( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-			--iRepeat;
-			goto sql_repeat;
-		}
-		iRetVal = coExcept.code;
-	}
-
-	stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-
-	return iRetVal;
-}
-
 void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
   tm soTM;

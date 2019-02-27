@@ -1,6 +1,8 @@
 #include <vector>
 #include <stdio.h>
 
+#include "cache/pcrf_rule_cache.h"
+#include "cache/pcrf_subscriber_cache.h"
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "pcrf_linked_session.h"
@@ -200,11 +202,11 @@ static int app_pcrf_ccr_cb(
 				case GX_HW_UGW:
 				case GX_ERICSSN:
 				  /* загружаем идентификтор абонента из профиля абонента */
-					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
+					pcrf_subscriber_cache_get_subscriber_id( soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
 					break;
 				case GX_CISCO_SCE:
 				  /* загружаем идентификтор абонента из профиля абонента */
-					pcrf_server_db_load_subscriber_id( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
+					pcrf_subscriber_cache_get_subscriber_id( soMsgInfoCache.m_psoSessInfo->m_soSubscriptionData, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId );
 					pstrIPCANSessionId = new std::string;
 					if( 0 == pcrf_server_find_core_session( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_coFramedIPAddress.v, *pstrIPCANSessionId ) ) {
 					  /* ищем сведения о сессии в кеше */
@@ -1709,19 +1711,19 @@ int pcrf_extract_SubscriptionId (avp *p_psoAVP, SSessionInfo &p_soSessInfo)
 
 	if (strSubscriptionIdData.length()) {
 		switch (iSubscriptionIdType) {
-		case 0: /* END_USER_E164 */
+		case DIAM_END_USER_E164:
 			p_soSessInfo.m_soSubscriptionData.m_coEndUserE164 = strSubscriptionIdData;
 			break;
-		case 1: /* END_USER_IMSI */
+		case DIAM_END_USER_IMSI:
 			p_soSessInfo.m_soSubscriptionData.m_coEndUserIMSI = strSubscriptionIdData;
 			break;
-		case 2: /* END_USER_SIP_URI */
+		case DIAM_END_USER_SIP_URI:
 			p_soSessInfo.m_soSubscriptionData.m_coEndUserSIPURI = strSubscriptionIdData;
 			break;
-		case 3: /* END_USER_NAI */
+		case DIAM_END_USER_NAI:
 			p_soSessInfo.m_soSubscriptionData.m_coEndUserNAI = strSubscriptionIdData;
 			break;
-		case 4: /* END_USER_PRIVATE */
+		case DIAM_END_USER_PRIVATE:
 			p_soSessInfo.m_soSubscriptionData.m_coEndUserPrivate = strSubscriptionIdData;
 			break;
 		}

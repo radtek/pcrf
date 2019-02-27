@@ -259,14 +259,8 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn );
 /* функция получения значения перечислимого типа */
 int pcrf_extract_avp_enum_val( struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize );
 
-/* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, const SSubscriptionIdData &p_soSubscrData, std::string &p_strSubscriberId );
 /* проверка зависших сессий */
 int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
-/* загрузка описания правила */
-int pcrf_rule_cache_get_rule_info(
-	std::string &p_strRuleName,
-	SDBAbonRule &p_soRule);
 /* поиск сессии в ядре для загрузки данных для SCE */
 int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
 /* поиск сессии в ядре для загрузки данных для Procera */

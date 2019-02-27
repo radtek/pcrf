@@ -71,11 +71,6 @@ int pcrf_session_cache_init( pthread_t *p_ptThread );
 /* деинициализация кеша сессий */
 void pcrf_session_cache_fini (void);
 
-/* инициализация кэша правил */
-int pcrf_rule_cache_init();
-/* деинициализация кэша правил */
-void pcrf_rule_cache_fini();
-
 /* инициализация кэша правил сессий */
 int pcrf_session_rule_list_init( pthread_t *p_ptThread );
 /* деинициализация кэша правил сессий */
@@ -111,6 +106,14 @@ extern struct dict_object *g_psoDictOrignRealm;
 #define UPDATE_REQUEST      2
 #define TERMINATION_REQUEST 3
 #define EVENT_REQUEST       4
+
+/* Subscription-Id-Type */
+#define DIAM_END_USER_E164		0
+#define DIAM_END_USER_IMSI		1
+#define DIAM_END_USER_SIP_URI	2
+#define DIAM_END_USER_NAI		3
+#define DIAM_END_USER_PRIVATE	4
+
 extern struct dict_object *g_psoDictCCRequestType;
 
 extern struct dict_object *g_psoDictCCRequestNumber;
