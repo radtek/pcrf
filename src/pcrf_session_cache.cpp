@@ -160,8 +160,8 @@ void pcrf_session_cache_insert ( std::string &p_strSessionId, SSessionInfo &p_so
   psoTmp->m_coOriginHost      = p_soSessionInfo.m_coOriginHost;
   psoTmp->m_coOriginRealm     = p_soSessionInfo.m_coOriginRealm;
   psoTmp->m_coIMEISV          = p_soSessionInfo.m_coIMEI;
-  psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_coEndUserIMSI;
-  psoTmp->m_coEndUserE164     = p_soSessionInfo.m_coEndUserE164;
+  psoTmp->m_coEndUserIMSI     = p_soSessionInfo.m_soSubscriptionData.m_coEndUserIMSI;
+  psoTmp->m_coEndUserE164     = p_soSessionInfo.m_soSubscriptionData.m_coEndUserE164;
   if ( NULL != p_psoRequestInfo ) {
     psoTmp->m_coIPCANType  = p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType;
     psoTmp->m_iIPCANType   = p_psoRequestInfo->m_soUserEnvironment.m_iIPCANType;
@@ -205,8 +205,8 @@ int pcrf_session_cache_get (std::string &p_strSessionId, SSessionInfo *p_psoSess
       if ( p_psoSessionInfo->m_coOriginHost.is_null() )                      p_psoSessionInfo->m_coOriginHost                        = iter->second->m_coOriginHost;
       if ( p_psoSessionInfo->m_coOriginRealm.is_null() )                     p_psoSessionInfo->m_coOriginRealm                       = iter->second->m_coOriginRealm;
       if ( p_psoSessionInfo->m_coIMEI.is_null() )                            p_psoSessionInfo->m_coIMEI                              = iter->second->m_coIMEISV;
-      if ( p_psoSessionInfo->m_coEndUserIMSI.is_null() )                     p_psoSessionInfo->m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
-      if ( p_psoSessionInfo->m_coEndUserE164.is_null() )                     p_psoSessionInfo->m_coEndUserE164                       = iter->second->m_coEndUserE164;
+      if ( p_psoSessionInfo->m_soSubscriptionData.m_coEndUserIMSI.is_null() )                     p_psoSessionInfo->m_soSubscriptionData.m_coEndUserIMSI                       = iter->second->m_coEndUserIMSI;
+      if ( p_psoSessionInfo->m_soSubscriptionData.m_coEndUserE164.is_null() )                     p_psoSessionInfo->m_soSubscriptionData.m_coEndUserE164                       = iter->second->m_coEndUserE164;
     }
     if ( NULL != p_psoRequestInfo ) {
       if ( p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType.is_null() )   p_psoRequestInfo->m_soUserEnvironment.m_coIPCANType   = iter->second->m_coIPCANType;

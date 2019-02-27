@@ -35,8 +35,6 @@ void pcrf_session_cache_insert( std::string &p_strSessionId, SSessionInfo &p_soS
 int pcrf_session_cache_get( std::string &p_strSessionId, SSessionInfo *p_psoSessionInfo, SRequestInfo *p_psoRequestInfo, std::string *p_pstrParentSessionId );
 /* удаление данных из кеша */
 void pcrf_session_cache_remove( std::string &p_strSessionId );
-/* получение списка session-id по Framed-IP-Address */
-int pcrf_session_cache_index_frameIPAddress_get_sessionList( std::string &p_strFramedIPAddress, std::list<std::string> &p_listSessionId );
 /* функции блоикровки/разблокировки кеша сессий */
 int pcrf_session_cache_lock();
 void pcrf_session_cache_unlock();

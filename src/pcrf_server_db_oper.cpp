@@ -152,8 +152,8 @@ void pcrf_db_insert_session (SSessionInfo &p_soSessInfo)
   pcrf_sql_queue_add_param( plistParameters, coSubscriberId );
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginHost );
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coOriginRealm );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserIMSI );
-  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coEndUserE164 );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_soSubscriptionData.m_coEndUserIMSI );
+  pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_soSubscriptionData.m_coEndUserE164 );
   pcrf_sql_queue_add_param( plistParameters, p_soSessInfo.m_coIMEI );
   pcrf_sql_queue_add_param( plistParameters, coTime );
   pcrf_sql_queue_add_param( plistParameters, coTime );
@@ -387,69 +387,6 @@ void pcrf_db_close_session_rule (
     &p_psoSessInfo->m_strSessionId );
 }
 
-/* загружает идентификатор абонента (subscriber_id) из БД */
-int pcrf_server_db_load_subscriber_id (otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo)
-{
-	if (NULL != p_pcoDBConn) {
-  } else {
-		return EINVAL;
-  }
-
-	int iRetVal = 0;
-  int iRepeat = 1;
-	CTimeMeasurer coTM;
-
-  sql_repeat:
-
-  try {
-    otl_nocommit_stream coStream;
-
-    /* выполняем запрос к БД */
-		coStream.open (
-			1,
-/* тестирование быстродействия СУБД ----------------------------------------------------------------------------*/
-			"select Subscriber_id from ps.Subscription_Data where end_user_imsi = :end_user_imsi /* char[100] */",
-			//"select "
-			//  "Subscriber_id "
-			//"from "
-			//  "ps.Subscription_Data "
-			//"where "
-			//  "(end_user_e164 is null or end_user_e164 = :end_user_e164 /* char[64] */) "
-			//  "and (end_user_imsi is null or end_user_imsi = :end_user_imsi /* char[100] */) "
-			//  "and (end_user_sip_uri is null or end_user_sip_uri = :end_user_sip_uri /* char[100] */) "
-			//  "and (end_user_nai is null or end_user_nai = :end_user_nai /* char[100] */) "
-			//  "and (end_user_private is null or end_user_private = :end_user_private /* char[100] */)",
-			*p_pcoDBConn);
-		coStream
-/*			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserE164 */
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI
-/*			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserSIPURI
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserNAI
-			<< p_soMsgInfo.m_psoSessInfo->m_coEndUserPrivate*/;
-/*--------------------------------------------------------------------------------------------------------------*/
-		if (0 == coStream.eof()) {
-      coStream
-        >> p_soMsgInfo.m_psoSessInfo->m_strSubscriberId;
-    } else {
-      UTL_LOG_E(*g_pcoLog, "subscriber not found: imsi: '%s';", 0 == p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI.is_null() ? p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI.v.c_str() : "<null>");
-      p_soMsgInfo.m_psoSessInfo->m_strSubscriberId = "";
-      iRetVal = 1403;
-    }
-    coStream.close();
-	} catch (otl_exception &coExcept) {
-		UTL_LOG_E(*g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text);
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
-
-	stat_measure (g_psoDBStat, __FUNCTION__, &coTM);
-
-	return iRetVal;
-}
-
 void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &p_soDateTime )
 {
   tm soTM;
@@ -585,63 +522,6 @@ int pcrf_load_abon_rule_list(
   exit:
 
   LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
-
-  return iRetVal;
-}
-
-int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId )
-{
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
-
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
-
-  sql_repeat:
-
-  try {
-    otl_nocommit_stream coStream;
-
-    coStream.open(
-      1,
-      "select "
-        "session_id "
-      "from "
-        "ps.sessionList sl "
-        "inner join ps.peer p on sl.origin_host = p.host_name "
-      "where "
-        "subscriber_id = :subscriber_id /*char[64]*/ "
-        "and framed_ip_address = :framed_ip_address /*char[16]*/ "
-        "and p.protocol_id in(1, 4) /* GX_HW_UGW, GX_ERICSSN */",
-      *p_pcoDBConn );
-    coStream
-      << p_strSubscriberId
-      << p_strFramedIPAddress;
-    if ( !coStream.eof() ) {
-      coStream
-        >> p_strUGWSessionId;
-    } else {
-      UTL_LOG_E(
-        *g_pcoLog,
-        "subscriber_id: '%s'; framed_ip_address: '%s': ugw session not found",
-        p_strSubscriberId.c_str(),
-        p_strFramedIPAddress.c_str() );
-      iRetVal = 1403;
-    }
-    coStream.close();
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
-
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
   return iRetVal;
 }
@@ -817,7 +697,7 @@ void pcrf_server_db_insert_refqueue (
     "insert refresh record" );
 }
 
-int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList )
+int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vector<SSessionInfo> &p_vectSessList )
 {
   otl_connect *pcoDBConn;
 
@@ -855,7 +735,7 @@ int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<
         "and sl.time_end is null",
       *pcoDBConn );
     coStream
-      << p_strUGWSessionId
+      << p_strIPCANSessionId
       << GX_PROCERA;
     while ( ! coStream.eof() ) {
       coStream
@@ -935,7 +815,7 @@ void pcrf_server_db_insert_tethering_info( SMsgDataForDB &p_soMsgInfo )
   otl_value<std::string> coSubscriber( p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
 
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_strSessionId);
-  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coEndUserIMSI );
+  pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI );
   pcrf_sql_queue_add_param( plistParam, coSubscriber );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoReqInfo->m_coTetheringFlag );
   pcrf_sql_queue_add_param( plistParam, p_soMsgInfo.m_psoSessInfo->m_coOriginHost );

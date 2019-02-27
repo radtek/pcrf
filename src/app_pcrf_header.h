@@ -46,6 +46,15 @@ struct SDBMonitoringInfo {
 	otl_value<uint64_t> m_coDosageInputOctets;
 	SDBMonitoringInfo() { m_bIsReported = false; }
 };
+/* структура для хранения данных subscriber-а */
+struct SSubscriptionIdData {
+	otl_value<std::string> m_coEndUserE164;
+	otl_value<std::string> m_coEndUserIMSI;
+	otl_value<std::string> m_coEndUserSIPURI;
+	otl_value<std::string> m_coEndUserNAI;
+	otl_value<std::string> m_coEndUserPrivate;
+};
+/* структура для хранения информации о сессии */
 struct SSessionInfo {
 	unsigned int m_uiPeerDialect;
 	std::string  m_strSessionId;
@@ -53,11 +62,7 @@ struct SSessionInfo {
 	otl_value<std::string> m_coOriginHost;
 	otl_value<std::string> m_coOriginRealm;
 	otl_value<uint32_t> m_coOriginStateId;
-	otl_value<std::string> m_coEndUserE164;
-	otl_value<std::string> m_coEndUserIMSI;
-	otl_value<std::string> m_coEndUserSIPURI;
-	otl_value<std::string> m_coEndUserNAI;
-	otl_value<std::string> m_coEndUserPrivate;
+	SSubscriptionIdData m_soSubscriptionData;
 	otl_value<std::string> m_coIMEI;
 	otl_value<std::string> m_coFramedIPAddress;
 	uint32_t               m_ui32FramedIPAddress;
@@ -254,16 +259,8 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn );
 /* функция получения значения перечислимого типа */
 int pcrf_extract_avp_enum_val( struct avp_hdr *p_psoAVPHdr, char *p_pszBuf, int p_iBufSize );
 
-/* загрузка идентификатора абонента из БД */
-int pcrf_server_db_load_subscriber_id( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo );
 /* проверка зависших сессий */
 int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo );
-/* загрузка описания правила */
-int pcrf_rule_cache_get_rule_info(
-	std::string &p_strRuleName,
-	SDBAbonRule &p_soRule);
-/* поиск сессии в ядре для загрузки данных для SCE */
-int pcrf_server_find_core_session( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::string &p_strFramedIPAddress, std::string &p_strUGWSessionId );
 /* поиск сессии в ядре для загрузки данных для Procera */
 int pcrf_server_find_core_sess_byframedip( std::string &p_strFramedIPAddress, SSessionInfo &p_soSessInfo );
 /* поиск IP-CAN сессии */
@@ -346,7 +343,7 @@ int pcrf_client_gx_rar(
 int pcrf_procera_make_uli_rule( otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule );
 
 /* загрузка активных сессий Procera по ip-адресу */
-int pcrf_procera_db_load_sess_list( std::string &p_strUGWSessionId, std::vector<SSessionInfo> &p_vectSessList );
+int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vector<SSessionInfo> &p_vectSessList );
 
 /* функция для закрытия всех правил локации сессии Procera */
 int pcrf_procera_db_load_location_rule( otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList );

@@ -76,8 +76,8 @@ void pcrf_cdr_make_record( SMsgDataForDB &p_soReqData, std::string &p_strData )
   p_strData += '\t';
 
   /* записываем imsi */
-  if ( 0 == p_soReqData.m_psoSessInfo->m_coEndUserIMSI.is_null() ) {
-    p_strData += p_soReqData.m_psoSessInfo->m_coEndUserIMSI.v;
+  if ( 0 == p_soReqData.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI.is_null() ) {
+    p_strData += p_soReqData.m_psoSessInfo->m_soSubscriptionData.m_coEndUserIMSI.v;
   }
 
   /* формируем параметры, характерные для начала сессии */
