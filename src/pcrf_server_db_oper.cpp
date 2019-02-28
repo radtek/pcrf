@@ -446,88 +446,92 @@ void pcrf_parse_rule_list( std::string &p_strRuleList, std::vector<std::string> 
 }
 
 /* загружает список идентификаторов правил абонента из БД */
-int pcrf_load_abon_rule_list(
-  otl_connect *p_pcoDBConn,
-  SMsgDataForDB &p_soMsgInfo,
-  std::vector<std::string> &p_vectRuleList )
+int pcrf_db_load_abon_rule_list(
+	otl_connect *p_pcoDBConn,
+	std::string &p_strSubscriberId,
+	unsigned int p_uiPeerDialect,
+	otl_value<std::string> &p_coIPCANType,
+	otl_value<std::string> &p_coRATType,
+	otl_value<std::string> &p_coCalledStationId,
+	otl_value<std::string> &p_coSGSNAddress,
+	otl_value<std::string> &p_coIMEI,
+	std::vector<std::string> &p_vectRuleList )
 {
-  LOG_D(
-    "enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; mcc-mnc: %s; sgsn: %s; imei: %s",
-    __FUNCTION__,
-    p_pcoDBConn,
-    p_soMsgInfo.m_psoSessInfo->m_strSubscriberId.c_str(),
-    p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect,
-    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType.v.c_str(),
-    p_soMsgInfo.m_psoSessInfo->m_coCalledStationId.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNMCCMNC.v.c_str(),
-    p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress.v.c_str(),
-    p_soMsgInfo.m_psoSessInfo->m_coIMEI.v.c_str()
-  );
+	LOG_D(
+		"enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; sgsn: %s; imei: %s",
+		__FUNCTION__,
+		p_pcoDBConn,
+		p_strSubscriberId.c_str(),
+		p_uiPeerDialect,
+		p_coIPCANType.v.c_str(),
+		p_coRATType.v.c_str(),
+		p_coCalledStationId.v.c_str(),
+		p_coSGSNAddress.v.c_str(),
+		p_coIMEI.v.c_str() );
 
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
+	int iRetVal = 0;
+	int iRepeat = 1;
+	CTimeMeasurer coTM;
 
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    iRetVal = EINVAL;
-    goto exit;
-  }
+	if( NULL != p_pcoDBConn ) {
+	} else {
+		iRetVal = EINVAL;
+		goto exit;
+	}
 
-  sql_repeat:
+sql_repeat:
 
-  try {
-    otl_nocommit_stream coStream;
-    std::string strSQLResult;
+	try {
+		otl_nocommit_stream coStream;
+		std::string strSQLResult;
 
-    coStream.open(
-      1,
-      "begin "
-        ":rule_list/*char[4000],out*/ := ps.GetSubRules2("
-          ":subscriber_id/*char[64],in*/,"
-          ":peer_dialect/*unsigned,in*/,"
-          ":ip_can_type/*char[20],in*/,"
-          ":rat_type/*char[20],in*/,"
-          ":apn_name/*char[255],in*/,"
-          ":sgsn_node_ip_address/*char[16],in*/,"
-          ":IMEI/*char[20],in*/"
-          ");"
-      "end;",
-      *p_pcoDBConn );
-    coStream
-      << p_soMsgInfo.m_psoSessInfo->m_strSubscriberId
-      << p_soMsgInfo.m_psoSessInfo->m_uiPeerDialect
-      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType
-      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType
-      << p_soMsgInfo.m_psoSessInfo->m_coCalledStationId
-      << p_soMsgInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress
-      << p_soMsgInfo.m_psoSessInfo->m_coIMEI;
-    if ( ! coStream.eof() ) {
-      coStream
-        >> strSQLResult;
-      LOG_D( "rule list: '%s'", strSQLResult.c_str() );
-      pcrf_parse_rule_list( strSQLResult, p_vectRuleList, p_soMsgInfo.m_psoSessInfo->m_strSubscriberId );
-    } else {
-      iRetVal = 1403;
-    }
-    coStream.close();
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
+		coStream.open(
+			1,
+			"begin "
+			":rule_list/*char[4000],out*/ := ps.GetSubRules2("
+			":subscriber_id/*char[64],in*/,"
+			":peer_dialect/*unsigned,in*/,"
+			":ip_can_type/*char[20],in*/,"
+			":rat_type/*char[20],in*/,"
+			":apn_name/*char[255],in*/,"
+			":sgsn_node_ip_address/*char[16],in*/,"
+			":IMEI/*char[20],in*/"
+			");"
+			"end;",
+			*p_pcoDBConn );
+		coStream
+			<< p_strSubscriberId
+			<< p_uiPeerDialect
+			<< p_coIPCANType
+			<< p_coRATType
+			<< p_coCalledStationId
+			<< p_coSGSNAddress
+			<< p_coIMEI;
+		if( ! coStream.eof() ) {
+			coStream
+				>> strSQLResult;
+			LOG_D( "rule list: '%s'", strSQLResult.c_str() );
+			pcrf_parse_rule_list( strSQLResult, p_vectRuleList, p_strSubscriberId );
+		} else {
+			iRetVal = 1403;
+		}
+		coStream.close();
+	} catch( otl_exception &coExcept ) {
+		UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+		if( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+			--iRepeat;
+			goto sql_repeat;
+		}
+		iRetVal = coExcept.code;
+	}
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+	stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
-  exit:
+exit:
 
-  LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
+	LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
-  return iRetVal;
+	return iRetVal;
 }
 
 void pcrf_server_db_close_user_loc(std::string &p_strSessionId)

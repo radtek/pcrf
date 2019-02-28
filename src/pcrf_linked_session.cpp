@@ -5,7 +5,7 @@
 #include "pcrf_session_cache.h"
 #include "pcrf_session_cache_index.h"
 
-#include "pcrf_procera.h"
+#include "procera/pcrf_procera.h"
 
 #include "app_rx/app_rx_specific_action.h"
 

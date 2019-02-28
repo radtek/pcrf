@@ -5,6 +5,7 @@
 #include <list>
 #include <unordered_set>
 
+#include "procera/pcrf_procera.h"
 #include "app_pcrf.h"
 #include "app_pcrf_header.h"
 #include "pcrf_session_cache.h"
@@ -469,8 +470,25 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
       CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
       goto clear_and_continue;
     }
+	if( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+		pcrf_procera_additional_rules(
+			soSessInfo.m_psoSessInfo->m_coIMEI,
+			soSessInfo.m_psoSessInfo->m_coCalledStationId,
+			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,
+			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
+			listAbonRules );
+	}
     /* загружаем из БД правила абонента */
-    CHECK_POSIX_DO( pcrf_server_create_abon_rule_list( p_pcoDBConn, soSessInfo, listAbonRules ), );
+	CHECK_POSIX_DO( pcrf_server_create_abon_rule_list(
+		p_pcoDBConn,
+		soSessInfo.m_psoSessInfo->m_strSubscriberId,
+		soSessInfo.m_psoSessInfo->m_uiPeerDialect,
+		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType,
+		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType,
+		soSessInfo.m_psoSessInfo->m_coCalledStationId,
+		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress,
+		soSessInfo.m_psoSessInfo->m_coIMEI,
+		listAbonRules ), /* continue */ );
     /* если у абонента нет активных политик завершаем его сессию */
     if ( 0 == listAbonRules.size() ) {
       CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );

@@ -126,7 +126,7 @@ struct SRequestInfo {
 	otl_value<std::string> m_coQoSUpgrade;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthUl;
 	otl_value<uint32_t> m_coMaxRequestedBandwidthDl;
-  otl_value<SQoSInformation> m_coQoSInformation;
+	otl_value<SQoSInformation> m_coQoSInformation;
 	otl_value<uint32_t> m_coGuaranteedBitrateUl;
 	otl_value<uint32_t> m_coGuaranteedBitrateDl;
 	otl_value<std::string> m_coQoSNegotiation;
@@ -134,11 +134,11 @@ struct SRequestInfo {
 	otl_value<std::string> m_coBearerUsage;
 	otl_value<std::string> m_coBearerOperation;
 	otl_value<SDefaultEPSBearerQoS> m_coDEPSBQoS;
-  otl_value<uint32_t> m_coTetheringFlag;
+	otl_value<uint32_t> m_coTetheringFlag;
 	std::vector<SSessionUsageInfo> m_vectUsageInfo;
 	std::vector<int32_t> m_vectEventTrigger;
-  std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
-  SRequestInfo() { m_iCCRequestType = 0; }
+	std::vector<SSessionPolicyInfo> m_vectCRR; /* Charging-Rule-Report */
+	SRequestInfo() { m_iCCRequestType = 0; }
 };
 struct SMsgDataForDB {
 	struct SSessionInfo *m_psoSessInfo;
@@ -160,16 +160,16 @@ struct SFlowInformation {
 struct SDBAbonRule {
 	bool m_bIsActive;
 	bool m_bIsRelevant;
-  std::string        m_strRuleName;
+	std::string        m_strRuleName;
 	otl_value<int32_t> m_coDynamicRuleFlag;
 	otl_value<int32_t> m_coRuleGroupFlag;
 	otl_value<int32_t> m_coPrecedenceLevel;
-  otl_value<int32_t> m_coFlowStatus;
+	otl_value<int32_t> m_coFlowStatus;
 	otl_value<uint32_t> m_coRatingGroupId;
 	otl_value<uint32_t> m_coServiceId;
 	otl_value<int32_t> m_coMeteringMethod;
-  otl_value<int32_t> m_coReportingLevel;
-  otl_value<int32_t> m_coOnlineCharging;
+	otl_value<int32_t> m_coReportingLevel;
+	otl_value<int32_t> m_coOnlineCharging;
 	otl_value<int32_t> m_coOfflineCharging;
 	otl_value<int32_t> m_coQoSClassIdentifier;
 	SAllocationRetentionPriority m_soARP;
@@ -186,9 +186,9 @@ struct SDBAbonRule {
 	otl_value<uint32_t> m_coSCE_DownVirtualLink;
 	std::vector<std::string> m_vectMonitKey;
 	/* конструктор структуры */
-	SDBAbonRule() : m_bIsActive(false), m_bIsRelevant(false) { }
-  SDBAbonRule( bool p_bIsActive, bool p_bIsRelevant ) : m_bIsActive( p_bIsActive ), m_bIsRelevant( p_bIsRelevant ) { }
-  ~SDBAbonRule() { m_vectFlowDescr.clear(); m_vectMonitKey.clear(); }
+	SDBAbonRule() : m_bIsActive( false ), m_bIsRelevant( false ) {}
+	SDBAbonRule( bool p_bIsActive, bool p_bIsRelevant ) : m_bIsActive( p_bIsActive ), m_bIsRelevant( p_bIsRelevant ) {}
+	~SDBAbonRule() { m_vectFlowDescr.clear(); m_vectMonitKey.clear(); }
 };
 /* выборка данных из пакета */
 int pcrf_extract_req_data( msg_or_avp *p_psoMsgOrAVP, struct SMsgDataForDB *p_psoMsgInfo );
@@ -232,7 +232,16 @@ struct SRefQueue {
 };
 
 /* формирование полного списка правил */
-int pcrf_server_create_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::list<SDBAbonRule> &p_listAbonRules );
+int pcrf_server_create_abon_rule_list(
+	otl_connect *p_pcoDBConn,
+	std::string &p_strSubscriberId,
+	unsigned int p_uiPeerDialect,
+	otl_value<std::string> &p_coIPCANType,
+	otl_value<std::string> &p_coRATType,
+	otl_value<std::string> &p_coCalledStationId,
+	otl_value<std::string> &p_coSGSNAddress,
+	otl_value<std::string> &p_coIMEI,
+	std::list<SDBAbonRule> &p_listAbonRules );
 
 /* операции клиента с БД */
 /* формирование очереди изменения политик */
@@ -271,7 +280,16 @@ int pcrf_server_find_core_sess_byframedip( std::string &p_strFramedIPAddress, SS
 /* поиск IP-CAN сессии */
 int pcrf_server_find_IPCAN_sess_byframedip( otl_value<std::string> &p_coIPAddr, SSessionInfo &p_soIPCANSessInfo );
 /* загрузка списка правил абонента из БД */
-int pcrf_load_abon_rule_list( otl_connect *p_pcoDBConn, SMsgDataForDB &p_soMsgInfo, std::vector<std::string> &p_vectRuleList );
+int pcrf_db_load_abon_rule_list(
+	otl_connect *p_pcoDBConn,
+	std::string &p_strSubscriberId,
+	unsigned int p_uiPeerDialect,
+	otl_value<std::string> &p_coIPCANType,
+	otl_value<std::string> &p_coRATType,
+	otl_value<std::string> &p_coCalledStationId,
+	otl_value<std::string> &p_coSGSNAddress,
+	otl_value<std::string> &p_coIMEI,
+	std::vector<std::string> &p_vectRuleList );
 /* загрузка Monitoring Key из БД */
 int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo );
 /* функция сохраняет в БД данные о локации абонента */
@@ -343,9 +361,6 @@ int pcrf_client_gx_rar(
   const std::list<int32_t> *p_plistTrigger,
   SRARResult *p_psoRARRes,
   const uint32_t p_uiUsec );
-
-/* функция для Procera - формирование значения правила о локации пользователя */
-int pcrf_procera_make_uli_rule( otl_value<std::string> &p_coULI, SDBAbonRule &p_soAbonRule );
 
 /* загрузка активных сессий Procera по ip-адресу */
 int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vector<SSessionInfo> &p_vectSessList );
