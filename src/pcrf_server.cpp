@@ -56,15 +56,15 @@ int pcrf_extract_QoSInformation(avp *p_psoAVP, otl_value<SQoSInformation> &p_coQ
 int pcrf_parse_RAI(avp_value &p_soAVPValue, otl_value<std::string> &p_coValue);
 
 /* определение набора необходимых действий при обработке CCR */
-#define ACTION_COPY_DEFBEARER           static_cast<unsigned int>(0x00000001)
-#define ACTION_UPDATE_SESSIONCACHE      static_cast<unsigned int>(0x00000002)
-#define ACTION_OPERATE_RULE              static_cast<unsigned int>(0x00000004)
-#define ACTION_UPDATE_QUOTA             static_cast<unsigned int>(0x00000008)
+#define ACTION_COPY_DEFBEARER			static_cast<unsigned int>(0x00000001)
+#define ACTION_UPDATE_SESSIONCACHE		static_cast<unsigned int>(0x00000002)
+#define ACTION_OPERATE_RULE				static_cast<unsigned int>(0x00000004)
+#define ACTION_UPDATE_QUOTA				static_cast<unsigned int>(0x00000008)
 
-#define ACTION_UGW_STORE_THET_INFO      static_cast<unsigned int>(0x00000010)
+#define ACTION_UGW_STORE_THET_INFO		static_cast<unsigned int>(0x00000010)
 
-#define ACTION_PROCERA_STORE_THET_INFO  static_cast<unsigned int>(0x00000020)
-#define ACTION_PROCERA_CHANGE_ULI       static_cast<unsigned int>(0x00000040)
+#define ACTION_PROCERA_STORE_THET_INFO	static_cast<unsigned int>(0x00000020)
+#define ACTION_PROCERA_CHANGE_ULI		static_cast<unsigned int>(0x00000040)
 
 static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequestInfo );
 
@@ -313,6 +313,17 @@ static int app_pcrf_ccr_cb(
 	/* сохраняем в БД запрос */
 	pcrf_server_req_db_store( &soMsgInfoCache );
 
+	if( uiActionSet & ACTION_OPERATE_RULE ) {
+		if( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
+			pcrf_procera_additional_rules(
+				soMsgInfoCache.m_psoSessInfo->m_coIMEI,
+				soMsgInfoCache.m_psoSessInfo->m_coCalledStationId,
+				soMsgInfoCache.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,
+				soMsgInfoCache.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
+				listAbonRules );
+		}
+	}
+
 	/* если надо обновить квоты */
 	if( uiActionSet & ACTION_UPDATE_QUOTA ) {
 		int iUpdateRule = 0;
@@ -331,14 +342,6 @@ static int app_pcrf_ccr_cb(
 	}
 	/* загружаем правила из БД */
 	if( uiActionSet & ACTION_OPERATE_RULE ) {
-		if( GX_PROCERA == soMsgInfoCache.m_psoSessInfo->m_uiPeerDialect ) {
-			pcrf_procera_additional_rules(
-				soMsgInfoCache.m_psoSessInfo->m_coIMEI,
-				soMsgInfoCache.m_psoSessInfo->m_coCalledStationId,
-				soMsgInfoCache.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,
-				soMsgInfoCache.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
-				listAbonRules );
-		}
 		/* загружаем из БД правила абонента */
 		CHECK_POSIX_DO( pcrf_server_create_abon_rule_list(
 			pcoDBConn,
@@ -423,7 +426,7 @@ answer:
 			/* формируем список ключей мониторинга */
 			pcrf_make_mk_list( listAbonRules, soMsgInfoCache.m_psoSessInfo );
 			/* запрашиваем информацию о ключах мониторинга */
-			CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+			CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
 			LOG_D( "Session-Id: %s: monitoring key information is requested", soMsgInfoCache.m_psoSessInfo->m_strSessionId.c_str() );
 			/* Usage-Monitoring-Information */
 			CHECK_FCT_DO( pcrf_make_UMI( ans, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
@@ -469,7 +472,7 @@ answer:
 				/* формируем список ключей мониторинга */
 				pcrf_make_mk_list( listAbonRules, soMsgInfoCache.m_psoSessInfo );
 				/* запрашиваем информацию о ключах мониторинга */
-				CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, *( soMsgInfoCache.m_psoSessInfo ) ), /* continue */ );
+				CHECK_POSIX_DO( pcrf_server_db_monit_key( pcoDBConn, soMsgInfoCache.m_psoSessInfo->m_strSubscriberId, soMsgInfoCache.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
 				LOG_D( "Session-Id: %s: monitoring key information is requested", soMsgInfoCache.m_psoSessInfo->m_strSessionId.c_str() );
 				/* Charging-Rule-Remove */
 				psoChildAVP = pcrf_make_CRR( soMsgInfoCache.m_psoSessInfo, vectActive );

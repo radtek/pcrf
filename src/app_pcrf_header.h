@@ -291,7 +291,7 @@ int pcrf_db_load_abon_rule_list(
 	otl_value<std::string> &p_coIMEI,
 	std::vector<std::string> &p_vectRuleList );
 /* загрузка Monitoring Key из БД */
-int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo );
+int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo );
 /* функция сохраняет в БД данные о локации абонента */
 void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo );
 

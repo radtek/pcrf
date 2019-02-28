@@ -501,7 +501,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* формируем список ключей мониторинга */
     pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo );
     /* загружаем информацию о мониторинге */
-    CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, *( soSessInfo.m_psoSessInfo ) ), /* continue */ );
+    CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
     /* проверяем наличие изменений в политиках */
     if ( !pcrf_client_is_any_changes( vectActive, listAbonRules ) ) {
       UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_strSessionId.c_str() );

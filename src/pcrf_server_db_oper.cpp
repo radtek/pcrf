@@ -592,79 +592,79 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo )
     &( p_soMsgInfo.m_psoSessInfo->m_strSessionId ) );
 }
 
-int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo )
+int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::map<std::string, SDBMonitoringInfo > &p_mapMonitInfo )
 {
-  LOG_D( "enter: %s", __FUNCTION__ );
+	LOG_D( "enter: %s", __FUNCTION__ );
 
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
+	int iRetVal = 0;
+	int iRepeat = 1;
+	CTimeMeasurer coTM;
 
-  /* если список ключей мониторинга пуст */
-  if ( 0 != p_soSessInfo.m_mapMonitInfo.size() ) {
-  } else {
-    /* выходим ничего не делая */
-    goto exit_from_function;
-  }
+	/* если список ключей мониторинга пуст */
+	if( 0 != p_mapMonitInfo.size() ) {
+	} else {
+	  /* выходим ничего не делая */
+		goto exit_from_function;
+	}
 
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    iRetVal = EINVAL;
-    goto exit_from_function;
-  }
+	if( NULL != p_pcoDBConn ) {
+	} else {
+		iRetVal = EINVAL;
+		goto exit_from_function;
+	}
 
-  sql_repeat:
+sql_repeat:
 
-  try {
-    otl_nocommit_stream coStream;
+	try {
+		otl_nocommit_stream coStream;
 
-    coStream.open(
-      1,
-      "begin ps.qm.ProcessQuota("
-        ":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
-        "NULL, NULL, NULL,"
-        ":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
-      "end;",
-      *p_pcoDBConn );
-    std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList;
-    for ( iterMonitList = p_soSessInfo.m_mapMonitInfo.begin(); iterMonitList != p_soSessInfo.m_mapMonitInfo.end(); ++iterMonitList ) {
-      /* если данные из БД еще не загружены */
-      if ( iterMonitList->second.m_bIsReported ) {
-        continue;
-      } else {
-        LOG_D( "%s: subscriber-id: %s; monitoring-key: %s", __FUNCTION__, p_soSessInfo.m_strSubscriberId.c_str(), iterMonitList->first.c_str() );
-        coStream
-          << p_soSessInfo.m_strSubscriberId
-          << iterMonitList->first;
-        coStream
-          >> iterMonitList->second.m_coDosageInputOctets
-          >> iterMonitList->second.m_coDosageOutputOctets
-          >> iterMonitList->second.m_coDosageTotalOctets;
-        LOG_D( "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
-          p_soSessInfo.m_strSubscriberId.c_str(),
-          iterMonitList->first.c_str(),
-          iterMonitList->second.m_coDosageInputOctets.is_null() ? -1 : iterMonitList->second.m_coDosageInputOctets.v,
-          iterMonitList->second.m_coDosageOutputOctets.is_null() ? -1 : iterMonitList->second.m_coDosageOutputOctets.v,
-          iterMonitList->second.m_coDosageTotalOctets.is_null() ? -1 : iterMonitList->second.m_coDosageTotalOctets.v );
-      }
-    }
-    p_pcoDBConn->commit();
-    coStream.close();
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    p_pcoDBConn->rollback();
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
+		coStream.open(
+			1,
+			"begin ps.qm.ProcessQuota("
+			":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
+			"NULL, NULL, NULL,"
+			":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/);"
+			"end;",
+			*p_pcoDBConn );
+		std::map<std::string, SDBMonitoringInfo>::iterator iterMonitList;
+		for( iterMonitList = p_mapMonitInfo.begin(); iterMonitList != p_mapMonitInfo.end(); ++iterMonitList ) {
+		  /* если данные из БД еще не загружены */
+			if( iterMonitList->second.m_bIsReported ) {
+				continue;
+			} else {
+				LOG_D( "%s: subscriber-id: %s; monitoring-key: %s", __FUNCTION__, p_strSubscriberId.c_str(), iterMonitList->first.c_str() );
+				coStream
+					<< p_strSubscriberId
+					<< iterMonitList->first;
+				coStream
+					>> iterMonitList->second.m_coDosageInputOctets
+					>> iterMonitList->second.m_coDosageOutputOctets
+					>> iterMonitList->second.m_coDosageTotalOctets;
+				LOG_D( "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+					   p_strSubscriberId.c_str(),
+					   iterMonitList->first.c_str(),
+					   iterMonitList->second.m_coDosageInputOctets.is_null() ? -1 : iterMonitList->second.m_coDosageInputOctets.v,
+					   iterMonitList->second.m_coDosageOutputOctets.is_null() ? -1 : iterMonitList->second.m_coDosageOutputOctets.v,
+					   iterMonitList->second.m_coDosageTotalOctets.is_null() ? -1 : iterMonitList->second.m_coDosageTotalOctets.v );
+			}
+		}
+		p_pcoDBConn->commit();
+		coStream.close();
+	} catch( otl_exception &coExcept ) {
+		UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+		p_pcoDBConn->rollback();
+		if( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+			--iRepeat;
+			goto sql_repeat;
+		}
+		iRetVal = coExcept.code;
+	}
 
-  exit_from_function:
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
-  LOG_D( "leave: %s", __FUNCTION__ );
+exit_from_function:
+	stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+	LOG_D( "leave: %s", __FUNCTION__ );
 
-  return iRetVal;
+	return iRetVal;
 }
 
 void pcrf_server_db_insert_refqueue (
