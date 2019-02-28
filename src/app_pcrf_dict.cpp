@@ -559,7 +559,7 @@ int app_pcrf_dict_init (void)
 		dict_enumval_data        t_2 = { (char *) "UTRAN",          { (uint8_t *) 1000, 0 }};
 		dict_enumval_data        t_3 = { (char *) "GERAN",          { (uint8_t *) 1001, 0 }};
 		dict_enumval_data        t_4 = { (char *) "GAN",            { (uint8_t *) 1002, 0 }};
-		dict_enumval_data        t_5 = { (char *) "HSPA_EVOLUTION", { (uint8_t *) 1003, 0 }};
+		dict_enumval_data        t_5 = { (char *) "HSPA Evolution", { (uint8_t *) 1003, 0 }};
 		dict_enumval_data        t_6 = { (char *) "EUTRAN",         { (uint8_t *) 1004, 0 }};
 		dict_enumval_data        t_7 = { (char *) "CDMA2000_1X",    { (uint8_t *) 2000, 0 }};
 		dict_enumval_data        t_8 = { (char *) "HRPD",           { (uint8_t *) 2001, 0 }};

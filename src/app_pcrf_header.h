@@ -216,7 +216,12 @@ void pcrf_server_db_close_user_loc( std::string &p_strSessionId );
 void pcrf_db_insert_rule( const SSessionInfo &p_soSessInfo, const SDBAbonRule &p_soRule );
 
 /* запись информации о потребленном трафике в БД  */
-int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo, int &p_iUpdateRule );
+int pcrf_db_session_usage(
+	otl_connect *p_pcoDBConn,
+	std::string &p_strSubscriberId,
+	std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo,
+	std::vector<SSessionUsageInfo> &p_vectUsageInfo,
+	int &p_iUpdateRule );
 
 /* очередь элементов обновления политик */
 struct SRefQueue {

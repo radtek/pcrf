@@ -190,114 +190,118 @@ void pcrf_db_update_session (
     &p_strSessionId );
 }
 
-int pcrf_db_session_usage( otl_connect *p_pcoDBConn, SSessionInfo &p_soSessInfo, SRequestInfo &p_soReqInfo, int &p_iUpdateRule )
+int pcrf_db_session_usage(
+	otl_connect *p_pcoDBConn,
+	std::string &p_strSubscriberId,
+	std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo,
+	std::vector<SSessionUsageInfo> &p_vectUsageInfo,
+	int &p_iUpdateRule )
 {
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
+	if( NULL != p_pcoDBConn ) {
+	} else {
+		return EINVAL;
+	}
 
-  bool bNothingToDo = true;
-  std::vector<SSessionUsageInfo>::iterator iter;
+	bool bNothingToDo = true;
+	std::vector<SSessionUsageInfo>::iterator iter;
 
-  /* проверяем, надо ли обращаться к БД */
-  for ( iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter ) {
-    if (     0 == iter->m_coCCInputOctets.is_null()  && 0 != iter->m_coCCInputOctets.v
-          || 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
-          || 0 == iter->m_coCCTotalOctets.is_null()  && 0 != iter->m_coCCTotalOctets.v ) {
-      /* запись содержит ненулевые значения потребленного трафика */
-      /* вектор содержит полезную информацию */
-      bNothingToDo = false;
-      break;
-    }
-  }
+	/* проверяем, надо ли обращаться к БД */
+	for( iter = p_vectUsageInfo.begin(); iter != p_vectUsageInfo.end(); ++iter ) {
+		if( 0 == iter->m_coCCInputOctets.is_null() && 0 != iter->m_coCCInputOctets.v
+			|| 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
+			|| 0 == iter->m_coCCTotalOctets.is_null() && 0 != iter->m_coCCTotalOctets.v ) {
+		/* запись содержит ненулевые значения потребленного трафика */
+		/* вектор содержит полезную информацию */
+			bNothingToDo = false;
+			break;
+		}
+	}
 
-  if ( !bNothingToDo ) {
-  } else {
-    /* если вектор пустой просто выходим из функции */
-    return 0;
-  }
+	if( !bNothingToDo ) {
+	} else {
+	  /* если вектор пустой просто выходим из функции */
+		return 0;
+	}
 
-  int iRetVal = 0;
-  int iRepeat = 1;
-  CTimeMeasurer coTM;
+	int iRetVal = 0;
+	int iRepeat = 1;
+	CTimeMeasurer coTM;
 
-  sql_repeat:
+sql_repeat:
 
-  try {
-    otl_nocommit_stream coStream;
-    int iUpdateRule;
+	try {
+		otl_nocommit_stream coStream;
+		int iUpdateRule;
 
-    coStream.open(
-      1,
-      "begin ps.qm.ProcessQuota("
-        ":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
-        ":UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
-        ":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/,"
-        ":UpdateRule /*int,out*/);"
-      "end; ",
-      *p_pcoDBConn );
-    for ( iter = p_soReqInfo.m_vectUsageInfo.begin(); iter != p_soReqInfo.m_vectUsageInfo.end(); ++iter ) {
-      if (   0 == iter->m_coCCInputOctets.is_null()  && 0 != iter->m_coCCInputOctets.v
-          || 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
-          || 0 == iter->m_coCCTotalOctets.is_null()  && 0 != iter->m_coCCTotalOctets.v ) {
-        /* запись содержит полезную информацию */
-      } else {
-        /* запись не содержит полезную информацю, переходим к другой записи */
-        continue;
-      }
-      coStream
-        << p_soSessInfo.m_strSubscriberId
-        << iter->m_coMonitoringKey
-        << iter->m_coCCInputOctets
-        << iter->m_coCCOutputOctets
-        << iter->m_coCCTotalOctets;
-      UTL_LOG_D( *g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
-        p_soSessInfo.m_strSubscriberId.c_str(),
-        iter->m_coMonitoringKey.v.c_str(),
-        iter->m_coCCInputOctets.is_null() ? -1 : iter->m_coCCInputOctets.v,
-        iter->m_coCCOutputOctets.is_null() ? -1 : iter->m_coCCOutputOctets.v,
-        iter->m_coCCTotalOctets.is_null() ? -1 : iter->m_coCCTotalOctets.v );
-      coStream
-        >> iter->m_coCCInputOctets
-        >> iter->m_coCCOutputOctets
-        >> iter->m_coCCTotalOctets
-        >> iUpdateRule;
+		coStream.open(
+			1,
+			"begin ps.qm.ProcessQuota("
+			":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
+			":UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
+			":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/,"
+			":UpdateRule /*int,out*/);"
+			"end; ",
+			*p_pcoDBConn );
+		for( iter = p_vectUsageInfo.begin(); iter != p_vectUsageInfo.end(); ++iter ) {
+			if( 0 == iter->m_coCCInputOctets.is_null() && 0 != iter->m_coCCInputOctets.v
+				|| 0 == iter->m_coCCOutputOctets.is_null() && 0 != iter->m_coCCOutputOctets.v
+				|| 0 == iter->m_coCCTotalOctets.is_null() && 0 != iter->m_coCCTotalOctets.v ) {
+			  /* запись содержит полезную информацию */
+			} else {
+			  /* запись не содержит полезную информацю, переходим к другой записи */
+				continue;
+			}
+			coStream
+				<< p_strSubscriberId
+				<< iter->m_coMonitoringKey
+				<< iter->m_coCCInputOctets
+				<< iter->m_coCCOutputOctets
+				<< iter->m_coCCTotalOctets;
+			UTL_LOG_D( *g_pcoLog, "quota usage:%s;%s;%'lld;%'lld;%'lld;",
+					   p_strSubscriberId.c_str(),
+					   iter->m_coMonitoringKey.v.c_str(),
+					   iter->m_coCCInputOctets.is_null() ? -1 : iter->m_coCCInputOctets.v,
+					   iter->m_coCCOutputOctets.is_null() ? -1 : iter->m_coCCOutputOctets.v,
+					   iter->m_coCCTotalOctets.is_null() ? -1 : iter->m_coCCTotalOctets.v );
+			coStream
+				>> iter->m_coCCInputOctets
+				>> iter->m_coCCOutputOctets
+				>> iter->m_coCCTotalOctets
+				>> iUpdateRule;
 
-      ( 0 == iUpdateRule ) ? ( p_iUpdateRule = p_iUpdateRule ) : ( p_iUpdateRule = 1 );
+			( 0 == iUpdateRule ) ? ( p_iUpdateRule = p_iUpdateRule ) : ( p_iUpdateRule = 1 );
 
-      UTL_LOG_D( *g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
-        p_soSessInfo.m_strSubscriberId.c_str(),
-        iter->m_coMonitoringKey.v.c_str(),
-        iter->m_coCCInputOctets.is_null() ? -1 : iter->m_coCCInputOctets.v,
-        iter->m_coCCOutputOctets.is_null() ? -1 : iter->m_coCCOutputOctets.v,
-        iter->m_coCCTotalOctets.is_null() ? -1 : iter->m_coCCTotalOctets.v );
-      /* запоминаем полученную информацию чтобы не повторять запросы к БД по этому ключу мониторинга */
-      {
-        SDBMonitoringInfo soMonitInfo;
-        soMonitInfo.m_coDosageInputOctets = iter->m_coCCInputOctets;
-        soMonitInfo.m_coDosageOutputOctets = iter->m_coCCOutputOctets;
-        soMonitInfo.m_coDosageTotalOctets = iter->m_coCCTotalOctets;
-        soMonitInfo.m_bIsReported = true;
-        p_soSessInfo.m_mapMonitInfo.insert( std::make_pair( iter->m_coMonitoringKey.v, soMonitInfo ) );
-      }
-    }
-    p_pcoDBConn->commit();
-    coStream.close();
-    LOG_D( "Session-Id: %s: usage monitoring information is stored", p_soSessInfo.m_strSessionId.c_str() );
-  } catch ( otl_exception &coExcept ) {
-    UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
-    p_pcoDBConn->rollback();
-    if ( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
-      --iRepeat;
-      goto sql_repeat;
-    }
-    iRetVal = coExcept.code;
-  }
+			UTL_LOG_D( *g_pcoLog, "quota remainder:%s;%s;%'lld;%'lld;%'lld;",
+					   p_strSubscriberId.c_str(),
+					   iter->m_coMonitoringKey.v.c_str(),
+					   iter->m_coCCInputOctets.is_null() ? -1 : iter->m_coCCInputOctets.v,
+					   iter->m_coCCOutputOctets.is_null() ? -1 : iter->m_coCCOutputOctets.v,
+					   iter->m_coCCTotalOctets.is_null() ? -1 : iter->m_coCCTotalOctets.v );
+					 /* запоминаем полученную информацию чтобы не повторять запросы к БД по этому ключу мониторинга */
+			{
+				SDBMonitoringInfo soMonitInfo;
+				soMonitInfo.m_coDosageInputOctets = iter->m_coCCInputOctets;
+				soMonitInfo.m_coDosageOutputOctets = iter->m_coCCOutputOctets;
+				soMonitInfo.m_coDosageTotalOctets = iter->m_coCCTotalOctets;
+				soMonitInfo.m_bIsReported = true;
+				p_mapMonitInfo.insert( std::make_pair( iter->m_coMonitoringKey.v, soMonitInfo ) );
+			}
+		}
+		p_pcoDBConn->commit();
+		coStream.close();
+	} catch( otl_exception &coExcept ) {
+		UTL_LOG_E( *g_pcoLog, "code: '%d'; message: '%s'; query: '%s'", coExcept.code, coExcept.msg, coExcept.stm_text );
+		p_pcoDBConn->rollback();
+		if( 0 != iRepeat && 1 == pcrf_db_pool_restore( p_pcoDBConn ) ) {
+			--iRepeat;
+			goto sql_repeat;
+		}
+		iRetVal = coExcept.code;
+	}
 
-  stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
+	stat_measure( g_psoDBStat, __FUNCTION__, &coTM );
 
-  return iRetVal;
+	return iRetVal;
 }
 
 void pcrf_db_insert_rule (
