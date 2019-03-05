@@ -499,7 +499,7 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
     /* формируем список неактуальных правил */
     pcrf_server_select_notrelevant_active( listAbonRules, vectActive );
     /* формируем список ключей мониторинга */
-    pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo );
+    pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo->m_mapMonitInfo );
     /* загружаем информацию о мониторинге */
     CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
     /* проверяем наличие изменений в политиках */

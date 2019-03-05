@@ -15,7 +15,7 @@ void pcrf_rule_cache_fini();
 int pcrf_rule_cache_reload();
 
 /* загрузка описания правила */
-int pcrf_rule_cache_get_rule_info( std::string &p_strRuleName, SDBAbonRule &p_soRule );
+int pcrf_rule_cache_get_rule_info( const std::string &p_strRuleName, SDBAbonRule &p_soRule );
 
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */

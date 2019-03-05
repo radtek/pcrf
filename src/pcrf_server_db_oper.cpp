@@ -402,47 +402,48 @@ void pcrf_parse_date_time( std::string &p_strDateTime, otl_value<otl_datetime> &
   }
 }
 
-void pcrf_parse_rule_row( std::string &p_strRuleRow, std::vector<std::string> &p_vectRuleList, std::string &p_strSubscriberId )
+void pcrf_parse_rule_row( std::string &p_strRuleRow, std::list<std::string> &p_listRuleList, std::string &p_strSubscriberId )
 {
-  size_t stEnd;
+	size_t stEnd;
 
-  stEnd = p_strRuleRow.find( 9 );
-  if ( stEnd != std::string::npos && 0 != stEnd) {
-    p_vectRuleList.push_back( p_strRuleRow.substr( 0, stEnd ) );
-  } else {
-    UTL_LOG_D( *g_pcoLog, "invalid rule row: length: '%d'; content: '%s'", stEnd, p_strRuleRow.c_str() );
-    return;
-  }
+	stEnd = p_strRuleRow.find( 9 );
+	if( stEnd != std::string::npos && 0 != stEnd ) {
+		p_listRuleList.push_back( p_strRuleRow.substr( 0, stEnd ) );
+		UTL_LOG_D( *g_pcoLog, "Subscriber-Id: '%s'; rule: '%s'", p_strSubscriberId.c_str(), p_strRuleRow.substr( 0, stEnd ).c_str() );
+	} else {
+		UTL_LOG_D( *g_pcoLog, "invalid rule row: length: '%d'; content: '%s'", stEnd, p_strRuleRow.c_str() );
+		return;
+	}
 
-  ++stEnd;
+	++stEnd;
 
-  if ( p_strRuleRow.length() - stEnd == 19 ) {
-    otl_value<otl_datetime> coRefreshTime;
-    std::string strDateTime;
+	if( p_strRuleRow.length() - stEnd == 19 ) {
+		otl_value<otl_datetime> coRefreshTime;
+		std::string strDateTime;
 
-    strDateTime = p_strRuleRow.substr( stEnd );
-    pcrf_parse_date_time( strDateTime, coRefreshTime );
-    if ( 0 != coRefreshTime.is_null() ) {
-    } else {
-      pcrf_server_db_insert_refqueue( "subscriber_id", p_strSubscriberId, &( coRefreshTime.v ), NULL );
-    }
-  } else if ( p_strRuleRow.length() < stEnd ) {
-    UTL_LOG_D( *g_pcoLog, "invalid date/time lentgth: '%d'; content: '%s'", p_strRuleRow.length() - stEnd, p_strRuleRow.substr( stEnd ).c_str() );
-  }
+		strDateTime = p_strRuleRow.substr( stEnd );
+		pcrf_parse_date_time( strDateTime, coRefreshTime );
+		if( 0 != coRefreshTime.is_null() ) {
+		} else {
+			pcrf_server_db_insert_refqueue( "subscriber_id", p_strSubscriberId, &( coRefreshTime.v ), NULL );
+		}
+	} else if( p_strRuleRow.length() < stEnd ) {
+		UTL_LOG_D( *g_pcoLog, "invalid date/time lentgth: '%d'; content: '%s'", p_strRuleRow.length() - stEnd, p_strRuleRow.substr( stEnd ).c_str() );
+	}
 }
 
-void pcrf_parse_rule_list( std::string &p_strRuleList, std::vector<std::string> &p_vectRuleList, std::string &p_strSubscriberId )
+void pcrf_parse_rule_list( std::string &p_strRuleList, std::list<std::string> &p_listRuleList, std::string &p_strSubscriberId )
 {
-  std::string strRuleRow;
-  size_t stBeginRow = 0;
-  size_t stEndRow;
+	std::string strRuleRow;
+	size_t stBeginRow = 0;
+	size_t stEndRow;
 
-  while ( std::string::npos != (stEndRow = p_strRuleList.find(10, stBeginRow )) ) {
-    strRuleRow = p_strRuleList.substr( stBeginRow, stEndRow - stBeginRow );
-    pcrf_parse_rule_row( strRuleRow, p_vectRuleList, p_strSubscriberId );
-    stBeginRow = stEndRow;
-    ++stBeginRow;
-  }
+	while( std::string::npos != ( stEndRow = p_strRuleList.find( 10, stBeginRow ) ) ) {
+		strRuleRow = p_strRuleList.substr( stBeginRow, stEndRow - stBeginRow );
+		pcrf_parse_rule_row( strRuleRow, p_listRuleList, p_strSubscriberId );
+		stBeginRow = stEndRow;
+		++stBeginRow;
+	}
 }
 
 /* загружает список идентификаторов правил абонента из БД */
@@ -455,9 +456,10 @@ int pcrf_db_load_abon_rule_list(
 	otl_value<std::string> &p_coCalledStationId,
 	otl_value<std::string> &p_coSGSNAddress,
 	otl_value<std::string> &p_coIMEI,
-	std::vector<std::string> &p_vectRuleList )
+	std::list<std::string> &p_listRuleList )
 {
-	LOG_D(
+	UTL_LOG_D(
+		*g_pcoLog,
 		"enter: %s; db connection: %p; subscriber-id: %s; peer dialect: %d; ip-can-type: %s; rat-type: %s; apn: %s; sgsn: %s; imei: %s",
 		__FUNCTION__,
 		p_pcoDBConn,
@@ -510,8 +512,8 @@ sql_repeat:
 		if( ! coStream.eof() ) {
 			coStream
 				>> strSQLResult;
-			LOG_D( "rule list: '%s'", strSQLResult.c_str() );
-			pcrf_parse_rule_list( strSQLResult, p_vectRuleList, p_strSubscriberId );
+			UTL_LOG_D( *g_pcoLog, "rule list: '%s'", strSQLResult.c_str() );
+			pcrf_parse_rule_list( strSQLResult, p_listRuleList, p_strSubscriberId );
 		} else {
 			iRetVal = 1403;
 		}
@@ -529,7 +531,7 @@ sql_repeat:
 
 exit:
 
-	LOG_D( "leave: %s; result code: %d", __FUNCTION__, iRetVal );
+	UTL_LOG_D( *g_pcoLog, "leave: %s; result code: %d", __FUNCTION__, iRetVal );
 
 	return iRetVal;
 }

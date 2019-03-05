@@ -98,6 +98,9 @@ static int pcrf_entry( char * conffile )
 		}
 	}
 
+	/* инициализация модуля получения данных подписчика */
+	CHECK_FCT( pcrf_subscriber_data_init() );
+
 	/* Install the handlers for incoming messages */
 	CHECK_FCT( app_pcrf_serv_init() );
 
@@ -112,6 +115,7 @@ void fd_ext_fini( void )
 {
 	app_pcrf_serv_fini();
 	pcrf_cli_fini();
+	pcrf_subscriber_data_fini();
 	pcrf_ipc_fini();
 	pcrf_session_rule_list_fini();
 	pcrf_session_cache_fini();

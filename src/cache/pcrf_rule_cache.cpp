@@ -298,7 +298,7 @@ sql_repeat:
 }
 
 /* загружает описание правила */
-int pcrf_rule_cache_get_rule_info( std::string &p_strRuleName, SDBAbonRule &p_soRule )
+int pcrf_rule_cache_get_rule_info( const std::string &p_strRuleName, SDBAbonRule &p_soRule )
 {
 	CTimeMeasurer coTM;
 

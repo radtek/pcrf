@@ -13,11 +13,14 @@ struct SAppPCRFConf {
 	int   m_iLook4StalledSession;
 	char *m_pszLogFileMask;
 	int   m_iTraceReq;
-  int   m_iGenerateCDR;
-  char *m_pszCDRMask;
-  char *m_pszCDRDir;
-  char *m_pszCDRComplDir;
-  int   m_iCDRInterval;
+	int   m_iGenerateCDR;
+	char *m_pszCDRMask;
+	char *m_pszCDRDir;
+	char *m_pszCDRComplDir;
+	int   m_iCDRInterval;
+	unsigned int m_uiCCATimeoutSec;
+	unsigned int m_uiCCATimeoutUSec;
+	unsigned int m_uiMaxCCRHandlers;
 };
 
 extern struct SAppPCRFConf *g_psoConf;

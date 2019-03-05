@@ -28,6 +28,17 @@ extern "C" {
 #define GX_ERICSSN    4
 #define RX_IMS       10
 
+/* определение набора необходимых действий при обработке CCR */
+#define ACTION_COPY_DEFBEARER			static_cast<unsigned int>(0x00000001)
+#define ACTION_UPDATE_SESSIONCACHE		static_cast<unsigned int>(0x00000002)
+#define ACTION_OPERATE_RULE				static_cast<unsigned int>(0x00000004)
+#define ACTION_UPDATE_QUOTA				static_cast<unsigned int>(0x00000008)
+/* UGW */
+#define ACTION_UGW_STORE_THET_INFO		static_cast<unsigned int>(0x00000010)
+/* PROCERA */
+#define ACTION_PROCERA_STORE_THET_INFO	static_cast<unsigned int>(0x00000020)
+#define ACTION_PROCERA_CHANGE_ULI		static_cast<unsigned int>(0x00000040)
+
 /* функции сервера */
 /* кешированные данные из запроса */
 struct SSessionPolicyInfo {
@@ -242,6 +253,8 @@ int pcrf_server_create_abon_rule_list(
 	otl_value<std::string> &p_coSGSNAddress,
 	otl_value<std::string> &p_coIMEI,
 	std::list<SDBAbonRule> &p_listAbonRules );
+/* загрузка параметров правил из кэша */
+int pcrf_server_load_rule_info( const std::list<std::string> &p_listRuleName, const unsigned int p_uiPeerDialect, std::list<SDBAbonRule> &p_listAbonRules );
 
 /* операции клиента с БД */
 /* формирование очереди изменения политик */
@@ -289,7 +302,7 @@ int pcrf_db_load_abon_rule_list(
 	otl_value<std::string> &p_coCalledStationId,
 	otl_value<std::string> &p_coSGSNAddress,
 	otl_value<std::string> &p_coIMEI,
-	std::vector<std::string> &p_vectRuleList );
+	std::list<std::string> &p_listRuleList );
 /* загрузка Monitoring Key из БД */
 int pcrf_server_db_monit_key( otl_connect *p_pcoDBConn, std::string &p_strSubscriberId, std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo );
 /* функция сохраняет в БД данные о локации абонента */
@@ -299,7 +312,9 @@ void pcrf_server_db_user_location( SMsgDataForDB &p_soMsgInfo );
 void pcrf_server_select_notrelevant_active(std::list<SDBAbonRule> &p_listAbonRules, std::vector<SDBAbonRule> &p_vectActive);
 
 /* функция формирования списка ключей мониторинга */
-void pcrf_make_mk_list( std::list<SDBAbonRule> &p_listAbonRules, SSessionInfo *p_psoSessInfo );
+void pcrf_make_mk_list(
+	std::list<SDBAbonRule> &p_listAbonRules,
+	std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo );
 
 /* функция заполнения avp Charging-Rule-Remove */
 struct avp * pcrf_make_CRR( const SSessionInfo *p_psoSessInfo, const std::vector<SDBAbonRule> &p_vectActive );

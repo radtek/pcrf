@@ -239,7 +239,19 @@ nomatch:
 				}
 				return INTEGER;
 			}
-				
+
+[0-9]+\.[0-9]+		{
+				/* Convert this to an integer value */
+				int ret = sscanf(yytext, "%lf", &yylval->dfValue);
+				if (ret != 1) {
+					/* No matching: an error occurred */
+					LOG_E( "Unable to convert the value '%s' to a valid number: %s", yytext, strerror(errno));
+					return LEX_ERROR; /* trig an error in yacc parser */
+					/* Maybe we could REJECT instead of failing here? */
+				}
+				return DOUBLE;
+			}
+
 	/* Full words tokens (keywords) */
 (?i:"db_server")				{ return DB_SERVER; }
 (?i:"db_user")					{ return DB_USER; }
@@ -262,7 +274,12 @@ nomatch:
 (?i:"EndUserE164")				{ return END_USER_E164; }
 (?i:"ApplicationId")			{ return APPLICATION_ID; }
 (?i:"CalledStationId")			{ return APN; }
-
+(?i:"CCATimeout")				{ return CCA_TIMEOUT; }
+(?i:"maxCCRHandlers")			{ return MAX_CCR_HANDLERS; }
+(?i:"defaultRule")				{ return DEFAULT_RULE; }
+(?i:"RAT_TYPE")					{ return RAT_TYPE; }
+(?i:"IP_CAN_TYPE")				{ return IP_CAN_TYPE; }
+(?i:"SGSN_ADDRESS")				{ return SGSN_ADDRESS; }
 
 	/* Valid single characters for yyparse */
 <*>[=,:;{}]		{ return yytext[0]; }

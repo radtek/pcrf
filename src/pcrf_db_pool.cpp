@@ -34,13 +34,13 @@ static const char *g_pcszDefCheckReq = "select to_char(sysdate,'ddmmyyyy') from 
 #define DB_POOL_SIZE_DEF 1
 
 /* функция подключения к БД */
-int pcrf_db_pool_connect( otl_connect *p_pcoDBConn );
+static int pcrf_db_pool_connect( otl_connect *p_pcoDBConn );
 /* функция отключение от БД */
-void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn);
+static void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn);
 /* функция проверки работоспособности подключения к БД */
-int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn );
+static int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn );
 
-int pcrf_db_pool_init (void)
+int pcrf_db_pool_init( void )
 {
 	int iRetVal = 0;
 
@@ -48,20 +48,20 @@ int pcrf_db_pool_init (void)
 	int iPoolSize = g_psoConf->m_iDBPoolSize ? g_psoConf->m_iDBPoolSize : DB_POOL_SIZE_DEF;
 
 	/* инициализация семафора */
-	CHECK_POSIX_DO (sem_init (&g_tDBPoolSem, 0, iPoolSize), goto fn_error);
+	CHECK_POSIX_DO( sem_init( &g_tDBPoolSem, 0, iPoolSize ), goto fn_error );
 
 	/* инициализация пула БД */
 	SDBPoolInfo *psoTmp;
 	SDBPoolInfo *psoLast;
 
 	try {
-		for (int iInd = 0; iInd < iPoolSize; ++iInd) {
+		for( int iInd = 0; iInd < iPoolSize; ++iInd ) {
 			psoTmp = new SDBPoolInfo;
 			/* инициализация структуры */
-			memset (psoTmp, 0, sizeof (*psoTmp));
-      CHECK_POSIX_DO( pthread_mutex_init( &psoTmp->m_mutexLock, NULL ), goto fn_error );
-			/* укладываем всех в список */
-			if (NULL == g_psoDBPoolHead) {
+			memset( psoTmp, 0, sizeof( *psoTmp ) );
+			CHECK_POSIX_DO( pthread_mutex_init( &psoTmp->m_mutexLock, NULL ), goto fn_error );
+				  /* укладываем всех в список */
+			if( NULL == g_psoDBPoolHead ) {
 				g_psoDBPoolHead = psoTmp;
 			} else {
 				psoLast->m_psoNext = psoTmp;
@@ -69,16 +69,16 @@ int pcrf_db_pool_init (void)
 			psoLast = psoTmp;
 			/* создаем объект класса подключения к БД */
 			psoTmp->m_pcoDBConn = new otl_connect();
-			psoTmp->m_pcoDBConn->otl_initialize(1);
-#ifdef DEBUG
+			psoTmp->m_pcoDBConn->otl_initialize( 1 );
+		#ifdef DEBUG
 			psoTmp->m_pcoTM = new CTimeMeasurer();
-#endif
-			if (psoTmp->m_pcoDBConn) {
-        CHECK_POSIX_DO( pcrf_db_pool_connect( psoTmp->m_pcoDBConn ), goto fn_error );
+		#endif
+			if( psoTmp->m_pcoDBConn ) {
+				CHECK_POSIX_DO( pcrf_db_pool_connect( psoTmp->m_pcoDBConn ), goto fn_error );
 			}
 		}
-	} catch (std::bad_alloc &coBadAlloc) {
-		UTL_LOG_F(*g_pcoLog, "memory allocftion error: '%s';", coBadAlloc.what());
+	} catch( std::bad_alloc &coBadAlloc ) {
+		UTL_LOG_F( *g_pcoLog, "memory allocftion error: '%s';", coBadAlloc.what() );
 		iRetVal = ENOMEM;
 		goto fn_error;
 	}
@@ -86,38 +86,38 @@ int pcrf_db_pool_init (void)
 	/* если всё выполнено без ошибок выходим из функции */
 	goto fn_return;
 
-	fn_error:
-	pcrf_db_pool_fin ();
+fn_error:
+	pcrf_db_pool_fin();
 	iRetVal = -1600;
 
-	fn_return:
+fn_return:
 	return iRetVal;
 }
 
-void pcrf_db_pool_fin (void)
+void pcrf_db_pool_fin( void )
 {
 	/* освобождаем ресурсы, занятые семафором */
-	sem_close (&g_tDBPoolSem);
+	sem_close( &g_tDBPoolSem );
 	/* освобождаем пул подключения к БД */
 	SDBPoolInfo *psoTmp;
 	psoTmp = g_psoDBPoolHead;
-	while (psoTmp) {
+	while( psoTmp ) {
 		psoTmp = g_psoDBPoolHead->m_psoNext;
-		if (g_psoDBPoolHead->m_pcoDBConn) {
-      if ( 0 != pthread_mutex_trylock( &g_psoDBPoolHead->m_mutexLock ) ) {
-        g_psoDBPoolHead->m_pcoDBConn->cancel();
-      }
-      if (g_psoDBPoolHead->m_pcoDBConn->connected) {
-				pcrf_db_pool_logoff (g_psoDBPoolHead->m_pcoDBConn);
+		if( g_psoDBPoolHead->m_pcoDBConn ) {
+			if( 0 != pthread_mutex_trylock( &g_psoDBPoolHead->m_mutexLock ) ) {
+				g_psoDBPoolHead->m_pcoDBConn->cancel();
 			}
-      pthread_mutex_unlock( &g_psoDBPoolHead->m_mutexLock );
-      pthread_mutex_destroy( &g_psoDBPoolHead->m_mutexLock );
-      delete g_psoDBPoolHead->m_pcoDBConn;
+			if( g_psoDBPoolHead->m_pcoDBConn->connected ) {
+				pcrf_db_pool_logoff( g_psoDBPoolHead->m_pcoDBConn );
+			}
+			pthread_mutex_unlock( &g_psoDBPoolHead->m_mutexLock );
+			pthread_mutex_destroy( &g_psoDBPoolHead->m_mutexLock );
+			delete g_psoDBPoolHead->m_pcoDBConn;
 			g_psoDBPoolHead->m_pcoDBConn = NULL;
-#ifdef DEBUG
+		#ifdef DEBUG
 			delete g_psoDBPoolHead->m_pcoTM;
 			g_psoDBPoolHead->m_pcoTM = NULL;
-#endif
+		#endif
 		}
 		delete g_psoDBPoolHead;
 		g_psoDBPoolHead = psoTmp;
@@ -259,48 +259,49 @@ int pcrf_db_pool_restore( otl_connect *p_pcoDBConn )
 	}
 }
 
-int pcrf_db_pool_connect( otl_connect *p_pcoDBConn )
+static int pcrf_db_pool_connect( otl_connect *p_pcoDBConn )
 {
-  if ( NULL != p_pcoDBConn ) {
-  } else {
-    return EINVAL;
-  }
+	if( NULL != p_pcoDBConn ) {
+	} else {
+		return EINVAL;
+	}
 
 	int iRetVal = 0;
-  char *pszConnString = NULL;
+	char *pszConnString = NULL;
 
 	try {
-    if ( 0 < asprintf( &pszConnString, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer ) ) {
-    } else {
-      iRetVal -30;
-      goto __cleanup_and_exit__;
-    }
-    p_pcoDBConn->rlogon (pszConnString, 0, NULL, NULL);
-    p_pcoDBConn->auto_commit_off();
-    UTL_LOG_N( *g_pcoLog, "DB connection '%p' is established successfully", p_pcoDBConn );
-	} catch (otl_exception &coExcept) {
-    UTL_LOG_F( *g_pcoLog, "DB connection: '%p': error code: '%d'; message: '%s'", p_pcoDBConn, coExcept.code, coExcept.msg );
+		if( 0 < asprintf( &pszConnString, "%s/%s@%s", g_psoConf->m_pszDBUser, g_psoConf->m_pszDBPswd, g_psoConf->m_pszDBServer ) ) {
+		} else {
+			iRetVal - 30;
+			goto __cleanup_and_exit__;
+		}
+		p_pcoDBConn->rlogon( pszConnString, 0, NULL, NULL );
+		p_pcoDBConn->auto_commit_off();
+		UTL_LOG_N( *g_pcoLog, "DB connection '%p' is established successfully", p_pcoDBConn );
+	} catch( otl_exception &coExcept ) {
+		UTL_LOG_F( *g_pcoLog, "DB connection: '%p': error code: '%d'; message: '%s'", p_pcoDBConn, coExcept.code, coExcept.msg );
 		iRetVal = coExcept.code;
 	}
 
-  __cleanup_and_exit__:
-  if ( NULL != pszConnString ) {
-    free( pszConnString );
-  }
+__cleanup_and_exit__:
+	if( NULL != pszConnString ) {
+		free( pszConnString );
+	}
 
 	return iRetVal;
 }
 
-void pcrf_db_pool_logoff (otl_connect *p_pcoDBConn)
+static void pcrf_db_pool_logoff( otl_connect *p_pcoDBConn )
 {
-  if ( NULL != p_pcoDBConn ) {
-    if ( 0 != p_pcoDBConn->connected ) {
-      p_pcoDBConn->logoff();
-    }
-  }
+	if( NULL != p_pcoDBConn ) {
+		if( 0 != p_pcoDBConn->connected ) {
+			p_pcoDBConn->logoff();
+			UTL_LOG_N( *g_pcoLog, "DB connection '%p' is terminated", p_pcoDBConn );
+		}
+	}
 }
 
-int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn )
+static int pcrf_db_pool_check_conn( otl_connect *p_pcoDBConn )
 {
   if ( NULL != p_pcoDBConn ) {
   } else {

@@ -44,6 +44,8 @@ SET( PCRF_APP_SRC
 	cache/pcrf_rule_cache.cpp
 	cache/pcrf_subscriber_cache.cpp
 	procera/pcrf_procera.cpp
+	data_proc/pcrf_timed_oper.cpp
+	data_proc/pcrf_defaultRuleSelector.cpp
 	~/project/utils/src/utils/timemeasurer/timemeasurer.cpp
 	~/project/utils/src/utils/log/log.cpp
 	~/project/utils/src/utils/stat/stat.cpp

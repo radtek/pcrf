@@ -50,11 +50,15 @@
 
 %{
 #include <string.h>
+#include <math.h>
 #include <errno.h>
 
+#include "data_proc/pcrf_defaultRuleSelector.h"
 #include "app_pcrf.h"
 #include "pcrf_tracer.h"
 #include "app_pcrf_conf.tab.h"	/* bison is not smart enough to define the YYLTYPE before including this code, so... */
+
+struct SDefaultRuleSelectorData * g_psoRuleSelector;
 
 /* Forward declaration */
 int yyparse (char * conffile);
@@ -111,33 +115,40 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %union {
 	char 		*string;	/* The string is allocated by strdup in lex.*/
 	int		 integer;	/* Store integer values */
+	double	 dfValue;   /* Store double values */
 }
 
 /* In case of error in the lexical analysis */
 %token 		LEX_ERROR
 
 /* Key words */
-%token 		DB_SERVER
-%token 		DB_USER
-%token 		DB_PSWD
-%token 		DB_DUMMY_REQUEST
-%token 		DB_POOL_SIZE
-%token 		DB_POOL_WAIT
-%token 		DB_REQ_INTERVAL
-%token 		OPERATE_REFRESH_QUEUE
-%token 		LOOK4STALLEDSESSION
-%token 		LOG_FILE_MASK
-%token 		TRACE_REQ
-%token 		GEN_CDR
-%token 		CDR_MASK
-%token 		CDR_DIR
-%token 		CDR_CMPL_DIR
-%token 		CDR_INTERVAL
-%token		TRACER
-%token 		END_USER_IMSI
-%token 		END_USER_E164
-%token 		APPLICATION_ID
-%token 		APN
+%token	DB_SERVER
+%token	DB_USER
+%token	DB_PSWD
+%token	DB_DUMMY_REQUEST
+%token	DB_POOL_SIZE
+%token	DB_POOL_WAIT
+%token	DB_REQ_INTERVAL
+%token	OPERATE_REFRESH_QUEUE
+%token	LOOK4STALLEDSESSION
+%token	LOG_FILE_MASK
+%token	TRACE_REQ
+%token	GEN_CDR
+%token	CDR_MASK
+%token	CDR_DIR
+%token	CDR_CMPL_DIR
+%token	CDR_INTERVAL
+%token	TRACER
+%token	END_USER_IMSI
+%token	END_USER_E164
+%token	APPLICATION_ID
+%token	APN
+%token	CCA_TIMEOUT
+%token	MAX_CCR_HANDLERS
+%token	DEFAULT_RULE
+%token	RAT_TYPE
+%token	IP_CAN_TYPE
+%token	SGSN_ADDRESS
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -145,6 +156,9 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 
 /* An integer value */
 %token <integer> INTEGER
+
+/* An double value */
+%token <dfValue> DOUBLE
 
 
 /* -------------------------------------- */
@@ -169,6 +183,12 @@ conffile:		/* empty grammar is OK */
 			| conffile cdr_completed_dir
 			| conffile cdr_interval
 			| conffile tracer
+			| conffile CCATimeout
+			| conffile maxCCRHandlers
+			| conffile defaultRule
+			| conffile RAT_TYPE
+			| conffile IP_CAN_TYPE
+			| conffile SGSN_ADDRESS
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -302,6 +322,62 @@ tracerparams: /* empty */
 			| tracerparams APN '=' QSTRING ';'
 			{
 				pcrf_tracer_set_condition( m_eAPN, $4 );
+				free( $4 );
+			}
+			;
+
+CCATimeout:		CCA_TIMEOUT '=' DOUBLE ';'
+			{
+				double dfIntergral;
+				g_psoConf->m_uiCCATimeoutUSec = ( unsigned int )( modf( $3, &dfIntergral ) * 1000000 );
+				g_psoConf->m_uiCCATimeoutSec = ( unsigned int )( dfIntergral );
+			}
+			;
+
+maxCCRHandlers:		MAX_CCR_HANDLERS '=' INTEGER ';'
+			{
+				g_psoConf->m_uiMaxCCRHandlers = $3;
+			}
+			;
+
+defaultRule:		/* empty */
+			DEFAULT_RULE '=' QSTRING defaultRuleInfo ';'
+			{
+				if( NULL != g_psoRuleSelector ) {
+					pcrf_drs_add_defaultRule( g_psoRuleSelector, $3 );
+					free( $3 );
+					g_psoRuleSelector = NULL;
+				}
+			}
+			;
+
+defaultRuleInfo:	/* empty */
+			'{' defaultRuleInfoParam '}'
+			;
+
+defaultRuleInfoParam: /* empty */
+			| defaultRuleInfoParam RAT_TYPE '=' QSTRING ';'
+			{
+				if( NULL == g_psoRuleSelector ) {
+					g_psoRuleSelector = pcrf_drs_create();
+				}
+				pcrf_drs_add_selector( g_psoRuleSelector, "RAT_TYPE", $4 );
+				free( $4 );
+			}
+			| defaultRuleInfoParam IP_CAN_TYPE '=' QSTRING ';'
+			{
+				if( NULL == g_psoRuleSelector ) {
+					g_psoRuleSelector = pcrf_drs_create();
+				}
+				pcrf_drs_add_selector( g_psoRuleSelector, "IP_CAN_TYPE", $4 );
+				free( $4 );
+			}
+			| defaultRuleInfoParam SGSN_ADDRESS '=' QSTRING ';'
+			{
+				if( NULL == g_psoRuleSelector ) {
+					g_psoRuleSelector = pcrf_drs_create();
+				}
+				pcrf_drs_add_selector( g_psoRuleSelector, "SGSN_ADDRESS", $4 );
 				free( $4 );
 			}
 			;
