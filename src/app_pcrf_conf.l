@@ -280,6 +280,9 @@ nomatch:
 (?i:"RAT_TYPE")					{ return RAT_TYPE; }
 (?i:"IP_CAN_TYPE")				{ return IP_CAN_TYPE; }
 (?i:"SGSN_ADDRESS")				{ return SGSN_ADDRESS; }
+(?i:"PEER_DIALECT")				{ return PEER_DIALECT; }
+(?i:"defaultQuota")				{ return DEFAULT_QUOTA; }
+(?i:"refreshDefRuleIn")			{ return REFRESH_DEF_RULE_IN; }
 
 	/* Valid single characters for yyparse */
 <*>[=,:;{}]		{ return yytext[0]; }

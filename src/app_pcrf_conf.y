@@ -149,6 +149,9 @@ void yyerror (YYLTYPE *ploc, char * conffile, char const *s)
 %token	RAT_TYPE
 %token	IP_CAN_TYPE
 %token	SGSN_ADDRESS
+%token	PEER_DIALECT
+%token	DEFAULT_QUOTA
+%token	REFRESH_DEF_RULE_IN
 
 /* Tokens and types for routing table definition */
 /* A (de)quoted string (malloc'd in lex parser; it must be freed after use) */
@@ -189,6 +192,9 @@ conffile:		/* empty grammar is OK */
 			| conffile RAT_TYPE
 			| conffile IP_CAN_TYPE
 			| conffile SGSN_ADDRESS
+			| conffile PEER_DIALECT
+			| conffile defaultQuota
+			| conffile refreshDefRuleIn
 			;
 
 db_server:		DB_SERVER '=' QSTRING ';'
@@ -379,5 +385,25 @@ defaultRuleInfoParam: /* empty */
 				}
 				pcrf_drs_add_selector( g_psoRuleSelector, "SGSN_ADDRESS", $4 );
 				free( $4 );
+			}
+			| defaultRuleInfoParam PEER_DIALECT '=' QSTRING ';'
+			{
+				if( NULL == g_psoRuleSelector ) {
+					g_psoRuleSelector = pcrf_drs_create();
+				}
+				pcrf_drs_add_selector( g_psoRuleSelector, "PEER_DIALECT", $4 );
+				free( $4 );
+			}
+			;
+
+defaultQuota:		DEFAULT_QUOTA '=' INTEGER ';'
+			{
+				g_psoConf->m_uiDefaultQuota = $3;
+			}
+			;
+
+refreshDefRuleIn:		REFRESH_DEF_RULE_IN '=' INTEGER ';'
+			{
+				g_psoConf->m_uiRefreshDefRuleIn = $3;
 			}
 			;

@@ -21,6 +21,8 @@ struct SAppPCRFConf {
 	unsigned int m_uiCCATimeoutSec;
 	unsigned int m_uiCCATimeoutUSec;
 	unsigned int m_uiMaxCCRHandlers;
+	unsigned int m_uiDefaultQuota;
+	unsigned int m_uiRefreshDefRuleIn;
 };
 
 extern struct SAppPCRFConf *g_psoConf;
@@ -198,3 +200,4 @@ extern struct dict_object *g_psoDictAVPGxCapabilityList;
 #ifdef __cplusplus
 }				/* функции, реализованные на C++ */
 #endif
+	

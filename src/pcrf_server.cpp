@@ -2178,11 +2178,12 @@ static unsigned int pcrf_server_determine_action_set( SMsgDataForDB &p_soRequest
 				LOG_D( "session-id: %s; DEFAULT_EPS_BEARER_QOS_CHANGE", p_soRequestInfo.m_psoSessInfo->m_strSessionId.c_str() );
 				break;
 			case 26: /* USAGE_REPORT */ /* Cisco SCE Gx notation */
-				uiRetVal |= ACTION_OPERATE_RULE;
+				/*uiRetVal |= ACTION_OPERATE_RULE;*/
+				uiRetVal |= ACTION_UPDATE_QUOTA;
 				LOG_D( "session-id: %s; USAGE_REPORT[26]", p_soRequestInfo.m_psoSessInfo->m_strSessionId.c_str() );
 				break;
 			case 33: /* USAGE_REPORT */
-			  /*uiRetVal |= ACTION_OPERATE_RULE;*/
+				/*uiRetVal |= ACTION_OPERATE_RULE;*/
 				uiRetVal |= ACTION_UPDATE_QUOTA;
 				LOG_D( "session-id: %s; USAGE_REPORT[33]", p_soRequestInfo.m_psoSessInfo->m_strSessionId.c_str() );
 				break;

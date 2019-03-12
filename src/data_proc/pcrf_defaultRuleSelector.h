@@ -5,8 +5,9 @@ struct SDefaultRuleSelectorData;
 
 #ifdef __cplusplus
 #include "../app_pcrf_header.h"
+#include "pcrf_timed_oper.h"
 #include <list>
-	int pcrf_drs_get_defaultRuleList( SUserEnvironment	&p_soSessEnviron, std::list<std::string> *p_plistRuleName );
+	int pcrf_drs_get_defaultRuleList( SSubscriberData *p_psoSubscriberData, std::list<std::string> *p_plistRuleName );
 extern "C" {
 #endif
 

@@ -28,6 +28,15 @@ extern "C" {
 #define GX_ERICSSN    4
 #define RX_IMS       10
 
+#define PEER_DIALECT_NAME(a)	\
+	(a == 0 ? "GX_UNDEF" :		\
+	(a == 1 ? "GX_HW_UGW" :		\
+	(a == 2 ? "GX_CISCO_SCE" :	\
+	(a == 3 ? "GX_PROCERA" :	\
+	(a == 4 ? "GX_ERICSSN" :	\
+	(a == 10 ? "RX_IMS" :		\
+	"UNSUPPORTED_DIALECT"))))))
+
 /* определение набора необходимых действий при обработке CCR */
 #define ACTION_COPY_DEFBEARER			static_cast<unsigned int>(0x00000001)
 #define ACTION_UPDATE_SESSIONCACHE		static_cast<unsigned int>(0x00000002)
@@ -42,11 +51,11 @@ extern "C" {
 /* функции сервера */
 /* кешированные данные из запроса */
 struct SSessionPolicyInfo {
-	otl_value<std::string> m_coChargingRuleName;
-  otl_value<int32_t>     m_coPCCRuleStatus;
-  otl_value<std::string> m_coPCCRuleStatusEnum;
-  otl_value<int32_t>     m_coRuleFailureCode;
-  otl_value<std::string> m_coRuleFailureCodeEnum;
+	otl_value<std::string>	m_coChargingRuleName;
+	otl_value<int32_t>		m_coPCCRuleStatus;
+	otl_value<std::string>	m_coPCCRuleStatusEnum;
+	otl_value<int32_t>		m_coRuleFailureCode;
+	otl_value<std::string>	m_coRuleFailureCodeEnum;
 };
 /* структура для получения информации о мониторинге */
 struct SDBMonitoringInfo {

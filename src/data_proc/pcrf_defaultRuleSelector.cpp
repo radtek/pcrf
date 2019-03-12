@@ -42,20 +42,20 @@ int pcrf_drs_add_defaultRule( const SDefaultRuleSelectorData * p_psoSelectorData
 	return 0;
 }
 
-static bool pcrf_drs_check_parameter( const SDefaultRuleSelectorData &p_soDataSelector, const char *p_pszParam, const std::string &p_strValue )
+static bool pcrf_drs_check_parameter( const SDefaultRuleSelectorData &p_soDataSelector, const char *p_pszParam, const char *p_pstrValue )
 {
 	bool bRetVal = false;
 	std::unordered_multimap<std::string, std::string>::const_iterator iterValues = p_soDataSelector.m_mmapCondition.find( p_pszParam );
 
 	if( iterValues != p_soDataSelector.m_mmapCondition.end() ) {
 		for( ; iterValues != p_soDataSelector.m_mmapCondition.end() && 0 == iterValues->first.compare( p_pszParam ); ++iterValues ) {
-			UTL_LOG_D( *g_pcoLog, "parameter: '%s'; checking value: '%s'; checked value: '%s'", p_pszParam, iterValues->second.c_str(), p_strValue.c_str() );
-			if( 0 == iterValues->second.compare( p_strValue ) ) {
+			UTL_LOG_D( *g_pcoLog, "parameter: '%s'; checking value: '%s'; checked value: '%s'", p_pszParam, iterValues->second.c_str(), p_pstrValue );
+			if( 0 == iterValues->second.compare( p_pstrValue ) ) {
 				bRetVal = true;
-				UTL_LOG_D( *g_pcoLog, "parameter: '%s'; value '%s' fits for default rule", p_pszParam, p_strValue.c_str() );
+				UTL_LOG_D( *g_pcoLog, "parameter: '%s'; value '%s' fits for default rule", p_pszParam, p_pstrValue );
 				break;
 			} else {
-				UTL_LOG_D( *g_pcoLog, "parameter: '%s'; value '%s' does not fit for default rule", p_pszParam, p_strValue.c_str() );
+				UTL_LOG_D( *g_pcoLog, "parameter: '%s'; value '%s' does not fit for default rule", p_pszParam, p_pstrValue );
 			}
 		}
 	} else {
@@ -65,39 +65,48 @@ static bool pcrf_drs_check_parameter( const SDefaultRuleSelectorData &p_soDataSe
 	return bRetVal;
 }
 
-int pcrf_drs_get_defaultRuleList( SUserEnvironment &p_soSessEnviron, std::list<std::string> *p_plistRuleName )
+int pcrf_drs_get_defaultRuleList( SSubscriberData *p_psoSubscriberData, std::list<std::string> *p_plistRuleName )
 {
 	/* обходим весь список */
 	std::unordered_map<std::string, SDefaultRuleSelectorData>::iterator iterRule = g_mapDefaultRule.begin();
 	const char *pszParamName;
-	const std::string *pstrParamValue;
+	const char *pszParamValue;
 
 	for( ; iterRule != g_mapDefaultRule.end(); ++iterRule ) {
 		UTL_LOG_D( *g_pcoLog, "default rule name: '%s'", iterRule->first.c_str() );
-		if( 0 == p_soSessEnviron.m_coRATType.is_null() ) {
+		if( 0 == p_psoSubscriberData->m_soUserEnvironment.m_coRATType.is_null() ) {
 			pszParamName = "RAT_TYPE";
-			pstrParamValue = &p_soSessEnviron.m_coRATType.v;
-			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, *pstrParamValue ) ) {
+			pszParamValue = p_psoSubscriberData->m_soUserEnvironment.m_coRATType.v.c_str();
+			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, pszParamValue ) ) {
 			} else {
 				continue;
 			}
 		}
-		if( 0 == p_soSessEnviron.m_coSGSNAddress.is_null() ) {
+		if( 0 == p_psoSubscriberData->m_soUserEnvironment.m_coSGSNAddress.is_null() ) {
 			pszParamName = "SGSN_ADDRESS";
-			pstrParamValue = &p_soSessEnviron.m_coSGSNAddress.v;
-			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, *pstrParamValue ) ) {
+			pszParamValue = p_psoSubscriberData->m_soUserEnvironment.m_coSGSNAddress.v.c_str();
+			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, pszParamValue ) ) {
 			} else {
 				continue;
 			}
 		}
-		if( 0 == p_soSessEnviron.m_coIPCANType.is_null() ) {
+		if( 0 == p_psoSubscriberData->m_soUserEnvironment.m_coIPCANType.is_null() ) {
 			pszParamName = "IP_CAN_TYPE";
-			pstrParamValue = &p_soSessEnviron.m_coIPCANType.v;
-			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, *pstrParamValue ) ) {
+			pszParamValue = p_psoSubscriberData->m_soUserEnvironment.m_coIPCANType.v.c_str();
+			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, pszParamValue ) ) {
 			} else {
 				continue;
 			}
 		}
+		if( 0 == p_psoSubscriberData->m_soUserEnvironment.m_coIPCANType.is_null() ) {
+			pszParamName = "PEER_DIALECT";
+			pszParamValue = PEER_DIALECT_NAME( p_psoSubscriberData->m_uiPeerDialect );
+			if( pcrf_drs_check_parameter( iterRule->second, pszParamName, pszParamValue ) ) {
+			} else {
+				continue;
+			}
+		}
+		UTL_LOG_D( *g_pcoLog, "default rule '%s' selected for '%s'", iterRule->first.c_str(), p_psoSubscriberData->m_strSubscriberId.c_str() );
 		p_plistRuleName->push_back( iterRule->first );
 	}
 }

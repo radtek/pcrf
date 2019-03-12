@@ -572,99 +572,99 @@ static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQu
 /* функция сканирования очереди обновлений в БД */
 static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
 {
-  int iFnRes;
-  struct timespec soWaitTime;
-  otl_connect *pcoDBConn = NULL;
+	int iFnRes;
+	struct timespec soWaitTime;
+	otl_connect *pcoDBConn = NULL;
 
-  /* suppress compiler warning */
-  p_pvArg = p_pvArg;
+	/* suppress compiler warning */
+	p_pvArg = p_pvArg;
 
-  /* задаем время завершения ожидания семафора */
-  pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
+	/* задаем время завершения ожидания семафора */
+	pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-  /* локальная очередь сессий на завершение */
-  std::unordered_set<std::string>::iterator iterLocalQueue;
-  std::list<std::string> listSessionIdList;
-  std::list<std::string>::iterator iterSessionIdList;
+	/* локальная очередь сессий на завершение */
+	std::unordered_set<std::string>::iterator iterLocalQueue;
+	std::list<std::string> listSessionIdList;
+	std::list<std::string>::iterator iterSessionIdList;
 
-  while ( ! g_iStop ) {
-    /* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
-    /* для завершения работы потока мьютекс принудительно разблокируется чтобы не дожидаться истечения таймаута */
-    iFnRes = pthread_mutex_timedlock( &g_tDBReqMutex, &soWaitTime );
-    /* если пора завершать работу выходим из цикла */
-    if ( g_iStop ) {
-      break;
-    }
+	while( ! g_iStop ) {
+	  /* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
+	  /* для завершения работы потока мьютекс принудительно разблокируется чтобы не дожидаться истечения таймаута */
+		iFnRes = pthread_mutex_timedlock( &g_tDBReqMutex, &soWaitTime );
+		/* если пора завершать работу выходим из цикла */
+		if( g_iStop ) {
+			break;
+		}
 
-    /* если ошибка не связана с таймаутом завершаем цикл */
-    if ( ETIMEDOUT != iFnRes ) {
-      break;
-    }
+		/* если ошибка не связана с таймаутом завершаем цикл */
+		if( ETIMEDOUT != iFnRes ) {
+			break;
+		}
 
-    /* задаем время следующего запуска */
-    pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
+		/* задаем время следующего запуска */
+		pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-    /* если очередь обновления политик не обрабатывается */
-    if ( 0 != g_psoConf->m_iOperateRefreshQueue ) {
-      /* очередь сессий на обновление */
-      std::vector<SRefQueue> vectQueue;
-      std::vector<SRefQueue>::iterator iter;
+		/* если очередь обновления политик не обрабатывается */
+		if( 0 != g_psoConf->m_iOperateRefreshQueue ) {
+		  /* очередь сессий на обновление */
+			std::vector<SRefQueue> vectQueue;
+			std::vector<SRefQueue>::iterator iter;
 
-      /* запрашиваем подключение к БД */
-      if ( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
-        /* создаем список обновления политик */
-        CHECK_POSIX_DO( pcrf_client_db_load_refqueue_data( pcoDBConn, vectQueue ), goto clear_external_refresh_queue_data );
+			/* запрашиваем подключение к БД */
+			if( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
+			  /* создаем список обновления политик */
+				CHECK_POSIX_DO( pcrf_client_db_load_refqueue_data( pcoDBConn, vectQueue ), goto clear_external_refresh_queue_data );
 
-        for ( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
-          /* обрабатываем запись очереди обновлений политик */
-          if ( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
-            pcrf_client_db_delete_refqueue( pcoDBConn, *iter );
-          }
-        }
+				for( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
+				  /* обрабатываем запись очереди обновлений политик */
+					if( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
+						pcrf_client_db_delete_refqueue( pcoDBConn, *iter );
+					}
+				}
 
-        clear_external_refresh_queue_data:
-        /* очищаем вектор */
-        vectQueue.clear();
-        /* если мы получили в распоряжение подключение к БД его надо освободить */
-        if ( NULL != pcoDBConn ) {
-          pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
-          pcoDBConn = NULL;
-        }
-      }
-    }
+			clear_external_refresh_queue_data:
+			/* очищаем вектор */
+				vectQueue.clear();
+				/* если мы получили в распоряжение подключение к БД его надо освободить */
+				if( NULL != pcoDBConn ) {
+					pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
+					pcoDBConn = NULL;
+				}
+			}
+		}
 
-    /* обрабатываем локальную очередь на завершение сессий */
-    /* блокируем мьютекс */
-    CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
-    /* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
-    iterLocalQueue = g_setLocalRefreshQueue.begin();
-    while ( iterLocalQueue != g_setLocalRefreshQueue.end() ) {
-      listSessionIdList.push_back( *iterLocalQueue );
-      ++iterLocalQueue;
-    }
-    /* очищаем локальную очередь */
-    g_setLocalRefreshQueue.clear();
-    /* снимаем блокировку мьютекса */
-    CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
+		/* обрабатываем локальную очередь на завершение сессий */
+		/* блокируем мьютекс */
+		CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
+		/* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
+		iterLocalQueue = g_setLocalRefreshQueue.begin();
+		while( iterLocalQueue != g_setLocalRefreshQueue.end() ) {
+			listSessionIdList.push_back( *iterLocalQueue );
+			++iterLocalQueue;
+		}
+		/* очищаем локальную очередь */
+		g_setLocalRefreshQueue.clear();
+		/* снимаем блокировку мьютекса */
+		CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
 
-    /* обрабатываем список сессий */
-    iterSessionIdList = listSessionIdList.begin();
-    while ( iterSessionIdList != listSessionIdList.end() ) {
-      {
-        SSessionInfo soSessInfo;
+		/* обрабатываем список сессий */
+		iterSessionIdList = listSessionIdList.begin();
+		while( iterSessionIdList != listSessionIdList.end() ) {
+			{
+				SSessionInfo soSessInfo;
 
-        if ( 0 == pcrf_session_cache_get( *iterSessionIdList, &soSessInfo, NULL, NULL ) ) {
-          pcrf_client_gx_rar_w_SRCause( soSessInfo );
-        }
-      }
-      ++iterSessionIdList;
-    }
+				if( 0 == pcrf_session_cache_get( *iterSessionIdList, &soSessInfo, NULL, NULL ) ) {
+					pcrf_client_gx_rar_w_SRCause( soSessInfo );
+				}
+			}
+			++iterSessionIdList;
+		}
 
-    clear_and_continue:
-    listSessionIdList.clear();
-  }
+	clear_and_continue:
+		listSessionIdList.clear();
+	}
 
-  pthread_exit( 0 );
+	pthread_exit( 0 );
 }
 
 void pcrf_local_refresh_queue_add( std::string &p_strSessionId )

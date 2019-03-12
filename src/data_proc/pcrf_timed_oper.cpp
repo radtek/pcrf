@@ -8,34 +8,6 @@ extern CLog *g_pcoLog;
 static pthread_mutex_t g_mutexThreadCounter;
 static unsigned int g_uiThreadCount;
 
-struct SSubscriberData {
-	/* const data */
-	int32_t										m_i32CCRType;
-	std::string									m_strSubscriberId;
-	unsigned int								m_uiPeerDialect;
-	std::vector<SSessionUsageInfo>				m_vectUsageInfo;
-	SUserEnvironment							m_soUserEnvironment;
-	otl_value<std::string>						m_coCalledStationId;
-	otl_value<std::string>						m_coIMEI;
-	std::vector<SDBAbonRule>					m_vectActive;
-	/* viriable data (result of operation) */
-	unsigned int								&m_uiActionSet;
-	std::list<SDBAbonRule>						&m_listAbonRules;
-	std::map<std::string, SDBMonitoringInfo>	&m_mapMonitInfo;
-	/* constructor */
-	SSubscriberData( int32_t &p_iCCRType,
-					 std::string &p_strSubscriberId,
-					 unsigned int &p_uiPeerDialect,
-					 std::vector<SSessionUsageInfo> &p_vectUsageInfo,
-					 SUserEnvironment &p_coUserEnvironment,
-					 otl_value<std::string> &p_coCalledStationId,
-					 otl_value<std::string> &p_coIMEI,
-					 std::vector<SDBAbonRule> &p_vectActive,
-					 unsigned int &p_uiActionSet,
-					 std::list<SDBAbonRule> &p_listAbonRules,
-					 std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo );
-};
-
 struct STimedData {
 	/* copy of subscriber data */
 	SSubscriberData								*m_psoData;
@@ -60,6 +32,7 @@ struct STimedData {
 static bool pcrf_subscriber_data_increment_counter();
 static void pcrf_subscriber_data_decrement_counter();
 static void * pcrf_subscriber_data_timed_oper( void* );
+static void pcrf_subscriber_data_load_def_quota( const std::vector< SSessionUsageInfo > &p_vecUsageInfo, std::map<std::string, SDBMonitoringInfo> &p_mapMonitoringInfo );
 
 int pcrf_subscriber_data_init()
 {
@@ -154,8 +127,12 @@ int pcrf_subscriber_data_proc( SSubscriberData *p_psoSubscriberData )
 		/* getting of default rules */
 		std::list<std::string> listRuleList;
 
-		pcrf_drs_get_defaultRuleList( p_psoSubscriberData->m_soUserEnvironment, &listRuleList );
-		pcrf_server_load_rule_info( listRuleList, p_psoSubscriberData->m_uiPeerDialect, p_psoSubscriberData->m_listAbonRules );
+		if( INITIAL_REQUEST == p_psoSubscriberData->m_i32CCRType ) {
+			pcrf_drs_get_defaultRuleList( p_psoSubscriberData, &listRuleList );
+			pcrf_server_load_rule_info( listRuleList, p_psoSubscriberData->m_uiPeerDialect, p_psoSubscriberData->m_listAbonRules );
+		} else if( UPDATE_REQUEST == p_psoSubscriberData->m_i32CCRType ) {
+			pcrf_subscriber_data_load_def_quota( p_psoSubscriberData->m_vectUsageInfo, p_psoSubscriberData->m_mapMonitInfo );
+		}
 	}
 
 	CHECK_FCT( pthread_mutex_unlock( &psoThreadData->m_mutexDataCopied ) );
@@ -308,6 +285,36 @@ static void * pcrf_subscriber_data_timed_oper( void * p_pvParam )
 	UTL_LOG_D( *g_pcoLog, "thread data was destroyed" );
 
 	return NULL;
+}
+
+static void pcrf_subscriber_data_load_def_quota( const std::vector< SSessionUsageInfo > &p_vecUsageInfo, std::map<std::string, SDBMonitoringInfo> &p_mapMonitoringInfo)
+{
+	std::vector<SSessionUsageInfo>::const_iterator iterUsage;
+
+	for( iterUsage = p_vecUsageInfo.begin(); iterUsage != p_vecUsageInfo.end(); ++iterUsage ) {
+		{
+			SDBMonitoringInfo soMonitInfo;
+
+			soMonitInfo.m_bIsReported = true;
+
+			if( 0 == iterUsage->m_coCCTotalOctets.is_null() ) {
+				soMonitInfo.m_coDosageTotalOctets = g_psoConf->m_uiDefaultQuota;
+			}
+			if( 0 == iterUsage->m_coCCOutputOctets.is_null() ) {
+				soMonitInfo.m_coDosageOutputOctets = g_psoConf->m_uiDefaultQuota;
+			}
+			if( 0 == iterUsage->m_coCCInputOctets.is_null() ) {
+				soMonitInfo.m_coDosageInputOctets = g_psoConf->m_uiDefaultQuota;
+			}
+			p_mapMonitoringInfo.insert( std::pair<std::string, SDBMonitoringInfo>( iterUsage->m_coMonitoringKey.v, soMonitInfo ) );
+			UTL_LOG_D( *g_pcoLog,
+					   "default quota: key: '%s'; total: '%u'; output: '%u'; input: '%u'",
+					   iterUsage->m_coMonitoringKey.v.c_str(),
+					   0 == soMonitInfo.m_coDosageTotalOctets.is_null() ? soMonitInfo.m_coDosageTotalOctets.v : 0,
+					   0 == soMonitInfo.m_coDosageOutputOctets.is_null() ? soMonitInfo.m_coDosageOutputOctets.v : 0,
+					   0 == soMonitInfo.m_coDosageInputOctets.is_null() ? soMonitInfo.m_coDosageInputOctets.v : 0 );
+		}
+	}
 }
 
 STimedData::STimedData(

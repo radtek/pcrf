@@ -310,6 +310,7 @@ int pcrf_rule_cache_get_rule_info( const std::string &p_strRuleName, SDBAbonRule
 	if( iter != g_pmapRule->end() ) {
 		p_soRule = iter->second;
 	} else {
+		UTL_LOG_E( *g_pcoLog, "rule '%s' was not found in rule cache", p_strRuleName.c_str() );
 		iRetVal = ENODATA;
 	}
 	CHECK_FCT( pcrf_cache_rwlock_unlock() );
