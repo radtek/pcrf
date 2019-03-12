@@ -332,7 +332,15 @@ static int app_pcrf_ccr_cb(
 													  listAbonRules,
 													  soMsgInfoCache.m_psoSessInfo->m_mapMonitInfo );
 
-		pcrf_subscriber_data_proc( psoSubscrData );
+		if( 0 == pcrf_subscriber_data_proc( psoSubscrData ) ) {
+		} else {
+			/* произошел сбой при формировании списка правил абонента */
+			pcrf_local_refresh_queue_add(
+				time_t( NULL ) + g_psoConf->m_uiRefreshDefRuleIn,
+				soMsgInfoCache.m_psoSessInfo->m_strSubscriberId,
+				"subscriber_id",
+				NULL );
+		}
 	}
 
 	msg *ans = NULL;
@@ -555,7 +563,7 @@ cleanup_and_exit:
 
 	/* если сессию следует завершить */
 	if( NULL != pstrSessShouldBeTerm ) {
-		pcrf_local_refresh_queue_add( *pstrSessShouldBeTerm );
+		pcrf_local_refresh_queue_add( static_cast< time_t >( 0 ), *pstrSessShouldBeTerm, "session_id", "abort_session" );
 		delete pstrSessShouldBeTerm;
 	}
 
@@ -2267,7 +2275,7 @@ int pcrf_server_look4stalledsession( SSessionInfo *p_psoSessInfo )
 	iterList = listSessionId.begin();
 
 	for( ; iterList != listSessionId.end(); ++iterList ) {
-		pcrf_local_refresh_queue_add( *iterList );
+		pcrf_local_refresh_queue_add( static_cast< time_t >( 0 ), *iterList, "session_id", "abort_session" );
 	}
 
 	return 0;

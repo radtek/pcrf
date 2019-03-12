@@ -30,7 +30,10 @@ extern "C"
 void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque);
 
 static pthread_mutex_t g_tLocalQueueMutex;
-static std::unordered_set<std::string> g_setLocalRefreshQueue;
+static std::multimap<time_t, SRefQueue> g_mmapLocalRefreshQueue;
+
+/* функция для загрузки записей из локальной очереди */
+static int pcrf_client_load_localQueue_data( std::list<SRefQueue> &p_listQueue );
 
 /* функция для обработки просроченного запроса */
 static void pcrf_client_gx_raa_expire (void *p_pvData, DiamId_t p_pDiamId, size_t p_stDiamIdLen, msg **p_ppMsg)
@@ -417,156 +420,156 @@ int pcrf_client_is_any_changes(std::vector<SDBAbonRule> &p_vectActive, std::list
 /* функция обработки записи очереди обновления политик */
 static int pcrf_client_operate_refqueue_record( otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue )
 {
-  int iRetVal = 0;
-  std::vector<std::string> vectSessionList;
-  std::list<int32_t> listEventTrigger;
+	int iRetVal = 0;
+	std::vector<std::string> vectSessionList;
+	std::list<int32_t> listEventTrigger;
 
-  bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
-  std::list<SDBAbonRule>::iterator iterAbonRule;
+	bool bMKInstalled = false;         /* признак того, что ключи мониторинга были инсталлированы */
+	std::list<SDBAbonRule>::iterator iterAbonRule;
 
-  /* загружаем из БД список сессий абонента */
-  CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
+	/* загружаем из БД список сессий абонента */
+	CHECK_POSIX( pcrf_client_db_load_session_list( p_pcoDBConn, p_soRefQueue, vectSessionList ) );
 
-  /* обходим все сессии абонента */
-  for ( std::vector<std::string>::iterator iterSess = vectSessionList.begin(); iterSess != vectSessionList.end(); ++iterSess ) {
-    listEventTrigger.clear();
-    /* сведения о сессии */
-    SMsgDataForDB soSessInfo;
-    /* список правил профиля абонента */
-    std::list<SDBAbonRule> listAbonRules;
-    /* список активных правил абонента */
-    std::vector<SDBAbonRule> vectActive;
+	/* обходим все сессии абонента */
+	for( std::vector<std::string>::iterator iterSess = vectSessionList.begin(); iterSess != vectSessionList.end(); ++iterSess ) {
+		listEventTrigger.clear();
+		/* сведения о сессии */
+		SMsgDataForDB soSessInfo;
+		/* список правил профиля абонента */
+		std::list<SDBAbonRule> listAbonRules;
+		/* список активных правил абонента */
+		std::vector<SDBAbonRule> vectActive;
 
-    /* инициализация структуры хранения данных сообщения */
-    CHECK_FCT_DO( pcrf_server_DBstruct_init( &soSessInfo ), goto clear_and_continue );
-    /* задаем идентификтор сессии */
-    soSessInfo.m_psoSessInfo->m_strSessionId = *iterSess;
-    /* загружаем из БД информацию о сессии абонента */
-    {
-      /* ищем информацию о базовой сессии в кеше */
-      if ( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL ) ) {
-        goto clear_and_continue;
-      }
-      /* необходимо определить диалект хоста */
-      CHECK_POSIX_DO( pcrf_peer_dialect( *soSessInfo.m_psoSessInfo ), goto clear_and_continue );
-      /* для Procera нам понадобится дополнительная информация */
-      if ( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-        SSessionInfo soUGWSessInfo;
-        std::string strUGWSessionId;
-        if ( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) ) {
-          strUGWSessionId = soUGWSessInfo.m_strSessionId;
-          /* ищем информацию о базовой сессии в кеше */
-          pcrf_session_cache_get( strUGWSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL );
-        }
-      }
-    }
-    /* проверяем, подключен ли пир к freeDiameterd */
-    if ( !pcrf_peer_is_connected( *soSessInfo.m_psoSessInfo ) ) {
-      iRetVal = ENOTCONN;
-      goto clear_and_continue;
-    }
-    /* если в поле action задано значение abort_session */
-    if ( !p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare( "abort_session" ) ) {
-      CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
-      goto clear_and_continue;
-    }
-	if( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-		pcrf_procera_additional_rules(
-			soSessInfo.m_psoSessInfo->m_coIMEI,
+		/* инициализация структуры хранения данных сообщения */
+		CHECK_FCT_DO( pcrf_server_DBstruct_init( &soSessInfo ), goto clear_and_continue );
+		/* задаем идентификтор сессии */
+		soSessInfo.m_psoSessInfo->m_strSessionId = *iterSess;
+		/* загружаем из БД информацию о сессии абонента */
+		{
+		  /* ищем информацию о базовой сессии в кеше */
+			if( 0 != pcrf_session_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL ) ) {
+				goto clear_and_continue;
+			}
+			/* необходимо определить диалект хоста */
+			CHECK_POSIX_DO( pcrf_peer_dialect( *soSessInfo.m_psoSessInfo ), goto clear_and_continue );
+			/* для Procera нам понадобится дополнительная информация */
+			if( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+				SSessionInfo soUGWSessInfo;
+				std::string strUGWSessionId;
+				if( 0 == pcrf_server_find_core_sess_byframedip( soSessInfo.m_psoSessInfo->m_coFramedIPAddress.v, soUGWSessInfo ) ) {
+					strUGWSessionId = soUGWSessInfo.m_strSessionId;
+					/* ищем информацию о базовой сессии в кеше */
+					pcrf_session_cache_get( strUGWSessionId, soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, NULL );
+				}
+			}
+		}
+		/* проверяем, подключен ли пир к freeDiameterd */
+		if( !pcrf_peer_is_connected( *soSessInfo.m_psoSessInfo ) ) {
+			iRetVal = ENOTCONN;
+			goto clear_and_continue;
+		}
+		/* если в поле action задано значение abort_session */
+		if( 0 == p_soRefQueue.m_coAction.is_null() && 0 == p_soRefQueue.m_coAction.v.compare( "abort_session" ) ) {
+			CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
+			goto clear_and_continue;
+		}
+		if( GX_PROCERA == soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+			pcrf_procera_additional_rules(
+				soSessInfo.m_psoSessInfo->m_coIMEI,
+				soSessInfo.m_psoSessInfo->m_coCalledStationId,
+				soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,
+				soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
+				listAbonRules );
+		}
+		/* загружаем из БД правила абонента */
+		CHECK_POSIX_DO( pcrf_server_create_abon_rule_list(
+			p_pcoDBConn,
+			soSessInfo.m_psoSessInfo->m_strSubscriberId,
+			soSessInfo.m_psoSessInfo->m_uiPeerDialect,
+			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType,
+			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType,
 			soSessInfo.m_psoSessInfo->m_coCalledStationId,
-			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coECGI,
-			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_soUsrLoc.m_coCGI,
-			listAbonRules );
+			soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress,
+			soSessInfo.m_psoSessInfo->m_coIMEI,
+			listAbonRules ), /* continue */ );
+		/* если у абонента нет активных политик завершаем его сессию */
+		if( 0 == listAbonRules.size() ) {
+			CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
+			goto clear_and_continue;
+		}
+		/* загружаем список активных правил */
+		CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, vectActive ), /* continue */ );
+		/* формируем список неактуальных правил */
+		pcrf_server_select_notrelevant_active( listAbonRules, vectActive );
+		/* формируем список ключей мониторинга */
+		pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo->m_mapMonitInfo );
+		/* загружаем информацию о мониторинге */
+		CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
+		/* проверяем наличие изменений в политиках */
+		if( !pcrf_client_is_any_changes( vectActive, listAbonRules ) ) {
+			UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_strSessionId.c_str() );
+			goto clear_and_continue;
+		}
+
+		/* обходим все правила */
+		for( iterAbonRule = listAbonRules.begin(); iterAbonRule != listAbonRules.end(); ++iterAbonRule ) {
+		  /* проверяем наличие ключей мониторинга */
+			if( ! bMKInstalled && 0 != iterAbonRule->m_vectMonitKey.size() ) {
+				bMKInstalled = true;
+				break;
+			}
+		}
+
+		/* готовим список триггеров */
+		/* RAT_CHANGE */
+		switch( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+			case GX_HW_UGW:
+			case GX_ERICSSN:
+				listEventTrigger.push_back( 2 );
+				break;
+		}
+		/* TETHERING_REPORT */
+		switch( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+			case GX_HW_UGW:
+			case GX_ERICSSN:
+				listEventTrigger.push_back( 101 );
+				break;
+		}
+	#if 1
+		/* USER_LOCATION_CHANGE && SGSN_CHANGE */
+		switch( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+			case GX_HW_UGW:
+			case GX_ERICSSN:
+				listEventTrigger.push_back( 13 );
+				listEventTrigger.push_back( 0 );
+				break;
+		}
+	#endif
+		/* USAGE_REPORT */
+		if( bMKInstalled ) {
+			switch( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
+				case GX_HW_UGW:
+				case GX_PROCERA:
+				case GX_ERICSSN:
+					listEventTrigger.push_back( 33 );
+					break;
+				case GX_CISCO_SCE:
+					listEventTrigger.push_back( 26 );
+					break;
+			}
+		}
+
+		/* посылаем RAR-запрос */
+		CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, &vectActive, &listAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
+
+		/* освобождаем ресуры*/
+	clear_and_continue:
+		pcrf_server_DBStruct_cleanup( &soSessInfo );
+		if( iRetVal )
+			break;
 	}
-    /* загружаем из БД правила абонента */
-	CHECK_POSIX_DO( pcrf_server_create_abon_rule_list(
-		p_pcoDBConn,
-		soSessInfo.m_psoSessInfo->m_strSubscriberId,
-		soSessInfo.m_psoSessInfo->m_uiPeerDialect,
-		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coIPCANType,
-		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coRATType,
-		soSessInfo.m_psoSessInfo->m_coCalledStationId,
-		soSessInfo.m_psoReqInfo->m_soUserEnvironment.m_coSGSNAddress,
-		soSessInfo.m_psoSessInfo->m_coIMEI,
-		listAbonRules ), /* continue */ );
-    /* если у абонента нет активных политик завершаем его сессию */
-    if ( 0 == listAbonRules.size() ) {
-      CHECK_POSIX_DO( pcrf_client_gx_rar_w_SRCause( *( soSessInfo.m_psoSessInfo ) ), );
-      goto clear_and_continue;
-    }
-    /* загружаем список активных правил */
-    CHECK_POSIX_DO( pcrf_session_rule_cache_get( soSessInfo.m_psoSessInfo->m_strSessionId, vectActive ), /* continue */ );
-    /* формируем список неактуальных правил */
-    pcrf_server_select_notrelevant_active( listAbonRules, vectActive );
-    /* формируем список ключей мониторинга */
-    pcrf_make_mk_list( listAbonRules, soSessInfo.m_psoSessInfo->m_mapMonitInfo );
-    /* загружаем информацию о мониторинге */
-    CHECK_POSIX_DO( pcrf_server_db_monit_key( p_pcoDBConn, soSessInfo.m_psoSessInfo->m_strSubscriberId, soSessInfo.m_psoSessInfo->m_mapMonitInfo ), /* continue */ );
-    /* проверяем наличие изменений в политиках */
-    if ( !pcrf_client_is_any_changes( vectActive, listAbonRules ) ) {
-      UTL_LOG_N( *g_pcoLog, "subscriber_id: '%s'; session_id: '%s': no any changes", soSessInfo.m_psoSessInfo->m_strSubscriberId.c_str(), soSessInfo.m_psoSessInfo->m_strSessionId.c_str() );
-      goto clear_and_continue;
-    }
 
-    /* обходим все правила */
-    for ( iterAbonRule = listAbonRules.begin(); iterAbonRule != listAbonRules.end(); ++iterAbonRule ) {
-      /* проверяем наличие ключей мониторинга */
-      if ( ! bMKInstalled && 0 != iterAbonRule->m_vectMonitKey.size() ) {
-        bMKInstalled = true;
-        break;
-      }
-    }
-
-    /* готовим список триггеров */
-    /* RAT_CHANGE */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_HW_UGW:
-      case GX_ERICSSN:
-        listEventTrigger.push_back( 2 );
-        break;
-    }
-    /* TETHERING_REPORT */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_HW_UGW:
-      case GX_ERICSSN:
-        listEventTrigger.push_back( 101 );
-        break;
-    }
-#if 1
-    /* USER_LOCATION_CHANGE && SGSN_CHANGE */
-    switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-      case GX_HW_UGW:
-      case GX_ERICSSN:
-        listEventTrigger.push_back( 13 );
-        listEventTrigger.push_back( 0 );
-        break;
-    }
-#endif
-    /* USAGE_REPORT */
-    if ( bMKInstalled ) {
-      switch ( soSessInfo.m_psoSessInfo->m_uiPeerDialect ) {
-        case GX_HW_UGW:
-        case GX_PROCERA:
-        case GX_ERICSSN:
-          listEventTrigger.push_back( 33 );
-          break;
-        case GX_CISCO_SCE:
-          listEventTrigger.push_back( 26 );
-          break;
-      }
-    }
-
-    /* посылаем RAR-запрос */
-    CHECK_POSIX_DO( pcrf_client_gx_rar( soSessInfo.m_psoSessInfo, soSessInfo.m_psoReqInfo, &vectActive, &listAbonRules, &listEventTrigger, NULL, 0 ), /* continue */ );
-
-    /* освобождаем ресуры*/
-    clear_and_continue:
-    pcrf_server_DBStruct_cleanup( &soSessInfo );
-    if ( iRetVal )
-      break;
-  }
-
-  return iRetVal;
+	return iRetVal;
 }
 
 /* функция сканирования очереди обновлений в БД */
@@ -582,96 +585,62 @@ static void * pcrf_client_operate_refreshqueue( void *p_pvArg )
 	/* задаем время завершения ожидания семафора */
 	pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-	/* локальная очередь сессий на завершение */
-	std::unordered_set<std::string>::iterator iterLocalQueue;
-	std::list<std::string> listSessionIdList;
-	std::list<std::string>::iterator iterSessionIdList;
-
-	while( ! g_iStop ) {
-	  /* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
-	  /* для завершения работы потока мьютекс принудительно разблокируется чтобы не дожидаться истечения таймаута */
-		iFnRes = pthread_mutex_timedlock( &g_tDBReqMutex, &soWaitTime );
-		/* если пора завершать работу выходим из цикла */
-		if( g_iStop ) {
-			break;
-		}
-
-		/* если ошибка не связана с таймаутом завершаем цикл */
-		if( ETIMEDOUT != iFnRes ) {
-			break;
-		}
-
+	/* в рабочем режиме мьютекс всегда будет находиться в заблокированном состоянии и обработка будет запускаться по истечению таймаута */
+	/* для завершения работы потока мьютекс принудительно разблокируется чтобы не дожидаться истечения таймаута */
+	while( ETIMEDOUT == pthread_mutex_timedlock( &g_tDBReqMutex, &soWaitTime ) ) {
 		/* задаем время следующего запуска */
 		pcrf_make_timespec_timeout( soWaitTime, ( g_psoConf->m_iDBReqInterval ? g_psoConf->m_iDBReqInterval : DB_REQ_INTERVAL ), 0 );
 
-		/* если очередь обновления политик не обрабатывается */
-		if( 0 != g_psoConf->m_iOperateRefreshQueue ) {
-		  /* очередь сессий на обновление */
-			std::vector<SRefQueue> vectQueue;
-			std::vector<SRefQueue>::iterator iter;
+		/* очередь обновления политик */
+		std::list<SRefQueue> listQueue;
+		std::list<SRefQueue>::iterator iter;
 
+		/* если внешняя очередь обновления политик обрабатывается */
+		if( 0 != g_psoConf->m_iOperateRefreshQueue ) {
 			/* запрашиваем подключение к БД */
 			if( 0 == pcrf_db_pool_get( &( pcoDBConn ), __FUNCTION__, USEC_PER_SEC ) && NULL != pcoDBConn ) {
 			  /* создаем список обновления политик */
-				CHECK_POSIX_DO( pcrf_client_db_load_refqueue_data( pcoDBConn, vectQueue ), goto clear_external_refresh_queue_data );
-
-				for( iter = vectQueue.begin(); iter != vectQueue.end(); ++iter ) {
-				  /* обрабатываем запись очереди обновлений политик */
-					if( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
-						pcrf_client_db_delete_refqueue( pcoDBConn, *iter );
-					}
-				}
-
-			clear_external_refresh_queue_data:
-			/* очищаем вектор */
-				vectQueue.clear();
-				/* если мы получили в распоряжение подключение к БД его надо освободить */
-				if( NULL != pcoDBConn ) {
-					pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
-					pcoDBConn = NULL;
-				}
+				CHECK_POSIX_DO( pcrf_client_db_load_refqueue_data( pcoDBConn, listQueue ), goto __clear_and_continue__ );
 			}
 		}
 
-		/* обрабатываем локальную очередь на завершение сессий */
-		/* блокируем мьютекс */
-		CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), goto clear_and_continue );
-		/* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
-		iterLocalQueue = g_setLocalRefreshQueue.begin();
-		while( iterLocalQueue != g_setLocalRefreshQueue.end() ) {
-			listSessionIdList.push_back( *iterLocalQueue );
-			++iterLocalQueue;
-		}
-		/* очищаем локальную очередь */
-		g_setLocalRefreshQueue.clear();
-		/* снимаем блокировку мьютекса */
-		CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
+		/* загружаем данные из локальной очереди обновления политик */
+		CHECK_POSIX_DO( pcrf_client_load_localQueue_data( listQueue ), goto __clear_and_continue__ );
 
-		/* обрабатываем список сессий */
-		iterSessionIdList = listSessionIdList.begin();
-		while( iterSessionIdList != listSessionIdList.end() ) {
-			{
-				SSessionInfo soSessInfo;
-
-				if( 0 == pcrf_session_cache_get( *iterSessionIdList, &soSessInfo, NULL, NULL ) ) {
-					pcrf_client_gx_rar_w_SRCause( soSessInfo );
-				}
+		for( iter = listQueue.begin(); iter != listQueue.end() && 0 == g_iStop; ++iter ) {
+		  /* обрабатываем запись очереди обновлений политик */
+			if( 0 == pcrf_client_operate_refqueue_record( pcoDBConn, *iter ) ) {
+				pcrf_client_db_delete_refqueue( pcoDBConn, *iter );
 			}
-			++iterSessionIdList;
 		}
 
-	clear_and_continue:
-		listSessionIdList.clear();
+	__clear_and_continue__:
+	/* очищаем вектор */
+		listQueue.clear();
+		/* если мы получили в распоряжение подключение к БД его надо освободить */
+		if( NULL != pcoDBConn ) {
+			pcrf_db_pool_rel( pcoDBConn, __FUNCTION__ );
+			pcoDBConn = NULL;
+		}
 	}
 
 	pthread_exit( 0 );
 }
 
-void pcrf_local_refresh_queue_add( std::string &p_strSessionId )
+void pcrf_local_refresh_queue_add( const time_t &p_tmTime, const std::string &p_strIdentifier, const char *p_pszIdentifierType, const char *p_pszAction )
 {
-  CHECK_POSIX_DO(pthread_mutex_lock(&g_tLocalQueueMutex), return);
-  g_setLocalRefreshQueue.insert( p_strSessionId );
-  CHECK_POSIX_DO(pthread_mutex_unlock(&g_tLocalQueueMutex), /* void */);
+	SRefQueue soRefQueue( p_strIdentifier, p_pszIdentifierType, p_pszAction );
+
+	CHECK_POSIX_DO( pthread_mutex_lock( &g_tLocalQueueMutex ), return );
+
+	g_mmapLocalRefreshQueue.insert( std::pair<time_t, SRefQueue>( p_tmTime, soRefQueue ) );
+
+	UTL_LOG_D(
+		*g_pcoLog,
+		"placed in local refresh queue: '%u'; '%s'; '%s'; '%s'",
+		p_tmTime, p_strIdentifier.c_str(), p_pszIdentifierType, ( NULL == p_pszAction ) ? "<null>" : p_pszAction );
+
+	CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
 }
 
 /* инициализация клиента */
@@ -728,4 +697,41 @@ void sess_state_cleanup (struct sess_state * state, os0_t sid, void * opaque)
   if (NULL != state) {
 		delete state;
 	}
+}
+
+SRefQueue::SRefQueue()
+{
+}
+
+SRefQueue::SRefQueue( const std::string &p_strIdentifier, const char *p_pszIdentifierType, const char *p_pszAction ) :
+	m_strIdentifier( p_strIdentifier ),
+	m_strIdentifierType( ( NULL != p_pszIdentifierType ) ? p_pszIdentifierType : "" )
+{
+	m_coAction.v.assign( ( NULL != p_pszAction ) ? p_pszAction : "" );
+	if( 0 != m_coAction.v.length() ) {
+		m_coAction.set_non_null();
+	}
+}
+
+static int pcrf_client_load_localQueue_data( std::list<SRefQueue> &p_listQueue )
+{
+	int iRetVal = 0;
+	std::multimap<time_t, SRefQueue>::iterator iterLocalQueueUpper;
+	std::multimap<time_t, SRefQueue>::iterator iterLocalQueue;
+
+	/* блокируем мьютекс */
+	CHECK_POSIX( pthread_mutex_lock( &g_tLocalQueueMutex ) );
+	/* быстренько копируем все идентификаторы сессий, чтобы не затягивать с блокировкой мьтекса */
+	iterLocalQueueUpper = g_mmapLocalRefreshQueue.upper_bound( time( NULL ) );
+	iterLocalQueue = g_mmapLocalRefreshQueue.begin();
+	while( iterLocalQueue != iterLocalQueueUpper ) {
+		p_listQueue.push_back( iterLocalQueue->second );
+		++iterLocalQueue;
+	}
+	/* очищаем локальную очередь */
+	g_mmapLocalRefreshQueue.erase( g_mmapLocalRefreshQueue.begin(), iterLocalQueueUpper );
+	/* снимаем блокировку мьютекса */
+	CHECK_POSIX_DO( pthread_mutex_unlock( &g_tLocalQueueMutex ), /* void */ );
+
+	return iRetVal;
 }

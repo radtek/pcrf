@@ -18,7 +18,7 @@ int pcrf_procera_terminate_session( std::string &p_strIPCANSessionId )
 
 	pcrf_procera_db_load_sess_list( p_strIPCANSessionId, vectSessList );
 	for( std::vector<SSessionInfo>::iterator iter = vectSessList.begin(); iter != vectSessList.end(); ++iter ) {
-		pcrf_local_refresh_queue_add( iter->m_strSessionId );
+		pcrf_local_refresh_queue_add( static_cast< time_t >( 0 ), iter->m_strSessionId, "session_id", "abort_session" );
 	}
 
 	return iRetVal;

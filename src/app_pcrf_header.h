@@ -243,14 +243,6 @@ int pcrf_db_session_usage(
 	std::vector<SSessionUsageInfo> &p_vectUsageInfo,
 	int &p_iUpdateRule );
 
-/* очередь элементов обновления политик */
-struct SRefQueue {
-	std::string m_strRowId;
-	std::string m_strIdentifier;
-	std::string m_strIdentifierType;
-	otl_value<std::string> m_coAction;
-};
-
 /* формирование полного списка правил */
 int pcrf_server_create_abon_rule_list(
 	otl_connect *p_pcoDBConn,
@@ -265,19 +257,33 @@ int pcrf_server_create_abon_rule_list(
 /* загрузка параметров правил из кэша */
 int pcrf_server_load_rule_info( const std::list<std::string> &p_listRuleName, const unsigned int p_uiPeerDialect, std::list<SDBAbonRule> &p_listAbonRules );
 
-/* операции клиента с БД */
+/* очередь элементов обновления политик */
+struct SRefQueue {
+	std::string m_strRowId;
+	std::string m_strIdentifier;
+	std::string m_strIdentifierType;
+	otl_value<std::string> m_coAction;
+	SRefQueue();
+	SRefQueue( const std::string &p_strIdentifier, const char *p_pszIdentifierType, const char *p_pszAction );
+};
 /* формирование очереди изменения политик */
-int pcrf_client_db_load_refqueue_data( otl_connect *p_pcoDBConn, std::vector<SRefQueue> &p_vectQueue );
+int pcrf_client_db_load_refqueue_data( otl_connect *p_pcoDBConn, std::list<SRefQueue> &p_listQueue );
 /* завершение зависшей сессии */
 void pcrf_client_db_fix_staled_sess( std::string &p_coSessionId );
 /* формирование списка сессий абонента */
 int pcrf_client_db_load_session_list( otl_connect *p_pcoDBConn, SRefQueue &p_soReqQueue, std::vector<std::string> &p_vectSessionList );
+/* функция удаляет запись из очереди обновления политик */
+int pcrf_client_db_delete_refqueue( otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue );
+
+/* функция для добавления элемента в локальную очередь обновления политик */
+void pcrf_local_refresh_queue_add( const time_t &p_tmTime, const std::string &p_strIdentifier, const char *p_pszIdentifierType, const char *p_pszAction );
+
 /* обновление записи в таблице сессий */
 void pcrf_db_update_session(
-  std::string &p_strSessionId,
-  otl_value<otl_datetime> &p_coTimeEnd,
-  otl_value<otl_datetime> &p_coTimeLast,
-  otl_value<std::string> &p_coTermCause );
+	std::string &p_strSessionId,
+	otl_value<otl_datetime> &p_coTimeEnd,
+	otl_value<otl_datetime> &p_coTimeLast,
+	otl_value<std::string> &p_coTermCause );
 
 /* запрос свободного подключения к БД */
 int pcrf_db_pool_get( otl_connect **p_ppcoDBConn, const char *p_pszClient, unsigned int p_uiWaitUSec );
@@ -343,9 +349,6 @@ void pcrf_server_db_insert_refqueue(
 	otl_datetime *p_pcoDateTime,
 	const char *p_pszAction);
 
-/* функция удаляет запись из очереди обновления политик */
-int pcrf_client_db_delete_refqueue( otl_connect *p_pcoDBConn, SRefQueue &p_soRefQueue );
-
 /* определение диалекта пира */
 /* функция определяет диалект пира, результат записывается в SSessionInfo, в случае успеха возвращает 0 */
 int pcrf_peer_dialect(SSessionInfo &p_soSessInfo);
@@ -391,9 +394,6 @@ int pcrf_procera_db_load_sess_list( std::string &p_strIPCANSessionId, std::vecto
 
 /* функция для закрытия всех правил локации сессии Procera */
 int pcrf_procera_db_load_location_rule( otl_connect *p_pcoDBConn, std::string &p_strSessionId, std::vector<SDBAbonRule> &p_vectRuleList );
-
-/* функция для добавления элемента в локальную очередь обновления политик */
-void pcrf_local_refresh_queue_add( std::string &p_strSessionId );
 
 #define NSEC_PER_USEC   1000L     
 #define USEC_PER_SEC    1000000L
