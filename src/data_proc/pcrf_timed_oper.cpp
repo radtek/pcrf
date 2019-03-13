@@ -17,7 +17,7 @@ struct STimedData {
 	unsigned int								 m_uiActionSet;
 	/* control */
 	volatile int								 m_iInit;
-	volatile int								 m_iAborted;
+	volatile int								 m_iSwitchedToOffline;
 	pthread_mutex_t								 m_mutexDataReady;
 	pthread_mutex_t								 m_mutexDataCopied;
 	/* constructor */
@@ -122,7 +122,7 @@ int pcrf_subscriber_data_proc( SSubscriberData *p_psoSubscriberData )
 				   p_psoSubscriberData->m_strSubscriberId.c_str(), iRetVal );
 		UTL_LOG_D( *g_pcoLog, "started default rule list creation" );
 		/* aborting data retrieval */
-		psoThreadData->m_iAborted = 1;
+		psoThreadData->m_iSwitchedToOffline = 1;
 
 		/* getting of default rules */
 		std::list<std::string> listRuleList;
@@ -188,10 +188,9 @@ static void * pcrf_subscriber_data_timed_oper( void * p_pvParam )
 			break;
 		}
 
-		if( 0 == psoParam->m_iAborted ) {
+		if( 0 == psoParam->m_iSwitchedToOffline ) {
 		} else {
-			UTL_LOG_D( *g_pcoLog, "execution was aborted in %u line", __LINE__ );
-			break;
+			UTL_LOG_D( *g_pcoLog, "execution was switched to offline in %u line", __LINE__ );
 		}
 
 		/* если надо обновить квоты */
@@ -199,24 +198,29 @@ static void * pcrf_subscriber_data_timed_oper( void * p_pvParam )
 			int iUpdateRule = 0;
 
 			/* сохраняем информацию о потреблении трафика, загружаем информации об оставшихся квотах */
-			iFnRes = pcrf_db_session_usage( pcoDBConn,
-								   psoParam->m_psoData->m_strSubscriberId,
-								   *psoParam->m_pmapMonitInfo,
-								   psoParam->m_psoData->m_vectUsageInfo,
-								   iUpdateRule );
-			if( 0 == iUpdateRule ) {
+			if( 0 == psoParam->m_iSwitchedToOffline && psoParam->m_psoData->m_i32CCRType != TERMINATION_REQUEST ) {
+				iFnRes = pcrf_db_session_usage( pcoDBConn,
+												psoParam->m_psoData->m_strSubscriberId,
+												*psoParam->m_pmapMonitInfo,
+												psoParam->m_psoData->m_vectUsageInfo,
+												iUpdateRule );
+				if( 0 == iUpdateRule ) {
+				} else {
+					psoParam->m_uiActionSet |= ACTION_OPERATE_RULE;
+				}
+				if( 0 == iFnRes ) {
+				} else {
+					UTL_LOG_D( *g_pcoLog, "it has got error while pcrf_db_session_usage executed: code: %u", iFnRes );
+				}
 			} else {
-				psoParam->m_uiActionSet |= ACTION_OPERATE_RULE;
-			}
-			if( 0 == iFnRes ) {
-			} else {
-				UTL_LOG_D( *g_pcoLog, "it has got error while pcrf_db_session_usage executed: code: %u", iFnRes );
+				pcrf_db_sessionUsage_offline( psoParam->m_psoData->m_strSubscriberId, psoParam->m_psoData->m_vectUsageInfo );
+				UTL_LOG_D( *g_pcoLog, "session usage info enqueued: '%s'", psoParam->m_psoData->m_strSubscriberId.c_str() );
 			}
 		}
 
-		if( 0 == psoParam->m_iAborted ) {
+		if( 0 == psoParam->m_iSwitchedToOffline ) {
 		} else {
-			UTL_LOG_D( *g_pcoLog, "execution was aborted in %u line", __LINE__ );
+			UTL_LOG_D( *g_pcoLog, "execution was switched to offline in %u line", __LINE__ );
 			break;
 		}
 
@@ -238,9 +242,9 @@ static void * pcrf_subscriber_data_timed_oper( void * p_pvParam )
 			}
 		}
 
-		if( 0 == psoParam->m_iAborted ) {
+		if( 0 == psoParam->m_iSwitchedToOffline ) {
 		} else {
-			UTL_LOG_D( *g_pcoLog, "execution was aborted in %u line", __LINE__ );
+			UTL_LOG_D( *g_pcoLog, "execution was switched to offline in %u line", __LINE__ );
 			break;
 		}
 
@@ -250,9 +254,9 @@ static void * pcrf_subscriber_data_timed_oper( void * p_pvParam )
 				pcrf_server_select_notrelevant_active( *psoParam->m_plistAbonRules, psoParam->m_psoData->m_vectActive );
 			}
 
-			if( 0 == psoParam->m_iAborted ) {
+			if( 0 == psoParam->m_iSwitchedToOffline ) {
 			} else {
-				UTL_LOG_D( *g_pcoLog, "execution was aborted in %u line", __LINE__ );
+				UTL_LOG_D( *g_pcoLog, "execution was switched to offline in %u line", __LINE__ );
 				break;
 			}
 				
@@ -321,7 +325,7 @@ STimedData::STimedData(
 	SSubscriberData *p_psoData,
 	std::list<SDBAbonRule> *p_plistAbonRules,
 	std::map<std::string, SDBMonitoringInfo> *p_pmapMonitInfo ) :
-	m_psoData( p_psoData ), m_plistAbonRules( p_plistAbonRules ), m_pmapMonitInfo( p_pmapMonitInfo ), m_uiActionSet( p_psoData->m_uiActionSet ), m_iInit( 0 ), m_iAborted( 0 )
+	m_psoData( p_psoData ), m_plistAbonRules( p_plistAbonRules ), m_pmapMonitInfo( p_pmapMonitInfo ), m_uiActionSet( p_psoData->m_uiActionSet ), m_iInit( 0 ), m_iSwitchedToOffline( 0 )
 {
 	/* инициализация мьютекса готовности данных */
 	if( 0 == pthread_mutex_init( &m_mutexDataReady, NULL ) && 0 == pthread_mutex_lock( &m_mutexDataReady ) ) {

@@ -240,8 +240,11 @@ int pcrf_db_session_usage(
 	otl_connect *p_pcoDBConn,
 	std::string &p_strSubscriberId,
 	std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo,
-	std::vector<SSessionUsageInfo> &p_vectUsageInfo,
+	const std::vector<SSessionUsageInfo> &p_vectUsageInfo,
 	int &p_iUpdateRule );
+
+/* запись информации о потребленном трафике в асинхронном режиме */
+void pcrf_db_sessionUsage_offline( std::string &p_strSubscriberId, const std::vector<SSessionUsageInfo> &p_vectUsageInfo );
 
 /* формирование полного списка правил */
 int pcrf_server_create_abon_rule_list(

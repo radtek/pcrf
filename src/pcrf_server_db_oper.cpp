@@ -190,11 +190,45 @@ void pcrf_db_update_session (
     &p_strSessionId );
 }
 
+void pcrf_db_sessionUsage_offline( std::string &p_strSubscriberId, const std::vector<SSessionUsageInfo> &p_vectUsageInfo )
+{
+	std::vector<SSessionUsageInfo>::iterator iterSessionUsage;
+
+	for( iterSessionUsage = p_vectUsageInfo.begin(); iterSessionUsage != p_vectUsageInfo.end(); ++iterSessionUsage ) {
+		{
+			std::list<SSQLQueueParam*> *plistParam = new std::list<SSQLQueueParam*>;
+
+			pcrf_sql_queue_add_param( plistParam, p_strSubscriberId );
+			pcrf_sql_queue_add_param( plistParam, iterSessionUsage.m_coMonitoringKey );
+			pcrf_sql_queue_add_param( plistParam, iterSessionUsage.m_coCCInputOctets );
+			pcrf_sql_queue_add_param( plistParam, iterSessionUsage.m_coCCOutputOctets );
+			pcrf_sql_queue_add_param( plistParam, iterSessionUsage.m_coCCTotalOctets );
+
+			pcrf_sql_queue_enqueue(
+				"begin"
+				"	nInput number;"
+				"	nOutput number;"
+				"	nTotal number;"
+				"	nRefresh number;"
+				"ps.qm.ProcessQuota("
+				"	:SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
+				"	:UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
+				"	nInput, nOutput, nTotal,"
+				"	nRefresh );"
+				"end;",
+				plistParam,
+				"store_usage_info_offline",
+				NULL,
+				true );
+		}
+	}
+}
+
 int pcrf_db_session_usage(
 	otl_connect *p_pcoDBConn,
 	std::string &p_strSubscriberId,
 	std::map<std::string, SDBMonitoringInfo> &p_mapMonitInfo,
-	std::vector<SSessionUsageInfo> &p_vectUsageInfo,
+	const std::vector<SSessionUsageInfo> &p_vectUsageInfo,
 	int &p_iUpdateRule )
 {
 	if( NULL != p_pcoDBConn ) {
@@ -203,7 +237,7 @@ int pcrf_db_session_usage(
 	}
 
 	bool bNothingToDo = true;
-	std::vector<SSessionUsageInfo>::iterator iter;
+	std::vector<SSessionUsageInfo>::const_iterator iter;
 
 	/* проверяем, надо ли обращаться к БД */
 	for( iter = p_vectUsageInfo.begin(); iter != p_vectUsageInfo.end(); ++iter ) {
@@ -236,10 +270,10 @@ sql_repeat:
 		coStream.open(
 			1,
 			"begin ps.qm.ProcessQuota("
-			":SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
-			":UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
-			":GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/,"
-			":UpdateRule /*int,out*/);"
+			"	:SubscriberID /*char[255],in*/, :MonitoringKey /*char[32],in*/,"
+			"	:UsedInputOctets /*ubigint,in*/, :UsedOutputOctets /*ubigint,in*/, :UsedTotalOctets /*ubigint,in*/,"
+			"	:GrantedInputOctets /*ubigint,out*/, :GrantedOutputOctets /*ubigint,out*/, :GrantedTotalOctets /*ubigint,out*/,"
+			"	:UpdateRule /*int,out*/);"
 			"end; ",
 			*p_pcoDBConn );
 		for( iter = p_vectUsageInfo.begin(); iter != p_vectUsageInfo.end(); ++iter ) {
